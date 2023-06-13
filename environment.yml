@@ -11,3 +11,6 @@ dependencies:
 - black
 - pytest
 - pytest-cov
+- pip
+- pip:
+    - ndx-franklab-novela
