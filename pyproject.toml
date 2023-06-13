@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spikegadgets_to_nwb"
+description = "A python package to convert SpikeGadgets data to NWB"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Sam Bray", email = "sam.bray@ucsf.edu" },
+    { name = "Ryan Ly", email = "rly@lbl.gov" },
+    { name = "Eric Denovellis", email = "eric.denovellis@ucsf.edu" },
+    { name = "Loren Frank", email = "loren.frank@ucsf.edu" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = ["numpy", "pynwb", "hdmf"]
+dynamic = ["version"]
+
+[project.urls]
+"Homepage" = "https://github.com/LorenFrankLab/spikegadgets_to_nwb"
+"Bug Tracker" = "https://github.com/LorenFrankLab/spikegadgets_to_nwb/issues"
+
+[project.optional-dependencies]
+test = ["black", "pytest", "pytest-cov"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/spikegadgets_to_nwb/_version.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [".git_archival.txt"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spikegadgets_to_nwb"]
+exclude = ["src/spikegadgets_to_nwb/data/test_data"]
