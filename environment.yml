@@ -5,8 +5,8 @@ channels:
 - franklab
 dependencies:
 - numpy
+- scipy
 - pynwb
-- hdmf
 - ipython
 - black
 - pytest
