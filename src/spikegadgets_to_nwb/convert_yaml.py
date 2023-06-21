@@ -9,8 +9,9 @@ import pytz
 import uuid
 
 from ndx_franklab_novela import CameraDevice, DataAcqDevice
+from ndx_franklab_novela import Probe, Shank, ShanksElectrode
+from pynwb.ecephys import ElectrodeGroup
 from pynwb.device import Device
-
 
 def initialNWB(metadata):
     nwb_file = NWBFile(
@@ -55,3 +56,43 @@ def add_acqDevices(nwbfile,metadata):
                             adc_circuit=acq_metadata['adc_circuit']))
 
 
+def add_electrodeGroups(nwbfile,metadata,probe_metadata):
+    probe_counter = 0 #used to track global probe ID across groups for naming
+    #loop through the electrode groups
+    for egroup_metadata in metadata['electrode_groups']:
+        #find the probe corresponding to the device type
+        probe_meta = None
+        for test_meta in probe_metadata:
+            if test_meta['probe_type'] == egroup_metadata['device_type']:
+                probe_meta = test_meta
+        #Build the relevant Probe
+        probe_list = []
+        
+        #make the Probe object
+        probe = Probe(
+            id=probe_counter,
+            name=f'probe {probe_counter}',
+            probe_type=probe_meta['probe_type'],
+            units=probe_meta['units'],
+            probe_description=probe_meta['probe_description'],
+            contact_side_numbering=probe_meta['contact_side_numbering'],
+            contact_size=probe_meta['contact_size']
+        )
+        probe_counter += 1
+        #add Shanks to Probe
+        for shank_meta in probe_meta['shanks']:
+            # build the shank and add
+            shank = Shank(name=str(shank_meta['shank_id']),)
+            # add the shanks electrodes based on metadata
+            for electrode_meta in shank_meta['electrodes']:
+                shank.add_shanks_electrode(ShanksElectrode(name=str(electrode_meta['id']),
+                                                            rel_x=float(electrode_meta['rel_x']),
+                                                            rel_y=float(electrode_meta['rel_y']),
+                                                            rel_z=float(electrode_meta['rel_z']),))
+            #add the shank to the probe
+            probe.add_shank(shank)          
+        #make the electrode group
+        nwbfile.add_electrode_group(ElectrodeGroup(name=str(egroup_metadata['id']),
+                                                description=egroup_metadata['description'],
+                                                location=egroup_metadata['targeted_location'],
+                                                device=probe,))
