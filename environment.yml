@@ -1,4 +1,4 @@
-name: spikegadets_to_nwb
+name: spikegadgets_to_nwb
 channels:
 - defaults
 - conda-forge
