@@ -12,7 +12,7 @@ def test_initial_nwb_creation():
                 "session_id":'12345',
                 # notes=self.link_to_notes, TODO
                 "experiment_description":'testing file creation',}
-    nwb_file = convert_yaml.initialNWB(metadata)
+    nwb_file = convert_yaml.initialize_nwb(metadata)
     
     #check that things were added in
     assert len(nwb_file.experimenter) > 0
@@ -32,7 +32,7 @@ def test_subject_creation():
                 "experiment_description":'testing file creation',
                 'subject':{'weight': 500}
                 }
-    nwb_file = convert_yaml.initialNWB(metadata)
+    nwb_file = convert_yaml.initialize_nwb(metadata)
     convert_yaml.add_subject(nwb_file,metadata)
     assert type(nwb_file.subject) is Subject
     assert type(nwb_file.subject.weight) is str
