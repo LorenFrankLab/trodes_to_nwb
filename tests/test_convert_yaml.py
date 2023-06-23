@@ -114,4 +114,3 @@ def test_electrode_creation():
 
     # Check if the electrode table was extended correctly
     assert len(nwbfile.electrodes.columns) == 13
-
