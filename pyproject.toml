@@ -31,6 +31,7 @@ test = ["black", "pytest", "pytest-cov"]
 
 [tool.hatch.version]
 source = "vcs"
+fallback_version = "0.1.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/spikegadgets_to_nwb/_version.py"
