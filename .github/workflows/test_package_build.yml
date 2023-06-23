@@ -78,7 +78,7 @@ jobs:
       - name: Install test extras
         run: pip install spikegadgets_to_nwb[test]
       - name: Run tests
-        run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
+        run: pytest --doctest-modules -v --pyargs
   publish:
     runs-on: ubuntu-latest
     needs: [test-package]
