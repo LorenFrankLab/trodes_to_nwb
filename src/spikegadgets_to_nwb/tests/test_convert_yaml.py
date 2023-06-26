@@ -6,7 +6,7 @@ from hdmf.common.table import DynamicTable, VectorData
 
 
 def test_initial_nwb_creation():
-    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata_path = "/tests/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata)
     # check that things were added in
@@ -27,7 +27,7 @@ def test_initial_nwb_creation():
 
 
 def test_subject_creation():
-    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata_path = "./tests/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata)
     convert_yaml.add_subject(nwb_file, metadata)
@@ -43,7 +43,7 @@ def test_subject_creation():
 
 
 def test_camera_creation():
-    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata_path = "/src/spikegadgets/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata)
     convert_yaml.add_cameras(nwb_file, metadata)
@@ -56,7 +56,7 @@ def test_camera_creation():
 
 
 def test_acq_device_creation():
-    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata_path = "./src/spikegadgets/tests/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata)
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
@@ -69,7 +69,7 @@ def test_acq_device_creation():
 
 
 def test_electrode_creation():
-    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata_path = "/test_data/test_metadata.yml"
     probe_metadata = [
         "tests/test_data/tetrode_12.5.yml",
     ]
@@ -119,7 +119,7 @@ def test_electrode_creation():
 
 def test_add_tasks():
     # Set up test data
-    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata_path = "./test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata)
 
