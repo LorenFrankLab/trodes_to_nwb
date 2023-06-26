@@ -8,6 +8,7 @@ import os
 
 path = os.path.dirname(os.path.abspath(__file__))
 
+
 def test_initial_nwb_creation():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
