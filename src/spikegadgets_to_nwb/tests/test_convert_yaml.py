@@ -8,20 +8,6 @@ import os
 
 path = os.path.dirname(os.path.abspath(__file__))
 
-
-def test_dir():
-    # print("curdir: ", os.curdir)
-    # print("contents: ", os.listdir())
-    # print(os.listdir('/'))
-    print(path)
-    # for root, dirs, files in os.walk("/"):
-    # path = root.split(os.sep)
-    # print((len(path) - 1) * "---", os.path.basename(root))
-    # for file in files:
-    #     print(len(path) * "---", file)
-    assert False
-
-
 def test_initial_nwb_creation():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])

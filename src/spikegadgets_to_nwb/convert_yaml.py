@@ -148,16 +148,9 @@ def add_electrodeGroups(
     probe_metadata : list[dict]
         list of metadata about each probe type in the experiment
     """
-    electrode_df = pd.DataFrame(
-        columns=[
-            "hwChan",
-            "ntrode_id",
-            "channel_id",
-            "bad_channel",
-            "probe_shank",
-            "probe_electrode",
-            "ref_elect_id",
-        ]
+
+    electrode_df_list = (
+        []
     )  # dataframe to track non-default electrode data. add to electrodes table at end
     # loop through the electrode groups
     for probe_counter, egroup_metadata in enumerate(metadata["electrode_groups"]):
@@ -217,27 +210,31 @@ def add_electrodeGroups(
                     rel_z=float(electrode_meta["rel_z"]),
                 )
                 # track additional electrode data
-                electrode_df = electrode_df.append(
-                    {
-                        "hwChan": None,
-                        "ntrode_id": channel_map["ntrode_id"],
-                        "channel_id": electrode_counter_probe,
-                        "bad_channel": bool(
-                            electrode_counter_probe in channel_map["bad_channels"]
-                        ),
-                        "probe_shank": shank_counter,
-                        "probe_electrode": electrode_counter_probe,
-                        "ref_elect_id": None,
-                    },
-                    ignore_index=True,
-                )  # TODO: ref_elect_id, hwchan,
+                electrode_df_list.append(
+                    pd.DataFrame.from_dict(
+                        (
+                            {
+                                "hwChan": None,
+                                "ntrode_id": channel_map["ntrode_id"],
+                                "channel_id": electrode_counter_probe,
+                                "bad_channel": bool(
+                                    electrode_counter_probe
+                                    in channel_map["bad_channels"]
+                                ),
+                                "probe_shank": shank_counter,
+                                "probe_electrode": electrode_counter_probe,
+                                "ref_elect_id": None,
+                            },
+                        )
+                    )
+                )  # TODO: ref_elect_id, hwch
                 electrode_counter_probe += 1
             # add the shank to the probe
             probe.add_shank(shank)
         # add the completed probe to the nwb as a device
         nwbfile.add_device(probe)
     # add the electrode table information
-    extend_electrode_table(nwbfile, electrode_df)
+    extend_electrode_table(nwbfile, pd.concat(electrode_df_list))  # electrode_df)
 
 
 def extend_electrode_table(nwbfile, electrode_df):
