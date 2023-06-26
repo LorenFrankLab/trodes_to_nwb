@@ -1,7 +1,8 @@
 from spikegadgets_to_nwb import convert_yaml
 from datetime import datetime
-from pynwb.file import Subject
+from pynwb.file import Subject, ProcessingModule
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
+from hdmf.common.table import DynamicTable, VectorData
 
 
 def test_initial_nwb_creation():
@@ -114,3 +115,55 @@ def test_electrode_creation():
 
     # Check if the electrode table was extended correctly
     assert len(nwbfile.electrodes.columns) == 13
+
+
+def test_add_tasks():
+    # Set up test data
+    metadata_path = "tests/test_data/test_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    nwbfile = convert_yaml.initialize_nwb(metadata)
+
+    # Call the function to be tested
+    convert_yaml.add_tasks(nwbfile, metadata)
+
+    # Perform assertions to check the results
+    # Check if the processing module was added correctly
+    assert "tasks" in nwbfile.processing
+    tasks_module = nwbfile.processing["tasks"]
+    assert isinstance(tasks_module, ProcessingModule)
+    assert tasks_module.name == "tasks"
+    assert tasks_module.description == "Contains all tasks information"
+
+    # Check if the tasks were added correctly
+    assert len(tasks_module.data_interfaces) == len(metadata["tasks"])
+    for i, task_metadata in enumerate(metadata["tasks"]):
+        task = tasks_module.data_interfaces[f"task_{i}"]
+        assert isinstance(task, DynamicTable)
+        assert task.name == f"task_{i}"
+        assert task.description == ""
+        assert len(task.columns) == 5
+
+        # Check if the task metadata columns were added correctly
+        for val in task.columns:
+            assert isinstance(val, VectorData)
+        for a, b in zip(
+            task.colnames,
+            (
+                "task_name",
+                "task_description",
+                "camera_id",
+                "task_epochs",
+                "task_environment",
+            ),
+        ):
+            assert a == b
+
+        # Check if the task metadata values were added correctly
+        task_df = task.to_dataframe()
+        assert task_df["task_name"][0] == task_metadata["task_name"]
+        assert task_df["task_description"][0] == task_metadata["task_description"]
+        assert task_df["camera_id"][0] == [int(id) for id in task_metadata["camera_id"]]
+        assert task_df["task_epochs"][0] == [
+            int(epoch) for epoch in task_metadata["task_epochs"]
+        ]
+        assert task_df["task_environment"][0] == task_metadata["task_environment"]

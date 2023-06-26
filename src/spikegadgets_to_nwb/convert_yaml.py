@@ -1,7 +1,8 @@
 import yaml
 
 from pynwb import NWBFile
-from pynwb.file import Subject
+from pynwb.file import Subject, ProcessingModule
+from hdmf.common.table import DynamicTable, VectorData
 from copy import deepcopy
 from datetime import datetime
 import pandas as pd
@@ -275,3 +276,59 @@ def extend_electrode_table(nwbfile, electrode_df):
         description="“Experimenter selected reference electrode id”",
         data=list(electrode_df["ref_elect_id"]),
     )
+
+
+def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
+    """Creates processing module for tasks and adds their metadata info
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        nwb file being assembled
+    metadata : dict
+        metadata from the yaml generator
+    """
+    # make a processing module for task data
+    nwbfile.add_processing_module(
+        ProcessingModule("tasks", "Contains all tasks information")
+    )
+    # loop through tasks in the metadata and add them
+    for i, task_metadata in enumerate(metadata["tasks"]):
+        task_name = VectorData(
+            name="task_name",
+            description="the name of the task",
+            data=[task_metadata["task_name"]],
+        )
+        task_description = VectorData(
+            name="task_description",
+            description="a description of the task",
+            data=[task_metadata["task_description"]],
+        )
+        camera_id = VectorData(
+            name="camera_id",
+            description="the ID number of the camera used for video",
+            data=[[int(camera_id) for camera_id in task_metadata["camera_id"]]],
+        )
+        task_epochs = VectorData(
+            name="task_epochs",
+            description="the temporal epochs where the animal was exposed to this task",
+            data=[[int(epoch) for epoch in task_metadata["task_epochs"]]],
+        )
+        # NOTE: rec_to_nwb checked that this value existed and filed with none otherwise. Do we require this in yaml?
+        task_environment = VectorData(
+            name="task_environment",
+            description="the environment in which the animal performed the task",
+            data=[task_metadata["task_environment"]],
+        )
+        task = DynamicTable(
+            name=f"task_{i}",  # NOTE: Do we want this name to match the descriptive name entered?
+            description="",
+            columns=[
+                task_name,
+                task_description,
+                camera_id,
+                task_epochs,
+                task_environment,
+            ],
+        )
+        nwbfile.processing["tasks"].add(task)
