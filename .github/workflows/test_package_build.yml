@@ -77,6 +77,12 @@ jobs:
         run: pip install archive/archive.tgz
       - name: Install test extras
         run: pip install spikegadgets_to_nwb[test]
+      - name: Print current directory
+        run: ls
+      - name: Navigate to source directory
+        run: cd ..
+      - name: Print source directory
+        run: ls
       - name: Run tests
         run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
   publish:
