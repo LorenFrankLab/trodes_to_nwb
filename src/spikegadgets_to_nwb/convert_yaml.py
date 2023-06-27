@@ -136,7 +136,7 @@ def add_acquisition_devices(nwbfile: NWBFile, metadata: dict) -> None:
         )
 
 
-def add_electrodeGroups(
+def add_electrode_groups(
     nwbfile: NWBFile, metadata: dict, probe_metadata: list[dict]
 ) -> None:
     """Adds electrode groups, probes, shanks, and electrodes to nwb file

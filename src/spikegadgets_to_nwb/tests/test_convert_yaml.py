@@ -81,7 +81,7 @@ def test_electrode_creation():
     nwbfile = convert_yaml.initialize_nwb(metadata)
 
     # Call the function to be tested
-    convert_yaml.add_electrodeGroups(nwbfile, metadata, probe_metadata)
+    convert_yaml.add_electrode_groups(nwbfile, metadata, probe_metadata)
 
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
