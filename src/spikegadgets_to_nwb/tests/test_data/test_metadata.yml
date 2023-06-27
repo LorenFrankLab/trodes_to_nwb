@@ -98,6 +98,13 @@ behavioral_events:
 device:
   name:
     - device1
+behavioral_events:
+  - description: Din1
+    name: Light_1
+  - description: Din1
+    name: Light_2
+  - description: Dout2
+    name: Poke_1
 electrode_groups:
   - id: 0
     location: corpus callosum and associated subcortical white matter (cc-ec-cing-dwm)
