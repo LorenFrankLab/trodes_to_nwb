@@ -345,9 +345,9 @@ def add_dios(nwbfile: NWBFile, metadata: dict) -> None:
     """
     # TODO: pass the dio data and include in this
     # Make a processing module for behavior and add to the nwbfile
-    if not "behavior" in nwbfile.processing.keys():
-        nwbfile.add_processing_module(
-            ProcessingModule("behavior", "Contains all behavior-related data")
+    if not "behavior" in nwbfile.processing:
+        nwbfile.create_processing_module(
+            name="behavior", description="Contains all behavior-related data"
         )
     # Make Behavioral events object to hold DIO data
     events = BehavioralEvents(name="behavioral_events")
@@ -361,9 +361,9 @@ def add_dios(nwbfile: NWBFile, metadata: dict) -> None:
                 data=np.array(
                     []
                 ),  # TODO: from rec file // self.data[dio_event['description']],
-                unit="none",  # TODO: from rec file //self.unit
+                unit="N/A",
                 timestamps=np.array([]),
-                # TODO: data, unit (unspecified), timestamps,
+                # TODO: data, timestamps,
             )
         )
     # add it to your file
