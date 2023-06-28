@@ -9,7 +9,7 @@ import os
 path = os.path.dirname(os.path.abspath(__file__))
 
 
-def xxxtest_add_header_device(): #TODO: resolve rec file loading and unhide test name
+def xxxtest_add_header_device():  # TODO: resolve rec file loading and unhide test name
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
