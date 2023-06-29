@@ -13,6 +13,7 @@ import uuid
 
 from ndx_franklab_novela import CameraDevice, DataAcqDevice
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
+from ndx_franklab_novela import AssociatedFiles
 from pynwb.ecephys import ElectrodeGroup
 
 
@@ -368,3 +369,40 @@ def add_dios(nwbfile: NWBFile, metadata: dict) -> None:
         )
     # add it to your file
     nwbfile.processing["behavior"].add(events)
+
+
+def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
+    """Adds associated files processing module. Reads in file referenced in metadata and stores in processing
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        nwb file being assembled
+    metadata : dict
+        metadata from the yaml generator
+    """
+    if "associated_files" not in metadata:
+        return
+    associated_files = []
+    for file in metadata["associated_files"]:
+        # read file content
+        content = ""
+        try:
+            with open(file["path"] + file["name"], "r") as open_file:
+                content = open_file.read()
+        except:
+            print(f"ERROR: Cannot read file at {file['path']+file['name']}")
+        # convert task epoch values into strings
+        task_epochs = "".join([str(element) + ", " for element in file["task_epochs"]])
+        associated_files.append(
+            AssociatedFiles(
+                name=file["name"],
+                description=file["description"],
+                content=content,
+                task_epochs=task_epochs,
+            )
+        )
+    nwbfile.create_processing_module(
+        name="associated_files", description="Contains all associated files data"
+    )
+    nwbfile.processing["associated_files"].add(associated_files)
