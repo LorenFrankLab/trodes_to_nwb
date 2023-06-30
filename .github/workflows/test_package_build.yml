@@ -84,7 +84,7 @@ jobs:
           WEBSITE: ftps://ftp.box.com/spikegadgets_to_nwb_test_data/
           DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
         run: |
-          wget --recursive -nv --no-host-directories --user $UCSF_BOX_USER $WEBSITE --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR
+          wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR $WEBSITE
           tree $DOWNLOAD_DIR
       - name: Run tests
         run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
