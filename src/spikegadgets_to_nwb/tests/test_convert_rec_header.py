@@ -9,12 +9,12 @@ import os
 path = os.path.dirname(os.path.abspath(__file__))
 
 
-def xxxtest_add_header_device():  # TODO: resolve rec file loading and unhide test name
+def test_add_header_device():
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata)
-    recfile = "/stelmo/sam/test_data/minirec/raw/20230622/20230622_minirec_01_s1.rec"
+    recfile = path + "/test_data/20230622_160016.rec"
 
     # Call the function to be tested
     convert_rec_header.add_header_device(nwbfile, recfile)
