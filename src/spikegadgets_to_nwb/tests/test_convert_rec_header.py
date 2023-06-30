@@ -18,11 +18,11 @@ def test_add_header_device():
     try:
         # running on github
         rec_path = "/home/runner/work/spikegadgets_to_nwb/spikegadgets_to_nwb/src/spikegadgets_to_nwb/tests/test_data"
-        recfile = rec_path + "/20230622_160016.rec"
+        recfile = rec_path + "/20230622_155936.rec"
         convert_rec_header.add_header_device(nwbfile, recfile)
     except:
         # running locally
-        recfile = path + "/test_data/20230622_160016.rec"
+        recfile = path + "/test_data/20230622_155936.rec"
         convert_rec_header.add_header_device(nwbfile, recfile)
 
     # Perform assertions to check the results
