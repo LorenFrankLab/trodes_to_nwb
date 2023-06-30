@@ -14,10 +14,16 @@ def test_add_header_device():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata)
-    recfile = path + "/test_data/20230622_160016.rec"
-
     # Call the function to be tested
-    convert_rec_header.add_header_device(nwbfile, recfile)
+    try:
+        # running on github
+        rec_path = "/home/runner/work/spikegadgets_to_nwb/spikegadgets_to_nwb/src/spikegadgets_to_nwb/tests/test_data"
+        recfile = rec_path + "/test_data/20230622_160016.rec"
+        convert_rec_header.add_header_device(nwbfile, recfile)
+    except:
+        # running locally
+        recfile = path + "/test_data/20230622_160016.rec"
+        convert_rec_header.add_header_device(nwbfile, recfile)
 
     # Perform assertions to check the results
     # Check if the device was added correctly
