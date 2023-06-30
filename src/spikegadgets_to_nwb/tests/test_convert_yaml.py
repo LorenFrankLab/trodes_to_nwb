@@ -53,10 +53,11 @@ def test_camera_creation():
     convert_yaml.add_cameras(nwb_file, metadata)
     cameras = nwb_file.devices
     assert len(cameras) == 2
-    assert cameras["test camera 1"].meters_per_pixel == 0.001
-    assert cameras["test camera 1"].model == "model1"
-    assert cameras["test camera 1"].lens == "lens1"
-    assert cameras["test camera 1"].manufacturer == "Allied Vision"
+    name = 'camera_device ' + str(metadata['cameras'][0]['id'])
+    assert cameras[name].meters_per_pixel == 0.001
+    assert cameras[name].model == "model1"
+    assert cameras[name].lens == "lens1"
+    assert cameras[name].manufacturer == "Allied Vision"
 
 
 def test_acq_device_creation():

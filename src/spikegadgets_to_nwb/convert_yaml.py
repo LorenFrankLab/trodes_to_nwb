@@ -104,7 +104,7 @@ def add_cameras(nwbfile: NWBFile, metadata: dict) -> None:
     for camera_metadata in metadata["cameras"]:
         nwbfile.add_device(
             CameraDevice(
-                name=camera_metadata["camera_name"],
+                name="camera_device " + str(camera_metadata["id"]),
                 meters_per_pixel=camera_metadata["meters_per_pixel"],
                 manufacturer=camera_metadata["manufacturer"],
                 model=camera_metadata["model"],
