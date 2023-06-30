@@ -85,7 +85,7 @@ jobs:
           DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
         run: |
           wget --recursive -nv --no-host-directories --user $UCSF_BOX_USER $WEBSITE --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR
-          ls $DOWNLOAD_DIR/spikegadgets_to_nwb_test_data -lah
+          tree $DOWNLOAD_DIR
       - name: Run tests
         run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
   publish:
