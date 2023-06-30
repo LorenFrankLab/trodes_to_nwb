@@ -77,8 +77,15 @@ jobs:
         run: pip install archive/archive.tgz
       - name: Install test extras
         run: pip install spikegadgets_to_nwb[test]
-      - name: Print directory tree
-        run: tree
+      - name: Download test rec files
+        env:
+          UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
+          UCSF_BOX_USER: ${{ secrets.UCSF_BOX_USER }}
+          WEBSITE: ftps://ftp.box.com/spikegadgets_to_nwb_test_data/
+          DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
+        run: |
+          wget --recursive --user $UCSF_BOX_USER $WEBSITE --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR
+          ls $DOWNLOAD_DIR
       - name: Run tests
         run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
   publish:
