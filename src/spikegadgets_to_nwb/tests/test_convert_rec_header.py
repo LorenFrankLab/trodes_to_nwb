@@ -19,7 +19,7 @@ def test_add_header_device():
         # running on github
         recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
         convert_rec_header.add_header_device(nwbfile, recfile)
-    except TypeError or FileNotFoundError:
+    except (TypeError, FileNotFoundError):
         # running locally
         recfile = path + "/test_data/20230622_155936.rec"
         convert_rec_header.add_header_device(nwbfile, recfile)

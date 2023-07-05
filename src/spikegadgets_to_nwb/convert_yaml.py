@@ -390,10 +390,13 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
         try:
             with open(file["path"] + file["name"], "r") as open_file:
                 content = open_file.read()
-        except FileNotFoundError:
-            print(f"ERROR: associated file {file['path']+file['name']} does not exist")
-        except IOError:
-            print(f"ERROR: Cannot read file at {file['path']+file['name']}")
+        except FileNotFoundError as err:
+            print(
+                f"ERROR: associated file {file['path']+file['name']} does not exist",
+                err,
+            )
+        except IOError as err:
+            print(f"ERROR: Cannot read file at {file['path']+file['name']}", err)
         # convert task epoch values into strings
         task_epochs = "".join([str(element) + ", " for element in file["task_epochs"]])
         associated_files.append(
