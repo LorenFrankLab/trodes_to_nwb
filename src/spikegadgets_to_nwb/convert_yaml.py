@@ -1,13 +1,16 @@
 import yaml
+from xml.etree import ElementTree
 
 from pynwb import NWBFile, TimeSeries
 from pynwb.file import Subject, ProcessingModule
 from pynwb.behavior import BehavioralEvents
+from pynwb.image import ImageSeries
 from hdmf.common.table import DynamicTable, VectorData
 from copy import deepcopy
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import os
 import pytz
 import uuid
 
@@ -171,8 +174,8 @@ def add_electrode_groups(
                 break
         # Build the relevant Probe
         probe = Probe(
-            id=probe_counter,
-            name=f"probe {probe_counter}",
+            id=probe_counter,  ###TODO: should be egroup_meta['id']?
+            name=f"probe {probe_counter}",  ###TODO: should be egroup_meta['id']?
             probe_type=probe_meta["probe_type"],
             units=probe_meta["units"],
             probe_description=probe_meta["probe_description"],
@@ -411,3 +414,61 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
         name="associated_files", description="Contains all associated files data"
     )
     nwbfile.processing["associated_files"].add(associated_files)
+
+
+def add_associated_video_files(
+    nwbfile: NWBFile,
+    metadata: dict,
+    video_directory: str,
+    raw_data_path: str,
+    convert_timestamps: bool,
+) -> None:
+    """"""
+    # make processing module for video files
+    nwbfile.create_processing_module(
+        name="video_files", description="Contains all associated video files data"
+    )
+    # make a behavioral Event object to hold videos
+    video = BehavioralEvents(name="video")
+    # loop and make an image series for each video file. Add it to the behavioral event object
+    for video_metadata in metadata["associated_video_files"]:
+        try:
+            # PTP active
+            # TODO: Read rec data at path below and get the timestamp data
+            os.path.join(
+                raw_data_path,
+                os.path.splitext(video_metadata["name"])[0]
+                + ".videoTimeStamps.cameraHWSync",
+            )["data"]["HWTimestamp"]
+            video_timestamps = None
+            is_old_dataset = False
+        except FileNotFoundError:
+            # old dataset (PTP inactive)
+            # TODO: Read rec data at path below and get the timestamp data
+            os.path.join(
+                raw_data_path,
+                os.path.splitext(video_metadata["name"])[0]
+                + ".videoTimeStamps.cameraHWFrameCount",
+            )["data"]["frameCount"]
+
+            video_timestamps = None
+            is_old_dataset = True
+        if (not is_old_dataset) or (convert_timestamps):
+            # for now, FORCE turn off convert_timestamps for old dataset
+            video_timestamps = video_timestamps / 1e9
+
+        video.add_timeseries(
+            ImageSeries(
+                device=nwbfile.devices[
+                    "camera_device " + str(video_metadata["camera_id"])
+                ],
+                name=video_metadata["name"],
+                timestamps=video_timestamps,
+                external_file=[os.path.join(video_directory, video_metadata["name"])],
+                format="external",
+                starting_frame=[0],
+                description="video of animal behavior from epoch",
+            )
+        )
+    # add the behavioralEvents object to the video_files processing module to the nwbfile
+    nwbfile.processing["video_files"].add(video)
