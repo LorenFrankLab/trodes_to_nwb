@@ -71,3 +71,42 @@ def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
             file_path=global_configuration.attrib["filePath"],
         )
     )
+
+
+def validate_yaml_header_electrode_map(
+    metadata: dict, spike_config: ElementTree.Element
+) -> None:
+    """checks that the channel and grouping defined by the yaml matches that found in the header file
+
+    Parameters
+    ----------
+    metadata : dict
+        metadata from the yaml generator
+    spike_config : xml.etree.ElementTree.Element
+        Information from the xml header on ntrode grouping of channels
+    """
+    # validate every ntrode in header corresponds with egroup in yaml
+    validated_channel_maps = []
+    for group in spike_config:
+        ntrode_id = group.attrib["id"]
+        # find appropriate channel map metadata
+        channel_map = None
+        map_number = None
+        for map_number, test_meta in enumerate(
+            metadata["ntrode_electrode_group_channel_map"]
+        ):
+            if str(test_meta["ntrode_id"]) == ntrode_id:
+                channel_map = test_meta
+                break
+        if channel_map is None:
+            print(f"ERROR: Missing yaml metadata for ntrodes {ntrode_id}")
+        elif not len(group) == len(channel_map["map"]):
+            print(
+                f"ERROR: ntrode group {ntrode_id} does not contain the number of channels indicated by the metadata yaml"
+            )
+        else:
+            # add this channel map to the validated list
+            validated_channel_maps.append(map_number)
+
+    if validated_channel_maps < metadata["ntrode_electrode_group_channel_map"]:
+        print("ERROR: XML Header contains less ntrodes than the yaml indicates")
