@@ -110,3 +110,45 @@ def validate_yaml_header_electrode_map(
 
     if validated_channel_maps < metadata["ntrode_electrode_group_channel_map"]:
         print("ERROR: XML Header contains less ntrodes than the yaml indicates")
+
+
+def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> dict:
+    """Generates the mappings from an electrode id in a electrode group to it's hwChan in the header file
+
+    Parameters
+    ----------
+    metadata : dict
+        metadata from the yaml generator
+    spike_config : xml.etree.ElementTree.Element
+        Information from the xml header on ntrode grouping of channels and hwChan info for each
+
+    Returns
+    -------
+    hw_channel_map: dict
+        A dictionary of dictionaries mapping {nwb_group_id->{nwb_electrode_id->hwChan}}
+    """
+    hw_channel_map = {}  # {nwb_group_id->{nwb_electrode_id->hwChan}}
+    for group in spike_config:
+        ntrode_id = group.attrib["id"]
+        # find appropriate channel map metadata
+        channel_map = None
+        for test_meta in metadata["ntrode_electrode_group_channel_map"]:
+            if str(test_meta["ntrode_id"]) == ntrode_id:
+                channel_map = test_meta
+                break
+        if (
+            channel_map is None
+        ):  # TODO: Expected behavior if channels in the config are not in the yaml metadata?
+            continue
+        nwb_group_id = channel_map["electrode_group_id"]
+        # make a dictinary for the nwbgroup to map nwb_electrode_id -> hwchan, may not be necessary for probes with multiple ntrode groups per nwb group
+        if not nwb_group_id in hw_channel_map:
+            hw_channel_map[nwb_group_id] = {}
+        # add each nwb_electrode_id to dictionary mapping to its hardware channel
+        for config_electrode_id, channel in enumerate(group):
+            # find nwb_electrode_id for this stream in the config file
+            nwb_electrode_id = channel_map["map"][str(config_electrode_id)]
+            hw_channel_map[nwb_group_id][str(nwb_electrode_id)] = channel.attrib[
+                "hwChan"
+            ]
+        return hw_channel_map
