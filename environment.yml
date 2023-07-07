@@ -6,6 +6,7 @@ channels:
 dependencies:
 - numpy
 - scipy
+- pandas
 - pynwb
 - ipython
 - black

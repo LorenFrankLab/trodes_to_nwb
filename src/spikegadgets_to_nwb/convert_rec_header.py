@@ -3,6 +3,26 @@ from ndx_franklab_novela import HeaderDevice
 from pynwb import NWBFile
 
 
+def read_header(recfile: str) -> ElementTree.Element:
+    header_size = None
+    with open(recfile, mode="rb") as f:
+        while True:
+            line = f.readline()
+            if b"</Configuration>" in line:
+                header_size = f.tell()
+                break
+
+        if header_size is None:
+            raise ValueError(
+                "SpikeGadgets: the xml header does not contain '</Configuration>'"
+            )
+
+        f.seek(0)
+        header_txt = f.read(header_size).decode("utf8")
+
+    return ElementTree.fromstring(header_txt)
+
+
 def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
     """Reads global configuration from rec file and inserts into a header device within the nwbfile
 
@@ -13,25 +33,9 @@ def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
     recfile : str
         path to rec file
     """
-    # open the rec file and find the header
-    header_size = None
-    with open(recfile, mode="rb") as f:
-        while True:
-            line = f.readline()
-            if b"</Configuration>" in line:
-                header_size = f.tell()
-                break
-
-        if header_size is None:
-            ValueError(
-                "SpikeGadgets: the xml header does not contain '</Configuration>'"
-            )
-
-        f.seek(0)
-        header_txt = f.read(header_size).decode("utf8")
 
     # explore xml header
-    root = ElementTree.fromstring(header_txt)
+    root = read_header(recfile)
     global_configuration = root.find("GlobalConfiguration")
 
     nwbfile.add_device(
@@ -156,3 +160,20 @@ def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> di
                 "hwChan"
             ]
         return hw_channel_map
+
+
+def detect_ptp_from_header(header: ElementTree.ElementTree) -> bool:
+    VALID_CAMERA_MODULE_NAMES = ["cameraModule", "./cameraModule"]
+
+    mconf = header.tree.find("ModuleConfiguration")
+    ptp_enabled = False
+    for smconf in mconf.findall("SingleModuleConfiguration"):
+        if smconf.get("moduleName") in VALID_CAMERA_MODULE_NAMES:
+            for arg in smconf.findall("Argument"):
+                ptp_enabled = "-ptpEnabled" in arg.attrib.values()
+                if ptp_enabled:
+                    break
+            if ptp_enabled:
+                break
+    print("PTP enabled: " + str(ptp_enabled))
+    return ptp_enabled

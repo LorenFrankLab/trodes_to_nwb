@@ -19,7 +19,14 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = ["numpy", "scipy", "pynwb", "ndx_franklab_novela", "pyyaml"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "pynwb",
+    "ndx_franklab_novela",
+    "pyyaml",
+]
 dynamic = ["version"]
 
 [project.urls]
