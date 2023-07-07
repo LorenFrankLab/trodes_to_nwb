@@ -3,17 +3,7 @@ from ndx_franklab_novela import HeaderDevice
 from pynwb import NWBFile
 
 
-def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
-    """Reads global configuration from rec file and inserts into a header device within the nwbfile
-
-    Parameters
-    ----------
-    nwbfile : NWBFile
-        nwb file being assembled
-    recfile : str
-        path to rec file
-    """
-    # open the rec file and find the header
+def read_header(recfile: str) -> ElementTree.Element:
     header_size = None
     with open(recfile, mode="rb") as f:
         while True:
@@ -30,8 +20,22 @@ def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
         f.seek(0)
         header_txt = f.read(header_size).decode("utf8")
 
+    return ElementTree.fromstring(header_txt)
+
+
+def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
+    """Reads global configuration from rec file and inserts into a header device within the nwbfile
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        nwb file being assembled
+    recfile : str
+        path to rec file
+    """
+
     # explore xml header
-    root = ElementTree.fromstring(header_txt)
+    root = read_header(recfile)
     global_configuration = root.find("GlobalConfiguration")
 
     nwbfile.add_device(
