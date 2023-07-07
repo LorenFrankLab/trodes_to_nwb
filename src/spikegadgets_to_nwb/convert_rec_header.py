@@ -23,7 +23,7 @@ def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
                 break
 
         if header_size is None:
-            ValueError(
+            raise ValueError(
                 "SpikeGadgets: the xml header does not contain '</Configuration>'"
             )
 
