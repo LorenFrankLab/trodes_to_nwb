@@ -156,3 +156,20 @@ def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> di
                 "hwChan"
             ]
         return hw_channel_map
+
+
+def detect_ptp_from_header(header: ElementTree.ElementTree) -> bool:
+    VALID_CAMERA_MODULE_NAMES = ["cameraModule", "./cameraModule"]
+
+    mconf = header.tree.find("ModuleConfiguration")
+    ptp_enabled = False
+    for smconf in mconf.findall("SingleModuleConfiguration"):
+        if smconf.get("moduleName") in VALID_CAMERA_MODULE_NAMES:
+            for arg in smconf.findall("Argument"):
+                ptp_enabled = "-ptpEnabled" in arg.attrib.values()
+                if ptp_enabled:
+                    break
+            if ptp_enabled:
+                break
+    print("PTP enabled: " + str(ptp_enabled))
+    return ptp_enabled
