@@ -108,8 +108,12 @@ def validate_yaml_header_electrode_map(
             # add this channel map to the validated list
             validated_channel_maps.append(map_number)
 
-    if validated_channel_maps < metadata["ntrode_electrode_group_channel_map"]:
+    if len(validated_channel_maps) < len(
+        metadata["ntrode_electrode_group_channel_map"]
+    ):
         print("ERROR: XML Header contains less ntrodes than the yaml indicates")
+    print(validated_channel_maps)
+    # print(metadata["ntrode_electrode_group_channel_map"])
 
 
 def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> dict:
