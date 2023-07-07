@@ -172,3 +172,31 @@ def test_add_tasks():
             int(epoch) for epoch in task_metadata["task_epochs"]
         ]
         assert task_df["task_environment"][0] == task_metadata["task_environment"]
+
+
+def test_add_associated_files():
+    # Set up test data
+    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    nwbfile = convert_yaml.initialize_nwb(metadata)
+    # Change path of files to be relative to this directory
+    for assoc_meta in metadata["associated_files"]:
+        assoc_meta["path"] = path + "/test_data/"
+    # call the function to test
+    convert_yaml.add_associated_files(nwbfile, metadata)
+    assert "associated_files" in nwbfile.processing
+    assert len(nwbfile.processing["associated_files"].data_interfaces) == len(
+        metadata["associated_files"]
+    )
+    assert "associated1.txt" in nwbfile.processing["associated_files"].data_interfaces
+    assert (
+        nwbfile.processing["associated_files"]["associated1.txt"].description
+        == "good file"
+    )
+    assert (
+        nwbfile.processing["associated_files"]["associated1.txt"].task_epochs == "1, "
+    )
+    assert (
+        nwbfile.processing["associated_files"]["associated1.txt"].content
+        == "test file 1"
+    )

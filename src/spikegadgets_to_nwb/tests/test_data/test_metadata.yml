@@ -53,12 +53,12 @@ tasks:
       - 2
       - 4
 associated_files:
-  - name: File1
+  - name: associated1.txt
     description: good file
     path: path/
     task_epochs:
       - 1
-  - name: File2
+  - name: associated2.txt
     description: good file
     path: path/
     task_epochs:
