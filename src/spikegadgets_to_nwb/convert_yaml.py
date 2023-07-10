@@ -300,11 +300,6 @@ def extend_electrode_table(nwbfile, electrode_df):
         description="the number of this electrode with respect to the probe",
         data=list(electrode_df["probe_electrode"]),
     )
-    # nwbfile.electrodes.add_column(
-    #     name="ref_elect_id",
-    #     description="“Experimenter selected reference electrode id”",
-    #     data=list(electrode_df["ref_elect_id"]),
-    # )
 
 
 def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
