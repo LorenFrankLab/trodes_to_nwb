@@ -224,3 +224,9 @@ def test_add_associated_files():
         nwbfile.processing["associated_files"]["associated1.txt"].content
         == "test file 1"
     )
+
+    def test_add_associated_video_files():
+        return
+
+    def test_add_dio():
+        return
