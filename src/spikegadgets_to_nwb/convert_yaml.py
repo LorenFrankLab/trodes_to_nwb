@@ -141,7 +141,10 @@ def add_acquisition_devices(nwbfile: NWBFile, metadata: dict) -> None:
 
 
 def add_electrode_groups(
-    nwbfile: NWBFile, metadata: dict, probe_metadata: list[dict]
+    nwbfile: NWBFile,
+    metadata: dict,
+    probe_metadata: list[dict],
+    hw_chanel_map: dict,
 ) -> None:
     """Adds electrode groups, probes, shanks, and electrodes to nwb file
 
@@ -153,6 +156,8 @@ def add_electrode_groups(
         metadata from the yaml generator
     probe_metadata : list[dict]
         list of metadata about each probe type in the experiment
+    hw_channel_map: dict
+        A dictionary of dictionaries mapping {nwb_group_id->{nwb_electrode_id->hwChan}}
     """
 
     electrode_df_list = (
@@ -220,7 +225,9 @@ def add_electrode_groups(
                     pd.DataFrame.from_dict(
                         (
                             {
-                                "hwChan": None,
+                                "hwChan": hw_chanel_map[egroup_metadata["id"]][
+                                    str(electrode_meta["id"])
+                                ],
                                 "ntrode_id": channel_map["ntrode_id"],
                                 "channel_id": electrode_counter_probe,
                                 "bad_channel": bool(
@@ -233,7 +240,7 @@ def add_electrode_groups(
                             },
                         )
                     )
-                )  # TODO: ref_elect_id, hwch
+                )  # TODO: ref_elect_id,
                 electrode_counter_probe += 1
             # add the shank to the probe
             probe.add_shank(shank)

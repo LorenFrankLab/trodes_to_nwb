@@ -73,7 +73,11 @@ def test_acq_device_creation():
     assert devices[name].adc_circuit == "Intan"
 
 
+from spikegadgets_to_nwb import convert_rec_header
+
+
 def test_electrode_creation():
+    # load metadata yml and make nwb file
     metadata_path = path + "/test_data/test_metadata.yml"
     probe_metadata = [
         path + "/test_data/tetrode_12.5.yml",
@@ -81,8 +85,20 @@ def test_electrode_creation():
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata)
 
+    # create the hw_channel map using rec data
+    try:
+        # running on github
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = path + "/test_data/20230622_155936.rec"
+    rec_header = convert_rec_header.read_header(recfile)
+    hw_channel_map = convert_rec_header.make_hw_channel_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
+
     # Call the function to be tested
-    convert_yaml.add_electrode_groups(nwbfile, metadata, probe_metadata)
+    convert_yaml.add_electrode_groups(nwbfile, metadata, probe_metadata, hw_channel_map)
 
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
@@ -120,6 +136,9 @@ def test_electrode_creation():
 
     # Check if the electrode table was extended correctly
     assert len(nwbfile.electrodes.columns) == 13
+
+    # Check that electrode table hwChan is correct
+    assert list(nwbfile.electrodes.to_dataframe()["hwChan"]) == ["29", "25", "28", "21"]
 
 
 def test_add_tasks():
