@@ -159,7 +159,57 @@ def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> di
             hw_channel_map[nwb_group_id][str(nwb_electrode_id)] = channel.attrib[
                 "hwChan"
             ]
-        return hw_channel_map
+    return hw_channel_map
+
+
+def make_ref_electrode_map(metadata: dict, spike_config: ElementTree.Element) -> dict:
+    """Generates a dictionary mapping an nwb electrode group to its reference electrode tuple(nwb_group_id,electrode_id).
+    Values of -1 in the tuple indicate no reference electrode
+
+    Parameters
+    ----------
+    metadata : dict
+        metadata from the yaml generator
+    spike_config : xml.etree.ElementTree.Element
+        Information from the xml header on ntrode grouping of channels and hwChan info for each
+    Returns
+    -------
+    ref_electrode_map: dict
+        A dictionary mapping a nwb_group_id to its ref electrode e.g. {nwb_group_id->(nwb_group_id,nwb_electrode_id)}
+    """
+    ref_electrode_map = {}  # {nwb_group_id -> ref_id = (nwbb_group_id,electid)}
+    # make dictionary for {ntrodeid:nwbid}
+    ntrode_id_to_nwb = {}
+    for test_meta in metadata["ntrode_electrode_group_channel_map"]:
+        ntrode_id_to_nwb[str(test_meta["ntrode_id"])] = str(
+            test_meta["electrode_group_id"]
+        )
+
+    for group in spike_config:
+        if "refNTrodeID" in group.attrib:
+            # define the current ntrode group's nwb id
+            ntrode_id = group.attrib["id"]
+            if ntrode_id not in ntrode_id_to_nwb:
+                continue  # TODO: define behavior for missing metadata
+            nwb_group_id = ntrode_id_to_nwb[ntrode_id]
+            # find channel map for ref group
+            ntrode_ref_group_id = group.attrib["refNTrodeID"]
+            ref_channel_map = None
+            for test_meta in metadata["ntrode_electrode_group_channel_map"]:
+                if str(test_meta["ntrode_id"]) == ntrode_ref_group_id:
+                    ref_channel_map = test_meta
+                    break
+            # get the nwb group and electrode for the reference channel
+            ref_group_nwb = ntrode_id_to_nwb[ntrode_ref_group_id]
+            ref_electrode_nwb = ref_channel_map["map"][
+                str(int(group.attrib["refChan"]) - 1)
+            ]  # adjusted because trodes is 1-indexed
+            # add it to the map (only need one per group)
+            ref_electrode_map[nwb_group_id] = (ref_group_nwb, ref_electrode_nwb)
+        else:
+            # no reference defined
+            ref_electrode_map[nwb_group_id] = (-1, -1)
+    return ref_electrode_map
 
 
 def detect_ptp_from_header(header: ElementTree.ElementTree) -> bool:

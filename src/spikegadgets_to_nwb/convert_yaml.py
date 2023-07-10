@@ -144,7 +144,8 @@ def add_electrode_groups(
     nwbfile: NWBFile,
     metadata: dict,
     probe_metadata: list[dict],
-    hw_chanel_map: dict,
+    hw_channel_map: dict,
+    ref_electrode_map: dict,
 ) -> None:
     """Adds electrode groups, probes, shanks, and electrodes to nwb file
 
@@ -225,7 +226,7 @@ def add_electrode_groups(
                     pd.DataFrame.from_dict(
                         (
                             {
-                                "hwChan": hw_chanel_map[egroup_metadata["id"]][
+                                "hwChan": hw_channel_map[egroup_metadata["id"]][
                                     str(electrode_meta["id"])
                                 ],
                                 "ntrode_id": channel_map["ntrode_id"],
@@ -236,18 +237,36 @@ def add_electrode_groups(
                                 ),
                                 "probe_shank": shank_counter,
                                 "probe_electrode": electrode_counter_probe,
-                                "ref_elect_id": None,
                             },
                         )
                     )
-                )  # TODO: ref_elect_id,
+                )
                 electrode_counter_probe += 1
             # add the shank to the probe
             probe.add_shank(shank)
         # add the completed probe to the nwb as a device
         nwbfile.add_device(probe)
     # add the electrode table information
-    extend_electrode_table(nwbfile, pd.concat(electrode_df_list))  # electrode_df)
+    extend_electrode_table(nwbfile, pd.concat(electrode_df_list))
+    # define the ref electrode for each row in the table
+    # (done seperately because depends on indexing group id and channel)
+    ref_electrode_id = []
+    electrode_table = nwbfile.electrodes.to_dataframe()
+    for nwb_group in list(electrode_table["group_name"]):
+        # use the refference electrode map and defined electrode table to find index of the reference electrode
+        ref_group, ref_electrode = ref_electrode_map[str(nwb_group)]
+        ref_electrode_id.append(
+            electrode_table.index[
+                (electrode_table["group_name"] == ref_group)
+                & (electrode_table["probe_electrode"] == ref_electrode)
+            ][0]
+        )
+    # add the ref electrode id list to the electrodes table
+    nwbfile.electrodes.add_column(
+        name="ref_elect_id",
+        description="Experimenter selected reference electrode id",
+        data=ref_electrode_id,
+    ),
 
 
 def extend_electrode_table(nwbfile, electrode_df):
@@ -281,11 +300,11 @@ def extend_electrode_table(nwbfile, electrode_df):
         description="the number of this electrode with respect to the probe",
         data=list(electrode_df["probe_electrode"]),
     )
-    nwbfile.electrodes.add_column(
-        name="ref_elect_id",
-        description="“Experimenter selected reference electrode id”",
-        data=list(electrode_df["ref_elect_id"]),
-    )
+    # nwbfile.electrodes.add_column(
+    #     name="ref_elect_id",
+    #     description="“Experimenter selected reference electrode id”",
+    #     data=list(electrode_df["ref_elect_id"]),
+    # )
 
 
 def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:

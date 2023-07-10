@@ -1,4 +1,4 @@
-from spikegadgets_to_nwb import convert_yaml
+from spikegadgets_to_nwb import convert_yaml, convert_rec_header
 from datetime import datetime
 from pynwb.file import Subject, ProcessingModule
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
@@ -73,9 +73,6 @@ def test_acq_device_creation():
     assert devices[name].adc_circuit == "Intan"
 
 
-from spikegadgets_to_nwb import convert_rec_header
-
-
 def test_electrode_creation():
     # load metadata yml and make nwb file
     metadata_path = path + "/test_data/test_metadata.yml"
@@ -96,9 +93,14 @@ def test_electrode_creation():
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
     )
+    ref_electrode_map = convert_rec_header.make_ref_electrode_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
 
     # Call the function to be tested
-    convert_yaml.add_electrode_groups(nwbfile, metadata, probe_metadata, hw_channel_map)
+    convert_yaml.add_electrode_groups(
+        nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
+    )
 
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
@@ -139,6 +141,9 @@ def test_electrode_creation():
 
     # Check that electrode table hwChan is correct
     assert list(nwbfile.electrodes.to_dataframe()["hwChan"]) == ["29", "25", "28", "21"]
+
+    # Check that electrode table reference electrode is correct
+    assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"]) == [0, 0, 0, 0]
 
 
 def test_add_tasks():
