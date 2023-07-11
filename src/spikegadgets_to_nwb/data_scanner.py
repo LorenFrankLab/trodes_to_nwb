@@ -1,6 +1,15 @@
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
+
+VALID_FILE_EXTENSIONS = [
+    "rec",
+    "videoPositionTracking",
+    "h264",
+    "cameraHWSync",
+    "stateScriptLog",
+]
 
 
 def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
@@ -14,16 +23,9 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
 
 
 def get_file_info(path: Path) -> pd.DataFrame:
-    VALID_FILE_EXTENSIONS = [
-        "rec",
-        "videoPositionTracking",
-        "h264",
-        "cameraHWSync",
-        "stateScriptLog",
-    ]
     COLUMN_NAMES = [
         "date",
-        "animal_name",
+        "animal",
         "epoch",
         "tag",
         "tag_index",
@@ -40,3 +42,20 @@ def get_file_info(path: Path) -> pd.DataFrame:
             for ext in VALID_FILE_EXTENSIONS
         ]
     )
+
+
+def _all_files_in_ext(file_extensions):
+    return all(
+        [ext.replace(".", "") in VALID_FILE_EXTENSIONS for ext in file_extensions]
+    )
+
+
+def check_has_all_file_extensions(file_info):
+    has_all_file_extensions = file_info.groupby(
+        ["date", "animal", "epoch"]
+    ).file_extension.apply(_all_files_in_ext)
+    if not np.all(has_all_file_extensions):
+        print("missing files")
+        print(file_info[~has_all_file_extensions])
+    else:
+        print("all files present")
