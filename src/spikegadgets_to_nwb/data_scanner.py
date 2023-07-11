@@ -19,6 +19,11 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
     tag = tag[0]
     full_path = str(path.absolute())
     extension = path.suffix
+    try:
+        # check if date, epoch, and tag_index are integers
+        int(date), int(epoch), int(tag_index)
+    except ValueError:
+        print(f"Invalid file name: {path.stem}")
     return date, animal_name, epoch, tag, tag_index, extension, full_path
 
 
