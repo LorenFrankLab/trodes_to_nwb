@@ -3,7 +3,6 @@ from pathlib import Path
 import pandas as pd
 
 from spikegadgets_to_nwb.data_scanner import (
-    check_has_all_file_extensions,
     get_file_info,
 )
 
@@ -17,7 +16,6 @@ def create_nwb(path: Path):
         path = Path(path)
 
     file_info = get_file_info(path)
-    is_good_dataset = check_has_all_file_extensions(file_info)
 
     for session, session_df in file_info.groupby(["date", "animal"]):
         print(f"Creating NWB file for session: {session}")
