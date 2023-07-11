@@ -23,12 +23,18 @@ def create_nwb(path: Path):
         for epoch, epoch_df in session_df.groupby(["date", "animal", "epoch"]):
             print(f"\tProcessing epoch: {epoch}")
             rec_filepaths = get_file_paths(epoch_df, ".rec")
+            print(f"\t\trec_filepaths: {rec_filepaths}")
             position_tracking_filepaths = get_file_paths(
                 epoch_df, ".videoPositionTracking"
             )
+            print(f"\t\tposition_tracking_filepaths: {position_tracking_filepaths}")
             position_timestamps_filepaths = get_file_paths(epoch_df, ".cameraHWSync")
+            print(f"\t\tposition_timestamps_filepaths: {position_timestamps_filepaths}")
             state_script_log_filepaths = get_file_paths(epoch_df, ".stateScriptLog")
+            print(f"\t\tstate_script_log_filepaths: {state_script_log_filepaths}")
             video_filepaths = get_file_paths(epoch_df, ".h264")
+            print(f"\t\tvideo_filepaths: {video_filepaths}")
             metadata_filepaths = get_file_paths(epoch_df, ".yaml")
+            print(f"\t\tmetadata_filepaths: {metadata_filepaths}")
 
             # nwb epoch specific creation code goes here
