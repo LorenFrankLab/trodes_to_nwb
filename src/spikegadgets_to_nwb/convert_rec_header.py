@@ -118,7 +118,9 @@ def validate_yaml_header_electrode_map(
         raise (IndexError("XML Header contains less ntrodes than the yaml indicates"))
 
 
-def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> dict:
+def make_hw_channel_map(
+    metadata: dict, spike_config: ElementTree.Element
+) -> dict[dict]:
     """Generates the mappings from an electrode id in a electrode group to it's hwChan in the header file
 
     Parameters
@@ -146,7 +148,7 @@ def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> di
             raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
         nwb_group_id = channel_map["electrode_group_id"]
         # make a dictinary for the nwbgroup to map nwb_electrode_id -> hwchan, may not be necessary for probes with multiple ntrode groups per nwb group
-        if not nwb_group_id in hw_channel_map:
+        if nwb_group_id not in hw_channel_map:
             hw_channel_map[nwb_group_id] = {}
         # add each nwb_electrode_id to dictionary mapping to its hardware channel
         for config_electrode_id, channel in enumerate(group):
@@ -158,7 +160,9 @@ def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> di
     return hw_channel_map
 
 
-def make_ref_electrode_map(metadata: dict, spike_config: ElementTree.Element) -> dict:
+def make_ref_electrode_map(
+    metadata: dict, spike_config: ElementTree.Element
+) -> dict[tuple]:
     """Generates a dictionary mapping an nwb electrode group to its reference electrode tuple(nwb_group_id,electrode_id).
     Values of -1 in the tuple indicate no reference electrode
 
