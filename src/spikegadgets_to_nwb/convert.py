@@ -19,8 +19,6 @@ def create_nwb(path: Path):
     file_info = get_file_info(path)
     is_good_dataset = check_has_all_file_extensions(file_info)
 
-    # TODO: how to discover yamls?
-
     for session, session_df in file_info.groupby(["date", "animal"]):
         print(f"Creating NWB file for session: {session}")
         # nwb file creation code goes here
