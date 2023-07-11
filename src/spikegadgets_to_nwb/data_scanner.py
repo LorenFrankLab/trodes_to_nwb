@@ -46,16 +46,16 @@ def get_file_info(path: Path) -> pd.DataFrame:
             )
             for ext in VALID_FILE_EXTENSIONS
         ]
-    )
+    ).sort_values(by=["date", "animal", "epoch", "tag_index"])
 
 
-def _all_files_in_ext(file_extensions):
+def _all_files_in_ext(file_extensions: list[str]) -> bool:
     return all(
         [ext.replace(".", "") in VALID_FILE_EXTENSIONS for ext in file_extensions]
     )
 
 
-def check_has_all_file_extensions(file_info):
+def check_has_all_file_extensions(file_info: pd.DataFrame) -> bool:
     has_all_file_extensions = file_info.groupby(
         ["date", "animal", "epoch"]
     ).file_extension.apply(_all_files_in_ext)
@@ -64,3 +64,5 @@ def check_has_all_file_extensions(file_info):
         print(file_info[~has_all_file_extensions])
     else:
         print("all files present")
+
+    return np.all(has_all_file_extensions)
