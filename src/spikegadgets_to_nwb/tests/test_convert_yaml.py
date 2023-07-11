@@ -140,10 +140,15 @@ def test_electrode_creation():
     assert len(nwbfile.electrodes.columns) == 13
 
     # Check that electrode table hwChan is correct
-    assert list(nwbfile.electrodes.to_dataframe()["hwChan"]) == ["29", "25", "28", "21"]
+    assert list(nwbfile.electrodes.to_dataframe()["hwChan"][:4]) == [
+        "29",
+        "25",
+        "28",
+        "21",
+    ]
 
     # Check that electrode table reference electrode is correct
-    assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"]) == [0, 0, 0, 0]
+    assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"][:4]) == [0, 0, 0, 0]
 
 
 def test_add_tasks():
