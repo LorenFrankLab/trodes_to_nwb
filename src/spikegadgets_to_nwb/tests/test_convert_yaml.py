@@ -125,20 +125,21 @@ def test_electrode_creation():
     # Check if the shanks and electrodes were added correctly
     shank_meta_list = probe_metadata["shanks"]
     assert len(probe.shanks) == len(shank_meta_list)
+    electrode_id = 0
     for j, shank_meta in enumerate(shank_meta_list):
         shank = probe.shanks[str(j)]
         assert isinstance(shank, Shank)
         assert len(shank.shanks_electrodes) == len(shank_meta["electrodes"])
         for k, electrode_meta in enumerate(shank_meta["electrodes"]):
-            electrode = shank.shanks_electrodes[str(k)]
+            electrode = shank.shanks_electrodes[str(electrode_id)]
             assert isinstance(electrode, ShanksElectrode)
             assert electrode.rel_x == float(electrode_meta["rel_x"])
             assert electrode.rel_y == float(electrode_meta["rel_y"])
             assert electrode.rel_z == float(electrode_meta["rel_z"])
+            electrode_id += 1
 
     # Check if the electrode table was extended correctly
     assert len(nwbfile.electrodes.columns) == 13
-
     # Check that electrode table hwChan is correct
     assert list(nwbfile.electrodes.to_dataframe()["hwChan"][:4]) == [
         "29",
@@ -146,9 +147,83 @@ def test_electrode_creation():
         "28",
         "21",
     ]
-
     # Check that electrode table reference electrode is correct
     assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"][:4]) == [0, 0, 0, 0]
+
+
+def test_electrode_creation_reconfigured():
+    # load metadata yml and make nwb file
+    metadata_path = path + "/test_data/test_metadata_probe_reconfig.yml"
+    probe_metadata = [
+        path + "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
+    ]
+    metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata)
+
+    # create the hw_channel map using the reconfig header
+    recfile = path + "/test_data/reconfig_probeDevice.trodesconf"
+    rec_header = convert_rec_header.read_header(recfile)
+    hw_channel_map = convert_rec_header.make_hw_channel_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
+    ref_electrode_map = convert_rec_header.make_ref_electrode_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
+
+    # Call the function to be tested
+    convert_yaml.add_electrode_groups(
+        nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
+    )
+
+    # Perform assertions to check the results
+    # Check if the electrode groups were added correctly
+    assert len(nwbfile.electrode_groups) == len(metadata["electrode_groups"])
+    for i, group_metadata in enumerate(metadata["electrode_groups"]):
+        group = nwbfile.electrode_groups[str(group_metadata["id"])]
+        assert group.description == group_metadata["description"]
+        assert group.location == group_metadata["targeted_location"]
+
+    # Check if the probes were added correctly
+    assert len(nwbfile.devices) == len(metadata["electrode_groups"])
+    probe = nwbfile.devices["probe 0"]
+    probe_metadata = probe_metadata[0]
+
+    assert isinstance(probe, Probe)
+    assert probe.probe_type == probe_metadata["probe_type"]
+    assert probe.units == probe_metadata["units"]
+    assert probe.probe_description == probe_metadata["probe_description"]
+    assert probe.contact_side_numbering == probe_metadata["contact_side_numbering"]
+    assert probe.contact_size == probe_metadata["contact_size"]
+
+    # Check if the shanks and electrodes were added correctly
+    shank_meta_list = probe_metadata["shanks"]
+    assert len(probe.shanks) == len(shank_meta_list)
+    electrode_id = 0
+    for j, shank_meta in enumerate(shank_meta_list):
+        shank = probe.shanks[str(j)]
+        assert isinstance(shank, Shank)
+        assert len(shank.shanks_electrodes) == len(shank_meta["electrodes"])
+        for electrode_meta in shank_meta["electrodes"]:
+            electrode = shank.shanks_electrodes[str(electrode_id)]
+            assert isinstance(electrode, ShanksElectrode)
+            assert electrode.rel_x == float(electrode_meta["rel_x"])
+            assert electrode.rel_y == float(electrode_meta["rel_y"])
+            assert electrode.rel_z == float(electrode_meta["rel_z"])
+            electrode_id += 1
+
+    # Check if the electrode table was extended correctly
+    assert len(nwbfile.electrodes.columns) == 13
+    # Check that electrode table hwChan is correct
+    assert list(nwbfile.electrodes.to_dataframe()["hwChan"][:4]) == [
+        "29",
+        "25",
+        "28",
+        "21",
+    ]
+    # Check that electrode table reference electrode is correct
+    assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"][:4]) == [0, 0, 0, 0]
+    # check that hw channel mapping from channel_map is correct
+    assert list(nwbfile.electrodes.to_dataframe()["hwChan"][-2:]) == ["115", "107"]
 
 
 def test_add_tasks():

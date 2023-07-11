@@ -1,0 +1,263 @@
+experimenter_name:
+  - lastname, firstname
+  - lastname2, firstname2
+lab: Loren Frank Lab
+institution: UCSF
+experiment_description: Test Conversion
+session_description: test yaml insertion
+session_id: "12345"
+keywords:
+  - testing
+subject:
+  description: Long-Evans Rat
+  genotype: Obese Prone CD Rat
+  sex: M
+  species: Rattus pyctoris
+  subject_id: "54321"
+  date_of_birth: 2000-01-01T00:00:00.000Z
+  weight: 100
+data_acq_device:
+  - name: SpikeGadgets
+    system: Main Control Unit
+    amplifier: Intan
+    adc_circuit: Intan
+cameras:
+  - id: 0
+    meters_per_pixel: 0.001
+    manufacturer: Allied Vision
+    model: model1
+    lens: lens1
+    camera_name: test camera 1
+  - id: 1
+    meters_per_pixel: 0.001
+    manufacturer: Allied Vision
+    model: model1
+    lens: lens1
+    camera_name: test camera 2
+tasks:
+  - task_name: Sleep
+    task_description: sleeping
+    task_environment: sleep box
+    camera_id:
+      - 0
+    task_epochs:
+      - 1
+      - 3
+      - 5
+  - task_name: wtrack
+    task_description: reward finding
+    task_environment: wtrack arena
+    camera_id:
+      - 1
+    task_epochs:
+      - 2
+      - 4
+associated_files:
+  - name: associated1.txt
+    description: good file
+    path: path/
+    task_epochs:
+      - 1
+  - name: associated2.txt
+    description: good file
+    path: path/
+    task_epochs:
+      - 2
+associated_video_files:
+  - name: video1
+    camera_id: 0
+    task_epochs:
+      - 1
+  - name: video3
+    camera_id: 0
+    task_epochs:
+      - 3
+  - name: video5
+    camera_id: 0
+    task_epochs:
+      - 5
+  - name: video2
+    camera_id: 1
+    task_epochs:
+      - 2
+  - name: video4
+    camera_id: 1
+    task_epochs:
+      - 2
+units:
+  analog: "-1"
+  behavioral_events: "-1"
+times_period_multiplier: 1
+raw_data_to_volts: 1
+default_header_file_path: default/header/path/
+behavioral_events:
+  - description: Din1
+    name: Light_1
+  - description: Din1
+    name: Light_2
+device:
+  name:
+    - device1
+behavioral_events:
+  - description: Din1
+    name: Light_1
+  - description: Din1
+    name: Light_2
+  - description: Dout2
+    name: Poke_1
+
+electrode_groups:
+  - id: 0
+    location: corpus callosum and associated subcortical white matter (cc-ec-cing-dwm)
+    device_type: 128c-4s6mm6cm-15um-26um-sl
+    description: terode device description
+    targeted_location: Corticofugal pathways (cfp)
+    targeted_x: 1.1
+    targeted_y: 2.2
+    targeted_z: 3.3
+    units: mm
+ntrode_electrode_group_channel_map:
+  - ntrode_id: 1
+    electrode_group_id: 0
+    bad_channels: []
+    map:
+      "0": 0
+      "1": 1
+      "2": 2
+      "3": 3
+      "4": 4
+      "5": 5
+      "6": 6
+      "7": 7
+      "8": 8
+      "9": 9
+      "10": 10
+      "11": 11
+      "12": 12
+      "13": 13
+      "14": 14
+      "15": 15
+      "16": 16
+      "17": 17
+      "18": 18
+      "19": 19
+      "20": 20
+      "21": 21
+      "22": 22
+      "23": 23
+      "24": 24
+      "25": 25
+      "26": 26
+      "27": 27
+      "28": 28
+      "29": 29
+      "30": 30
+      "31": 31
+  - ntrode_id: 2
+    electrode_group_id: 0
+    bad_channels: []
+    map:
+      "0": 32
+      "1": 33
+      "2": 34
+      "3": 35
+      "4": 36
+      "5": 37
+      "6": 38
+      "7": 39
+      "8": 40
+      "9": 41
+      "10": 42
+      "11": 43
+      "12": 44
+      "13": 45
+      "14": 46
+      "15": 47
+      "16": 48
+      "17": 49
+      "18": 50
+      "19": 51
+      "20": 52
+      "21": 53
+      "22": 54
+      "23": 55
+      "24": 56
+      "25": 57
+      "26": 58
+      "27": 59
+      "28": 60
+      "29": 61
+      "30": 62
+      "31": 63
+  - ntrode_id: 3
+    electrode_group_id: 0
+    bad_channels: []
+    map:
+      "0": 64
+      "1": 65
+      "2": 66
+      "3": 67
+      "4": 68
+      "5": 69
+      "6": 70
+      "7": 71
+      "8": 72
+      "9": 73
+      "10": 74
+      "11": 75
+      "12": 76
+      "13": 77
+      "14": 78
+      "15": 79
+      "16": 80
+      "17": 81
+      "18": 82
+      "19": 83
+      "20": 84
+      "21": 85
+      "22": 86
+      "23": 87
+      "24": 88
+      "25": 89
+      "26": 90
+      "27": 91
+      "28": 92
+      "29": 93
+      "30": 94
+      "31": 95
+  - ntrode_id: 4
+    electrode_group_id: 0
+    bad_channels: []
+    map:
+      "0": 96
+      "1": 97
+      "2": 98
+      "3": 99
+      "4": 100
+      "5": 101
+      "6": 102
+      "7": 103
+      "8": 104
+      "9": 105
+      "10": 106
+      "11": 107
+      "12": 108
+      "13": 109
+      "14": 110
+      "15": 111
+      "16": 112
+      "17": 113
+      "18": 114
+      "19": 115
+      "20": 116
+      "21": 117
+      "22": 118
+      "23": 119
+      "24": 120
+      "25": 121
+      "26": 122
+      "27": 123
+      "28": 124
+      "29": 125
+      "30": 127
+      "31": 126 #swap map for last two rows to test channel mapping function
