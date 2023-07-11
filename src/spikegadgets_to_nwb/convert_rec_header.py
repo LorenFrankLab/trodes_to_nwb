@@ -103,10 +103,10 @@ def validate_yaml_header_electrode_map(
                 channel_map = test_meta
                 break
         if channel_map is None:
-            print(f"ERROR: Missing yaml metadata for ntrodes {ntrode_id}")
+            raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
         elif not len(group) == len(channel_map["map"]):
-            print(
-                f"ERROR: ntrode group {ntrode_id} does not contain the number of channels indicated by the metadata yaml"
+            raise ValueError(
+                f"Ntrode group {ntrode_id} does not contain the number of channels indicated by the metadata yaml"
             )
         else:
             # add this channel map to the validated list
@@ -115,9 +115,7 @@ def validate_yaml_header_electrode_map(
     if len(validated_channel_maps) < len(
         metadata["ntrode_electrode_group_channel_map"]
     ):
-        print("ERROR: XML Header contains less ntrodes than the yaml indicates")
-    print(validated_channel_maps)
-    # print(metadata["ntrode_electrode_group_channel_map"])
+        raise (IndexError("XML Header contains less ntrodes than the yaml indicates"))
 
 
 def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> dict:
@@ -144,10 +142,8 @@ def make_hw_channel_map(metadata: dict, spike_config: ElementTree.Element) -> di
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
-        if (
-            channel_map is None
-        ):  # TODO: Expected behavior if channels in the config are not in the yaml metadata?
-            continue
+        if channel_map is None:
+            raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
         nwb_group_id = channel_map["electrode_group_id"]
         # make a dictinary for the nwbgroup to map nwb_electrode_id -> hwchan, may not be necessary for probes with multiple ntrode groups per nwb group
         if not nwb_group_id in hw_channel_map:
@@ -190,7 +186,7 @@ def make_ref_electrode_map(metadata: dict, spike_config: ElementTree.Element) ->
             # define the current ntrode group's nwb id
             ntrode_id = group.attrib["id"]
             if ntrode_id not in ntrode_id_to_nwb:
-                continue  # TODO: define behavior for missing metadata
+                raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
             nwb_group_id = ntrode_id_to_nwb[ntrode_id]
             # find channel map for ref group
             ntrode_ref_group_id = group.attrib["refNTrodeID"]
