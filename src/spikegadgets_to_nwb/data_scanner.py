@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 VALID_FILE_EXTENSIONS = [
     "rec",  # binary file containing the ephys recording, accelerometer, gyroscope, magnetometer, DIO data, header
@@ -16,6 +15,24 @@ VALID_FILE_EXTENSIONS = [
 
 
 def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
+    """Process a file path into its components
+
+    Parameters
+    ----------
+    path : Path
+        Filename to process
+
+    Returns
+    -------
+    date : str
+    animal_name : str
+    epoch : str
+    tag : str
+    tag_index : str
+    extension : str
+    full_path : str
+
+    """
     date, animal_name, epoch, tag = path.stem.split("_")
     tag = tag.split(".")
     tag_index = tag[1] if len(tag) > 1 else 1
@@ -31,6 +48,19 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
 
 
 def get_file_info(path: Path) -> pd.DataFrame:
+    """Get information about the files in a directory for grouping
+
+    Parameters
+    ----------
+    path : Path
+        Path to folder containing files
+
+    Returns
+    -------
+    file_info : pd.DataFrame
+        DataFrame containing information about the files in the folder
+
+    """
     COLUMN_NAMES = [
         "date",
         "animal",
