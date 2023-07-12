@@ -4,12 +4,14 @@ import pandas as pd
 import numpy as np
 
 VALID_FILE_EXTENSIONS = [
-    "rec",
-    "videoPositionTracking",
-    "h264",
-    "cameraHWSync",
-    "stateScriptLog",
-    "yaml",
+    "rec",  # binary file containing the ephys recording, accelerometer, gyroscope, magnetometer, DIO data, header
+    "videoPositionTracking",  # trodes tracked position
+    "h264",  # video file
+    "cameraHWSync",  # position timestamps
+    "stateScriptLog",  # state script controls the experimenter parameters
+    "yaml",  # metadata file
+    "videoTimeStamps",  # not used
+    "track_geometry",  # used if using Trodes linearization
 ]
 
 
