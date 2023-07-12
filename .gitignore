@@ -162,3 +162,10 @@ cython_debug/
 
 _version.py
 .DS_Store
+*.trackgeometry
+*.videoPositionTracking
+*.videoTimeStamps
+*.cameraHWSync
+*.h264
+*.rec
+*.stateScriptLog
