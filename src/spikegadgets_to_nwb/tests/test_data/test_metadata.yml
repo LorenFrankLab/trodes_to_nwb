@@ -89,7 +89,7 @@ units:
   behavioral_events: "-1"
 times_period_multiplier: 1
 raw_data_to_volts: 1
-default_header_file_path: default/header/path/
+default_header_file_path: /stelmo/sam/test_data
 behavioral_events:
   - description: Din1
     name: Light_1
@@ -287,6 +287,15 @@ electrode_groups:
     targeted_z: 3.3
     units: mm
   - id: 20
+    location: corpus callosum and associated subcortical white matter (cc-ec-cing-dwm)
+    device_type: tetrode_12.5
+    description: terode device description
+    targeted_location: Corticofugal pathways (cfp)
+    targeted_x: 1.1
+    targeted_y: 2.2
+    targeted_z: 3.3
+    units: mm
+  - id: 21
     location: corpus callosum and associated subcortical white matter (cc-ec-cing-dwm)
     device_type: tetrode_12.5
     description: terode device description
