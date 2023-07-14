@@ -161,8 +161,8 @@ def test_electrode_creation_reconfigured():
     nwbfile = convert_yaml.initialize_nwb(metadata)
 
     # create the hw_channel map using the reconfig header
-    recfile = path + "/test_data/reconfig_probeDevice.trodesconf"
-    rec_header = convert_rec_header.read_header(recfile)
+    trodesconf_file = path + "/test_data/reconfig_probeDevice.trodesconf"
+    rec_header = convert_rec_header.read_header(trodesconf_file)
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
     )
