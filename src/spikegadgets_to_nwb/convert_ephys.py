@@ -10,8 +10,7 @@ from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
-    """Data chunk iterator for SpikeGadgets rec files.
-    """
+    """Data chunk iterator for SpikeGadgets rec files."""
 
     def __init__(self, rec_file_path: str, **kwargs):
         self.neo_io = SpikeGadgetsRawIO(filename=rec_file_path)  # get all streams
@@ -30,15 +29,19 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         self.n_time = self.neo_io.get_signal_size(
             block_index=self.block_index,
             seg_index=self.seg_index,
+            stream_index=self.stream_index,
+        )
+        self.n_channel = self.neo_io.signal_channels_count(
             stream_index=self.stream_index
         )
-        self.n_channel = self.neo_io.signal_channels_count(stream_index=self.stream_index)
 
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         self.timestamps = self.neo_io.get_analogsignal_timestamps(0, self.n_time)
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
-            warn("Timestamps are not sequential. This may cause problems with some software or data analysis.")
+            warn(
+                "Timestamps are not sequential. This may cause problems with some software or data analysis."
+            )
 
         super().__init__(**kwargs)
 

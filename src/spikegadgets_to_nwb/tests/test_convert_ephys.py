@@ -49,10 +49,8 @@ def test_add_raw_ephys_single_rec():
     with pynwb.NWBHDF5IO(filename, "r", load_namespaces=True) as io:
         read_nwbfile = io.read()
         assert "e-series" in read_nwbfile.acquisition
-        assert read_nwbfile.acquisition['e-series'].data.chunks == (16384, 32)
+        assert read_nwbfile.acquisition["e-series"].data.chunks == (16384, 32)
 
     # TODO verify that the data is correct
 
     # TODO remove the file
-
-
