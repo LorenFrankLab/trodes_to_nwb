@@ -26,6 +26,7 @@ dependencies = [
     "pynwb",
     "ndx_franklab_novela",
     "pyyaml",
+    "neo",
 ]
 dynamic = ["version"]
 
