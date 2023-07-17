@@ -20,10 +20,18 @@ def test_add_raw_ephys_single_rec():
     nwbfile = convert_yaml.initialize_nwb(metadata)
 
     # create the hw_channel map using the reconfig header
-    trodesconf_file = (
-        path + "/test_data/20230622_155936.rec"
-    )  # "/test_data/reconfig_probeDevice.trodesconf"
-    rec_header = convert_rec_header.read_header(trodesconf_file)
+    try:
+        # running on github
+        trodesconf_file = (
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
+    except:
+        # running locally
+        trodesconf_file = (
+            path + "/test_data/20230622_155936.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
 
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
@@ -39,9 +47,7 @@ def test_add_raw_ephys_single_rec():
     try:
         # running on github
         recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
-        rec_to_nwb_file = (
-            os.environ.get("DOWNLOAD_DIR") + "/test_data/20230622_155936.nwb"
-        )
+        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.nwb"
     except (TypeError, FileNotFoundError):
         # running locally
         recfile = path + "/test_data/20230622_155936.rec"
