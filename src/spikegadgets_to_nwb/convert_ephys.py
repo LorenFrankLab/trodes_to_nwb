@@ -8,11 +8,15 @@ from warnings import warn
 
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
+MICROVOLTS_PER_VOLT = 1e6
+
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
-    def __init__(self, rec_file_path: str, **kwargs):
+    def __init__(
+        self, rec_file_path: str, conversion: float, nwb_hw_channel_order=[], **kwargs
+    ):
         self.neo_io = SpikeGadgetsRawIO(filename=rec_file_path)  # get all streams
         self.neo_io.parse_header()
         # TODO see what else spikeinterface does and whether it is necessary
@@ -35,6 +39,15 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             stream_index=self.stream_index
         )
 
+        # order that the hw channels are in within the nwb table
+        if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
+            self.nwb_hw_channel_order = np.arange(self.n_channel)
+        else:
+            self.nwb_hw_channel_order = nwb_hw_channel_order
+
+        # conversion factor to microvolts
+        self.conversion = conversion * MICROVOLTS_PER_VOLT
+
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         self.timestamps = self.neo_io.get_analogsignal_timestamps(0, self.n_time)
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
@@ -52,17 +65,20 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # slice to indices
         # DCI will want channels 0 to X first to put into the array in that order
         # those are stored in the file as channel IDs
-        channel_indices = list(range(*selection[1].indices(self.n_channel)))
-        channel_ids = [str(x) for x in channel_indices]
+        # make into list form passed to neo_io
+        channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection[1]]]
 
-        data = self.neo_io.get_analogsignal_chunk(
-            block_index=self.block_index,
-            seg_index=self.seg_index,
-            i_start=selection[0].start,
-            i_stop=selection[0].stop,
-            stream_index=self.stream_index,
-            channel_ids=channel_ids,
-        )
+        data = (
+            self.neo_io.get_analogsignal_chunk(
+                block_index=self.block_index,
+                seg_index=self.seg_index,
+                i_start=selection[0].start,
+                i_stop=selection[0].stop,
+                stream_index=self.stream_index,
+                channel_ids=channel_ids,
+            )
+            * self.conversion
+        ).astype("int16")
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:
@@ -72,7 +88,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         return np.dtype("int16")
 
 
-def add_raw_ephys(nwbfile: NWBFile, recfile: str, electrode_row_indices: list) -> None:
+def add_raw_ephys(
+    nwbfile: NWBFile, recfile: str, electrode_row_indices: list, conversion: float
+) -> None:
     # TODO handle merging of multiple rec files and their timestamps
 
     electrode_table_region = nwbfile.create_electrode_table_region(
@@ -80,7 +98,15 @@ def add_raw_ephys(nwbfile: NWBFile, recfile: str, electrode_row_indices: list) -
         description="electrodes used in raw e-series recording",
     )
 
-    rec_dci = RecFileDataChunkIterator(recfile)  # can set buffer_gb if needed
+    nwb_hw_chan_order = [
+        int(x) for x in list(nwbfile.electrodes.to_dataframe()["hwChan"])
+    ]
+    # nwb_hw_chan_order = []
+    rec_dci = RecFileDataChunkIterator(
+        recfile,
+        nwb_hw_channel_order=nwb_hw_chan_order,
+        conversion=conversion,
+    )  # can set buffer_gb if needed
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended
     # by studies by the NWB team.
@@ -94,7 +120,7 @@ def add_raw_ephys(nwbfile: NWBFile, recfile: str, electrode_row_indices: list) -
         data=data_data_io,
         timestamps=rec_dci.timestamps,
         electrodes=electrode_table_region,  # TODO
-        conversion=1.0,  # TODO
+        conversion=conversion,
         offset=0.0,  # TODO
     )
 
