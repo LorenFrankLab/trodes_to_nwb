@@ -14,28 +14,33 @@ MICROVOLTS_PER_VOLT = 1e6
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
-    def __init__(self, rec_file_path: str, nwb_hw_channel_order=[], **kwargs):
-        self.neo_io = SpikeGadgetsRawIO(filename=rec_file_path)  # get all streams
-        self.neo_io.parse_header()
+    def __init__(self, rec_file_path: list[str], nwb_hw_channel_order=[], **kwargs):
+        self.neo_io = [
+            SpikeGadgetsRawIO(filename=file) for file in rec_file_path
+        ]  # get all streams for all files
+        [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
 
         # for now, make sure that there is only one block, one segment, and two streams
-        assert self.neo_io.block_count() == 1
-        assert self.neo_io.segment_count(0) == 1
-        assert self.neo_io.signal_streams_count() == 2
+        assert all([neo_io.block_count() == 1 for neo_io in self.neo_io])
+        assert all([neo_io.segment_count(0) == 1 for neo_io in self.neo_io])
+        assert all([neo_io.signal_streams_count() == 2 for neo_io in self.neo_io])
 
         self.block_index = 0
         self.seg_index = 0
         self.stream_index = 1  # TODO confirm that the stream index is trodes
 
-        self.n_time = self.neo_io.get_signal_size(
-            block_index=self.block_index,
-            seg_index=self.seg_index,
-            stream_index=self.stream_index,
-        )
-        self.n_channel = self.neo_io.signal_channels_count(
+        self.n_time = [
+            neo_io.get_signal_size(
+                block_index=self.block_index,
+                seg_index=self.seg_index,
+                stream_index=self.stream_index,
+            )
+            for neo_io in self.neo_io
+        ]
+        self.n_channel = self.neo_io[0].signal_channels_count(
             stream_index=self.stream_index
-        )
+        )  # should be the same for all files in the set
 
         # order that the hw channels are in within the nwb table
         if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
@@ -44,7 +49,11 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
         # NOTE: this will read all the timestamps from the rec file, which can be slow
-        self.timestamps = self.neo_io.get_analogsignal_timestamps(0, self.n_time)
+        self.timestamps = []
+        [
+            self.timestamps.extend(neo_io.get_analogsignal_timestamps(0, n_time))
+            for neo_io, n_time in zip(self.neo_io, self.n_time)
+        ]
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
@@ -62,28 +71,55 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # those are stored in the file as channel IDs
         # make into list form passed to neo_io
         channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection[1]]]
-
-        data = (
-            self.neo_io.get_analogsignal_chunk(
-                block_index=self.block_index,
-                seg_index=self.seg_index,
-                i_start=selection[0].start,
-                i_stop=selection[0].stop,
-                stream_index=self.stream_index,
-                channel_ids=channel_ids,
+        file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
+        time_index = np.arange(self._get_maxshape()[0])[selection[0]]
+        data = []
+        i = time_index[0]
+        while i < time_index[-1]:
+            io_stream = np.argmax(i >= file_start_ind)
+            print("selection", selection[0])
+            print("file start ind", file_start_ind)
+            print("time", time_index[0], time_index[-1])
+            print("i", i)
+            self.neo_io[io_stream]
+            data.extend(
+                (
+                    self.neo_io[io_stream].get_analogsignal_chunk(
+                        block_index=self.block_index,
+                        seg_index=self.seg_index,
+                        i_start=int(i - file_start_ind[io_stream]),
+                        i_stop=int(
+                            min(
+                                time_index[-1] - file_start_ind[io_stream],
+                                self.n_time[io_stream],
+                            )
+                        )
+                        + 1,
+                        stream_index=self.stream_index,
+                        channel_ids=channel_ids,
+                    )
+                )
             )
-        ).astype("int16")
+            i += min(
+                self.n_time[io_stream]
+                - (i - file_start_ind[io_stream]),  # if added up to the end of stream
+                time_index[-1] - i,  # if finished in this stream
+            )
+        data = np.array(data).astype("int16")
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:
-        return (self.n_time, self.n_channel)
+        return (
+            np.sum(self.n_time),
+            self.n_channel,
+        )  # TODO: Is this right for maxshape @rly
 
     def _get_dtype(self) -> np.dtype:
         return np.dtype("int16")
 
 
 def add_raw_ephys(
-    nwbfile: NWBFile, recfile: str, electrode_row_indices: list, conversion: float
+    nwbfile: NWBFile, recfile: list[str], electrode_row_indices: list, conversion: float
 ) -> None:
     # TODO handle merging of multiple rec files and their timestamps
 
