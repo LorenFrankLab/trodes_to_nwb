@@ -14,9 +14,7 @@ MICROVOLTS_PER_VOLT = 1e6
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
-    def __init__(
-        self, rec_file_path: str, conversion: float, nwb_hw_channel_order=[], **kwargs
-    ):
+    def __init__(self, rec_file_path: str, nwb_hw_channel_order=[], **kwargs):
         self.neo_io = SpikeGadgetsRawIO(filename=rec_file_path)  # get all streams
         self.neo_io.parse_header()
         # TODO see what else spikeinterface does and whether it is necessary
@@ -44,9 +42,6 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.nwb_hw_channel_order = np.arange(self.n_channel)
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
-
-        # conversion factor to microvolts
-        self.conversion = conversion * MICROVOLTS_PER_VOLT
 
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         self.timestamps = self.neo_io.get_analogsignal_timestamps(0, self.n_time)
@@ -77,7 +72,6 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 stream_index=self.stream_index,
                 channel_ids=channel_ids,
             )
-            * self.conversion
         ).astype("int16")
         return data
 
@@ -105,7 +99,6 @@ def add_raw_ephys(
     rec_dci = RecFileDataChunkIterator(
         recfile,
         nwb_hw_channel_order=nwb_hw_chan_order,
-        conversion=conversion,
     )  # can set buffer_gb if needed
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended

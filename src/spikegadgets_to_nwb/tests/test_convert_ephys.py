@@ -3,7 +3,7 @@ import pynwb
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb import convert_yaml, convert_rec_header
 
-
+MICROVOLTS_PER_VOLT = 1e6
 path = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -74,8 +74,13 @@ def test_add_raw_ephys_single_rec():
         with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
             old_nwbfile = io2.read()
             # check ordering worked correctly
+            conversion = (
+                read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
+            )
             assert (
-                read_nwbfile.acquisition["e-series"].data[0, :]
+                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
+                    "int16"
+                )
                 == old_nwbfile.acquisition["e-series"].data[0, :]
             ).all()
             # check data shapes match
@@ -85,7 +90,9 @@ def test_add_raw_ephys_single_rec():
             )
             # check all values of one of the streams
             assert (
-                read_nwbfile.acquisition["e-series"].data[:, 0]
+                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
+                    "int16"
+                )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
 
