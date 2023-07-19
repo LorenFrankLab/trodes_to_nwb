@@ -160,6 +160,10 @@ def test_electrode_creation_reconfigured():
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata)
 
+    # swap two channels in the map to test hw channel mapping
+    metadata["ntrode_electrode_group_channel_map"][-1]["map"]["30"] = 127
+    metadata["ntrode_electrode_group_channel_map"][-1]["map"]["31"] = 126
+
     # create the hw_channel map using the reconfig header
     trodesconf_file = path + "/test_data/reconfig_probeDevice.trodesconf"
     rec_header = convert_rec_header.read_header(trodesconf_file)

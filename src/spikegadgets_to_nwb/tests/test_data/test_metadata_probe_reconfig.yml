@@ -259,5 +259,5 @@ ntrode_electrode_group_channel_map:
       "27": 123
       "28": 124
       "29": 125
-      "30": 127
-      "31": 126 #swap map for last two rows to test channel mapping function
+      "30": 126
+      "31": 127 #swap map for last two rows to test channel mapping function
