@@ -5,6 +5,7 @@ import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 from warnings import warn
+from spikegadgets_to_nwb import convert_rec_header
 
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
@@ -140,7 +141,6 @@ def add_raw_ephys(
     nwbfile: NWBFile,
     recfile: list[str],
     electrode_row_indices: list[int],
-    conversion: float,
 ) -> None:
     """Adds the raw ephys data to a NWB file. Must be called after add_electrode_groups
 
@@ -160,11 +160,11 @@ def add_raw_ephys(
         region=electrode_row_indices,
         description="electrodes used in raw e-series recording",
     )
-
+    # get hw channel order
     nwb_hw_chan_order = [
         int(x) for x in list(nwbfile.electrodes.to_dataframe()["hwChan"])
     ]
-    # nwb_hw_chan_order = []
+    # make the data iterator
     rec_dci = RecFileDataChunkIterator(
         recfile,
         nwb_hw_channel_order=nwb_hw_chan_order,
@@ -176,6 +176,10 @@ def add_raw_ephys(
     # they require the hdf5plugin library to be installed. gzip is available by default.
     data_data_io = H5DataIO(rec_dci, chunks=(16384, min(rec_dci.n_channel, 32)))
 
+    # get conversion factor from rec file
+    rec_header = convert_rec_header.read_header(recfile[0])
+    spike_config = rec_header.find("SpikeConfiguration")
+    conversion = float(spike_config[0].attrib["rawScalingToUv"]) / MICROVOLTS_PER_VOLT
     # do we want to pull the timestamps from the rec file? or is there another source?
     eseries = ElectricalSeries(
         name="e-series",

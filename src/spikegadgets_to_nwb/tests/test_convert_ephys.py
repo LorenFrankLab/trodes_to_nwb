@@ -61,7 +61,6 @@ def test_add_raw_ephys_single_rec():
             recfile,
         ],
         map_row_ephys_data_to_row_electrodes_table,
-        conversion=float(metadata["raw_data_to_volts"]),
     )
 
     filename = "test_add_raw_ephys_single_rec.nwb"
@@ -144,7 +143,6 @@ def test_add_raw_ephys_single_rec_probe_configuration():
             recfile,
         ],
         map_row_ephys_data_to_row_electrodes_table,
-        conversion=float(metadata["raw_data_to_volts"]),
     )
 
     filename = "test_add_raw_ephys_single_rec.nwb"
@@ -234,7 +232,6 @@ def test_add_raw_ephys_two_epoch():
         nwbfile,
         recfile,
         map_row_ephys_data_to_row_electrodes_table,
-        conversion=float(metadata["raw_data_to_volts"]),
     )
 
     filename = "test_add_raw_ephys_single_rec.nwb"
