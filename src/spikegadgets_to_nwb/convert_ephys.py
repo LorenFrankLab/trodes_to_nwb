@@ -90,9 +90,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         time_index = np.arange(self._get_maxshape()[0])[selection[0]]
         data = []
         i = time_index[0]
-        while i < time_index[-1]:
+        while i < min(time_index[-1], self._get_maxshape()[0]):
             # find the stream where this piece of slice begins
-            io_stream = np.argmax(i >= file_start_ind)
+            io_stream = np.argmin(i >= file_start_ind) - 1
             # get the data from that stream
             data.extend(
                 (
@@ -111,6 +111,12 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                         channel_ids=channel_ids,
                     )
                 )
+            )
+            print(
+                "added",
+                self.n_time[io_stream]
+                - (i - file_start_ind[io_stream]),  # if added up to the end of stream
+                time_index[-1] - i,  # if finished in this stream
             )
             i += min(
                 self.n_time[io_stream]
