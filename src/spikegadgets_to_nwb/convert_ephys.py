@@ -38,9 +38,22 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
             for neo_io in self.neo_io
         ]
+
+        # check that all files have the same number of channels.
+        assert (
+            len(
+                set(
+                    [
+                        neo_io.signal_channels_count(stream_index=self.stream_index)
+                        for neo_io in self.neo_io
+                    ]
+                )
+            )
+            == 1
+        )
         self.n_channel = self.neo_io[0].signal_channels_count(
             stream_index=self.stream_index
-        )  # should be the same for all files in the set
+        )
 
         # order that the hw channels are in within the nwb table
         if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
@@ -71,17 +84,16 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # those are stored in the file as channel IDs
         # make into list form passed to neo_io
         channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection[1]]]
+        # what global index each file starts at
         file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
+        # the time indexes we want
         time_index = np.arange(self._get_maxshape()[0])[selection[0]]
         data = []
         i = time_index[0]
         while i < time_index[-1]:
+            # find the stream where this piece of slice begins
             io_stream = np.argmax(i >= file_start_ind)
-            print("selection", selection[0])
-            print("file start ind", file_start_ind)
-            print("time", time_index[0], time_index[-1])
-            print("i", i)
-            self.neo_io[io_stream]
+            # get the data from that stream
             data.extend(
                 (
                     self.neo_io[io_stream].get_analogsignal_chunk(
@@ -119,9 +131,24 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
 
 def add_raw_ephys(
-    nwbfile: NWBFile, recfile: list[str], electrode_row_indices: list, conversion: float
+    nwbfile: NWBFile,
+    recfile: list[str],
+    electrode_row_indices: list[int],
+    conversion: float,
 ) -> None:
-    # TODO handle merging of multiple rec files and their timestamps
+    """Adds the raw ephys data to a NWB file. Must be called after add_electrode_groups
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        nwb file being assembled
+    recfile : list[str]
+        ordered list of file paths to all recfiles with session's data
+    electrode_row_indices : list
+        which electrodes to add to table
+    conversion : float
+        The conversion factor from nwb data to volts
+    """
 
     electrode_table_region = nwbfile.create_electrode_table_region(
         region=electrode_row_indices,
