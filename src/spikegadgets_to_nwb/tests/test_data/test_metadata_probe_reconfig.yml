@@ -88,7 +88,7 @@ units:
   analog: "-1"
   behavioral_events: "-1"
 times_period_multiplier: 1
-raw_data_to_volts: 1
+raw_data_to_volts: 1.95e-07
 default_header_file_path: default/header/path/
 behavioral_events:
   - description: Din1
