@@ -97,7 +97,7 @@ def test_add_raw_ephys_single_rec():
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
 
-    # TODO remove the file
+    os.remove(filename)
 
 
 def test_add_raw_ephys_single_rec_probe_configuration():
@@ -179,7 +179,7 @@ def test_add_raw_ephys_single_rec_probe_configuration():
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
 
-    # TODO remove the file
+    os.remove(filename)
 
 
 def test_add_raw_ephys_two_epoch():
@@ -273,4 +273,4 @@ def test_add_raw_ephys_two_epoch():
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
 
-    # TODO remove the file
+    os.remove(filename)
