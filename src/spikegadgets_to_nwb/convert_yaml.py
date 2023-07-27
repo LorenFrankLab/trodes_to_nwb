@@ -180,8 +180,8 @@ def add_electrode_groups(
                 break
         # Build the relevant Probe
         probe = Probe(
-            id=probe_counter,  ###TODO: should be egroup_meta['id']?
-            name=f"probe {probe_counter}",  ###TODO: should be egroup_meta['id']?
+            id=egroup_metadata["id"],
+            name=f"probe {egroup_metadata['id']}",
             probe_type=probe_meta["probe_type"],
             units=probe_meta["units"],
             probe_description=probe_meta["probe_description"],
