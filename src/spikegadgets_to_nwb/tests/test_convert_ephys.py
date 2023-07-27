@@ -2,6 +2,7 @@ import os
 import pynwb
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb import convert_yaml, convert_rec_header
+from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 MICROVOLTS_PER_VOLT = 1e6
 path = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +18,7 @@ def test_add_raw_ephys_single_rec():
         + "/test_data/tetrode_12.5.yml",  # "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
     ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
     try:
@@ -107,7 +108,7 @@ def test_add_raw_ephys_single_rec_probe_configuration():
         path + "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
     ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
     trodesconf_file = path + "/test_data/reconfig_probeDevice.trodesconf"
@@ -189,7 +190,7 @@ def test_add_raw_ephys_two_epoch():
         path + "/test_data/tetrode_12.5.yml",
     ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
     try:

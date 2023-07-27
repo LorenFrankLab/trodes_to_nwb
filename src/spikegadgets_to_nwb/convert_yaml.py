@@ -46,27 +46,30 @@ def load_metadata(
     return metadata, probe_metadata
 
 
-def initialize_nwb(metadata: dict) -> NWBFile:
+def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:
     """constructs an NWBFile with basic session data
 
     Parameters
     ----------
     metadata : dict
         metadata from the yaml generator
+    first_epoch_config : ElementTree
+        xml tree of the first epoch's trodes rec file
 
     Returns
     -------
     NWBFile
         nwb file with basic session information
     """
+    gconf = first_epoch_config.find("GlobalConfiguration")
     nwbfile = NWBFile(
         session_description=metadata["session_description"],
         experimenter=metadata["experimenter_name"],
         lab=metadata["lab"],
         institution=metadata["institution"],
-        session_start_time=datetime(
-            2000, 1, 1
-        ),  # session_start_time, TODO: requires .rec data
+        session_start_time=datetime.fromtimestamp(
+            int(gconf.attrib["systemTimeAtCreation"].strip()) / 1000
+        ),
         timestamps_reference_time=datetime.fromtimestamp(0, pytz.utc),
         identifier=str(uuid.uuid1()),
         session_id=metadata["session_id"],

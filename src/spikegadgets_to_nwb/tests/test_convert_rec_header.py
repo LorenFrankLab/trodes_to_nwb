@@ -2,18 +2,41 @@ from spikegadgets_to_nwb import convert_yaml, convert_rec_header
 
 from pynwb.file import NWBFile
 from ndx_franklab_novela import HeaderDevice
-
+from xml.etree import ElementTree
 
 import os
 
 path = os.path.dirname(os.path.abspath(__file__))
 
 
+def default_test_xml_tree() -> ElementTree:
+    """Function to return a default xml tree for intial nwb generation
+
+    Returns
+    -------
+    ElementTree
+        root xml tree for intial nwb generation
+    """
+    try:
+        # running on github
+        trodesconf_file = (
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
+    except:
+        # running locally
+        trodesconf_file = (
+            path + "/test_data/20230622_155936.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
+    return rec_header
+
+
 def test_add_header_device():
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # Call the function to be tested
     try:
         # running on github

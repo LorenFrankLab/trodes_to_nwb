@@ -3,6 +3,7 @@ from datetime import datetime
 from pynwb.file import Subject, ProcessingModule
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
 from hdmf.common.table import DynamicTable, VectorData
+from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 import os
 
@@ -12,7 +13,7 @@ path = os.path.dirname(os.path.abspath(__file__))
 def test_initial_nwb_creation():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwb_file = convert_yaml.initialize_nwb(metadata)
+    nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # check that things were added in
     assert nwb_file.experimenter == ["lastname, firstname", "lastname2, firstname2"]
     assert isinstance(nwb_file.session_start_time, datetime)
@@ -33,7 +34,7 @@ def test_initial_nwb_creation():
 def test_subject_creation():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwb_file = convert_yaml.initialize_nwb(metadata)
+    nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_subject(nwb_file, metadata)
     subject = nwb_file.subject
     assert isinstance(nwb_file.subject, Subject)
@@ -49,7 +50,7 @@ def test_subject_creation():
 def test_camera_creation():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwb_file = convert_yaml.initialize_nwb(metadata)
+    nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_cameras(nwb_file, metadata)
     cameras = nwb_file.devices
     assert len(cameras) == 2
@@ -63,7 +64,7 @@ def test_camera_creation():
 def test_acq_device_creation():
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwb_file = convert_yaml.initialize_nwb(metadata)
+    nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
     devices = nwb_file.devices
     assert len(devices) == 1
@@ -80,7 +81,7 @@ def test_electrode_creation():
         path + "/test_data/tetrode_12.5.yml",
     ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using rec data
     try:
@@ -158,7 +159,7 @@ def test_electrode_creation_reconfigured():
         path + "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
     ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # swap two channels in the map to test hw channel mapping
     metadata["ntrode_electrode_group_channel_map"][-1]["map"]["30"] = 127
@@ -234,7 +235,7 @@ def test_add_tasks():
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # Call the function to be tested
     convert_yaml.add_tasks(nwbfile, metadata)
@@ -286,7 +287,7 @@ def test_add_associated_files():
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    nwbfile = convert_yaml.initialize_nwb(metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # Change path of files to be relative to this directory
     for assoc_meta in metadata["associated_files"]:
         assoc_meta["path"] = path + "/test_data/"
