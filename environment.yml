@@ -14,5 +14,6 @@ dependencies:
 - pytest-cov
 - pip
 - pyyaml
+- jsonschema
 - pip:
     - ndx-franklab-novela

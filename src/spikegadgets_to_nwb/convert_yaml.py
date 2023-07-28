@@ -1,12 +1,15 @@
 import yaml
 from xml.etree import ElementTree
+from spikegadgets_to_nwb import (
+    metadata_validation
+)
 
 from pynwb import NWBFile, TimeSeries
 from pynwb.file import Subject, ProcessingModule
 from pynwb.behavior import BehavioralEvents
 from pynwb.image import ImageSeries
 from hdmf.common.table import DynamicTable, VectorData
-from copy import deepcopy
+from copy import copy
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -39,6 +42,11 @@ def load_metadata(
     """
     with open(metadata_path, "r") as stream:
         metadata = yaml.safe_load(stream)
+    
+    is_metadata_valid, metadata_errors = metadata_validation.validate(metadata)
+    if not is_metadata_valid:
+        raise ValueError(''.join(metadata_errors))
+    
     probe_metadata = []
     for path in probe_metadata_paths:
         with open(path, "r") as stream:
@@ -89,7 +97,7 @@ def add_subject(nwbfile: NWBFile, metadata: dict) -> None:
     metadata : dict
         metadata from the yaml generator
     """
-    subject_metadata = deepcopy(metadata["subject"])
+    subject_metadata = copy(metadata["subject"])
     # Convert weight to string and add units
     subject_metadata.update({"weight": f"{subject_metadata['weight']} g"})
     # Add the subject information to the file

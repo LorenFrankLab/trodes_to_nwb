@@ -1,16 +1,14 @@
+import os
+import pytest
+
 from spikegadgets_to_nwb import convert_yaml, convert_rec_header
 from datetime import datetime
 from pynwb.file import Subject, ProcessingModule
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
 from hdmf.common.table import DynamicTable, VectorData
-from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
-import os
-
-path = os.path.dirname(os.path.abspath(__file__))
-
-
-def test_initial_nwb_creation():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_initial_nwb_creation(path, default_test_xml_tree):
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
@@ -30,8 +28,8 @@ def test_initial_nwb_creation():
     assert len(nwb_file.processing) == 0
     assert len(nwb_file.devices) == 0
 
-
-def test_subject_creation():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_subject_creation(path, default_test_xml_tree):
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
@@ -46,8 +44,8 @@ def test_subject_creation():
     assert subject.subject_id == "54321"
     assert isinstance(subject.date_of_birth, datetime)
 
-
-def test_camera_creation():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_camera_creation(path, default_test_xml_tree):
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
@@ -60,8 +58,8 @@ def test_camera_creation():
     assert cameras[name].lens == "lens1"
     assert cameras[name].manufacturer == "Allied Vision"
 
-
-def test_acq_device_creation():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_acq_device_creation(path, default_test_xml_tree):
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
@@ -73,8 +71,8 @@ def test_acq_device_creation():
     assert devices[name].amplifier == "Intan"
     assert devices[name].adc_circuit == "Intan"
 
-
-def test_electrode_creation():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_electrode_creation(path, default_test_xml_tree):
     # load metadata yml and make nwb file
     metadata_path = path + "/test_data/test_metadata.yml"
     probe_metadata = [
@@ -151,8 +149,8 @@ def test_electrode_creation():
     # Check that electrode table reference electrode is correct
     assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"][:4]) == [0, 0, 0, 0]
 
-
-def test_electrode_creation_reconfigured():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_electrode_creation_reconfigured(path, default_test_xml_tree):
     # load metadata yml and make nwb file
     metadata_path = path + "/test_data/test_metadata_probe_reconfig.yml"
     probe_metadata = [
@@ -230,8 +228,8 @@ def test_electrode_creation_reconfigured():
     # check that hw channel mapping from channel_map is correct
     assert list(nwbfile.electrodes.to_dataframe()["hwChan"][-2:]) == ["115", "107"]
 
-
-def test_add_tasks():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_add_tasks(path, default_test_xml_tree):
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -282,8 +280,8 @@ def test_add_tasks():
         ]
         assert task_df["task_environment"][0] == task_metadata["task_environment"]
 
-
-def test_add_associated_files():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_add_associated_files(path, default_test_xml_tree):
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])

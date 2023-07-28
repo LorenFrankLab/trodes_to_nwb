@@ -1,14 +1,15 @@
 import os
 import pynwb
+import pytest
+
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb import convert_yaml, convert_rec_header
-from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 MICROVOLTS_PER_VOLT = 1e6
-path = os.path.dirname(os.path.abspath(__file__))
 
 
-def test_add_raw_ephys_single_rec():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_add_raw_ephys_single_rec(path, default_test_xml_tree):
     # load metadata yml and make nwb file
     metadata_path = (
         path + "/test_data/test_metadata.yml"
@@ -100,8 +101,8 @@ def test_add_raw_ephys_single_rec():
 
     os.remove(filename)
 
-
-def test_add_raw_ephys_single_rec_probe_configuration():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_add_raw_ephys_single_rec_probe_configuration(path, default_test_xml_tree):
     # load metadata yml and make nwb file
     metadata_path = path + "/test_data/test_metadata_probe_reconfig.yml"
     probe_metadata = [
@@ -182,8 +183,8 @@ def test_add_raw_ephys_single_rec_probe_configuration():
 
     os.remove(filename)
 
-
-def test_add_raw_ephys_two_epoch():
+@pytest.mark.skip(reason="Sam needs add rec file access across all machine")
+def test_add_raw_ephys_two_epoch(path, default_test_xml_tree):
     # load metadata yml and make nwb file
     metadata_path = path + "/test_data/test_metadata.yml"
     probe_metadata = [
