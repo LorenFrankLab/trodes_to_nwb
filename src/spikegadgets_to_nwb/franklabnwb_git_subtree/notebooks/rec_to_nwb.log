@@ -1,0 +1,435 @@
+2020-07-09 18:40:27,794 rec_to_nwb.processing.builder.raw_to_nwb_builder: INFO Extraction parameters :
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+parallel_instances = 4
+extract_analog = True
+extract_dio = True
+extract_time = True
+extract_mda = True
+extract_lfps = False
+extract_spikes = False
+overwrite = False
+lfp_export_args = ('-highpass', '0', '-lowpass', '400', '-interp', '0', '-userefs', '0', '-outputrate', '1500')
+mda_export_args = ('-usespikefilters', '0', '-interp', '0', '-userefs', '0')
+trodes_rec_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+
+2020-07-09 18:40:27,951 rec_to_binaries.core: INFO Extracting analog data...
+2020-07-09 18:40:27,956 rec_to_binaries.core: INFO Extracting DIO...
+2020-07-09 18:40:27,957 rec_to_binaries.core: INFO Extracting mda...
+2020-07-09 18:40:27,959 rec_to_binaries.core: INFO Extracting time...
+2020-08-14 08:50:23,370 rec_to_nwb.processing.builder.raw_to_nwb_builder: INFO Extraction parameters :
+data_path = /Users/loren/data/nwb_builder_test_data/tmp
+animal_name = beans
+parallel_instances = 4
+extract_analog = True
+extract_dio = True
+extract_time = True
+extract_mda = True
+extract_lfps = False
+extract_spikes = False
+overwrite = False
+lfp_export_args = ('-highpass', '0', '-lowpass', '400', '-interp', '0', '-userefs', '0', '-outputrate', '1500', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+mda_export_args = ('-usespikefilters', '0', '-interp', '0', '-userefs', '0', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+analog_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+time_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+spikes_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+dio_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+trodes_rec_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+
+2020-08-14 08:50:23,419 rec_to_binaries.core: WARNING No epochs found!
+2020-08-14 08:50:23,419 rec_to_binaries.core: INFO Extracting analog data...
+2020-08-14 08:50:23,419 rec_to_binaries.core: INFO Extracting DIO...
+2020-08-14 08:50:23,419 rec_to_binaries.core: INFO Extracting mda...
+2020-08-14 08:50:23,419 rec_to_binaries.core: INFO Extracting time...
+2020-08-14 08:50:23,420 rec_to_binaries.core: INFO Making position directory...
+2020-08-14 08:50:23,623 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWBFileBuilder initialization
+2020-08-14 08:50:23,623 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWB builder initialization parameters: 
+data_path = /Users/loren/data/nwb_builder_test_data/tmp
+animal_name = beans
+date = 20190718
+nwb_metadata = Experiment Info:
+Experimenter: Alison Comrie
+Description: Reinforcement learning
+Session Id: beans_01
+Subject: Long Evans Rat
+
+Available probe types: ['128c-4s8mm6cm-20um-40um-sl', 'tetrode_12.5']
+process_dio = True
+process_mda = True
+process_analog = True
+output_file = /Users/loren/data/nwb_builder_test_data/beans20190718.nwb
+
+2020-08-14 08:50:49,439 rec_to_nwb.processing.builder.raw_to_nwb_builder: INFO Extraction parameters :
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+parallel_instances = 4
+extract_analog = True
+extract_dio = True
+extract_time = True
+extract_mda = True
+extract_lfps = False
+extract_spikes = False
+overwrite = False
+lfp_export_args = ('-highpass', '0', '-lowpass', '400', '-interp', '0', '-userefs', '0', '-outputrate', '1500', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+mda_export_args = ('-usespikefilters', '0', '-interp', '0', '-userefs', '0', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+analog_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+time_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+spikes_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+dio_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+trodes_rec_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+
+2020-08-14 08:50:49,585 rec_to_binaries.core: INFO Extracting analog data...
+2020-08-14 08:50:49,586 rec_to_binaries.core: INFO Extracting DIO...
+2020-08-14 08:50:49,586 rec_to_binaries.core: INFO Extracting mda...
+2020-08-14 08:50:49,587 rec_to_binaries.core: INFO Extracting time...
+2020-08-14 08:51:24,459 rec_to_binaries.core: INFO Making position directory...
+2020-08-14 08:51:24,643 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWBFileBuilder initialization
+2020-08-14 08:51:24,643 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWB builder initialization parameters: 
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+date = 20190718
+nwb_metadata = Experiment Info:
+Experimenter: Alison Comrie
+Description: Reinforcement learning
+Session Id: beans_01
+Subject: Long Evans Rat
+
+Available probe types: ['128c-4s8mm6cm-20um-40um-sl', 'tetrode_12.5']
+process_dio = True
+process_mda = True
+process_analog = True
+output_file = /Users/loren/data/nwb_builder_test_data/tmpbeans20190718.nwb
+
+2020-08-14 08:51:25,089 rec_to_nwb.processing.header.header_checker.header_logger: WARNING Rec files: [PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_01_s1.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_03_s2.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_02_r1.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_04_r2.rec')] contain inconsistent xml headers!
+ , [UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0')]
+2020-08-14 08:51:25,393 rec_to_nwb.processing.builder.nwb_file_builder: INFO Building components for NWB
+2020-08-14 08:51:25,720 rec_to_nwb.processing.builder.nwb_file_builder: INFO CorruptedData: Checking
+2020-08-14 08:51:25,721 rec_to_nwb.processing.builder.originators.shanks_electrodes_originator: INFO Probes-ShanksElectrode: Building
+2020-08-14 08:51:25,721 rec_to_nwb.processing.builder.originators.shanks_electrodes_originator: INFO Probes-ShanksElectrode: Creating
+2020-08-14 08:51:25,731 rec_to_nwb.processing.builder.originators.shanks_originator: INFO Probes-Shanks: Building
+2020-08-14 08:51:25,731 rec_to_nwb.processing.builder.originators.shanks_originator: INFO Probes-Shanks: Creating
+2020-08-14 08:51:25,736 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Building
+2020-08-14 08:51:25,737 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Creating probes
+2020-08-14 08:51:25,737 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Injecting probes into NWB
+2020-08-14 08:51:25,737 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Building
+2020-08-14 08:51:25,737 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Creating DataAcqDevice
+2020-08-14 08:51:25,738 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Injecting DataAcqDevice into NWB
+2020-08-14 08:51:25,738 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Building
+2020-08-14 08:51:25,738 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Creating
+2020-08-14 08:51:25,738 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Injecting into NWB
+2020-08-14 08:51:25,738 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Building
+2020-08-14 08:51:25,738 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Creating
+2020-08-14 08:51:25,739 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Injecting into NWB
+2020-08-14 08:51:25,739 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Building
+2020-08-14 08:51:25,739 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Creating
+2020-08-14 08:51:25,740 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Injecting into NWB
+2020-08-14 08:51:25,740 rec_to_nwb.processing.builder.originators.electrodes_originator: INFO Electrodes: Building
+2020-08-14 08:51:25,741 rec_to_nwb.processing.builder.originators.electrodes_originator: INFO Electrodes: Creating&Injecting into NWB
+2020-08-14 08:51:25,785 rec_to_nwb.processing.builder.originators.electrodes_extension_originator: INFO FlElectrodesExtensions: Building
+2020-08-14 08:51:25,788 rec_to_nwb.processing.builder.originators.electrodes_extension_originator: INFO FlElectrodesExtensions: Injecting into NWB
+2020-08-14 08:51:25,789 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Building
+2020-08-14 08:51:25,789 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Creating
+2020-08-14 08:51:28,633 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Injecting
+2020-08-14 08:51:28,636 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating behavior
+2020-08-14 08:51:28,636 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting behavior
+2020-08-14 08:51:28,636 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating tasks
+2020-08-14 08:51:28,637 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting tasks
+2020-08-14 08:51:28,637 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating associated files
+2020-08-14 08:51:28,637 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting associated files
+2020-08-14 08:51:28,637 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating video files
+2020-08-14 08:51:28,637 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting video files
+2020-08-14 08:51:28,637 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating analog
+2020-08-14 08:51:28,638 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting analog
+2020-08-14 08:51:28,638 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating sample count-timestamp corespondence
+2020-08-14 08:51:28,638 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting sample count-timestamp corespondence
+2020-08-14 08:51:28,638 rec_to_nwb.processing.builder.originators.sample_count_timestamp_corespondence_originator: INFO Sample Count Timestamp Corespondence: Building
+2020-08-14 08:55:01,825 rec_to_nwb.processing.builder.originators.sample_count_timestamp_corespondence_originator: INFO Sample Count Timestamp Corespondence: Injecting
+2020-08-14 08:55:01,826 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Building
+2020-08-14 08:55:01,827 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Creating
+2020-08-14 08:55:01,828 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Injecting into ProcessingModule
+2020-08-14 08:55:01,828 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Building
+2020-08-14 08:57:53,353 rec_to_nwb.processing.builder.raw_to_nwb_builder: INFO Extraction parameters :
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+parallel_instances = 4
+extract_analog = True
+extract_dio = True
+extract_time = True
+extract_mda = True
+extract_lfps = False
+extract_spikes = False
+overwrite = False
+lfp_export_args = ('-highpass', '0', '-lowpass', '400', '-interp', '0', '-userefs', '0', '-outputrate', '1500', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+mda_export_args = ('-usespikefilters', '0', '-interp', '0', '-userefs', '0', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+analog_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+time_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+spikes_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+dio_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+trodes_rec_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+
+2020-08-14 08:57:53,508 rec_to_binaries.core: INFO Extracting analog data...
+2020-08-14 08:57:53,508 rec_to_binaries.core: INFO Extracting DIO...
+2020-08-14 08:57:53,509 rec_to_binaries.core: INFO Extracting mda...
+2020-08-14 08:57:53,509 rec_to_binaries.core: INFO Extracting time...
+2020-08-14 08:58:42,994 rec_to_nwb.processing.builder.raw_to_nwb_builder: INFO Extraction parameters :
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+parallel_instances = 4
+extract_analog = True
+extract_dio = True
+extract_time = True
+extract_mda = True
+extract_lfps = False
+extract_spikes = False
+overwrite = False
+lfp_export_args = ('-highpass', '0', '-lowpass', '400', '-interp', '0', '-userefs', '0', '-outputrate', '1500', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+mda_export_args = ('-usespikefilters', '0', '-interp', '0', '-userefs', '0', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+analog_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+time_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+spikes_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+dio_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+trodes_rec_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+
+2020-08-14 08:58:43,143 rec_to_binaries.core: INFO Extracting analog data...
+2020-08-14 08:58:43,144 rec_to_binaries.core: INFO Extracting DIO...
+2020-08-14 08:58:43,146 rec_to_binaries.core: INFO Extracting mda...
+2020-08-14 08:58:43,147 rec_to_binaries.core: INFO Extracting time...
+2020-08-14 08:59:17,500 rec_to_binaries.core: INFO Making position directory...
+2020-08-14 08:59:17,774 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWBFileBuilder initialization
+2020-08-14 08:59:17,774 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWB builder initialization parameters: 
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+date = 20190718
+nwb_metadata = Experiment Info:
+Experimenter: Alison Comrie
+Description: Reinforcement learning
+Session Id: beans_01
+Subject: Long Evans Rat
+
+Available probe types: ['128c-4s8mm6cm-20um-40um-sl', 'tetrode_12.5']
+process_dio = True
+process_mda = True
+process_analog = True
+output_file = /Users/loren/data/nwb_builder_test_data/tmpbeans20190718.nwb
+
+2020-08-14 08:59:18,210 rec_to_nwb.processing.header.header_checker.header_logger: WARNING Rec files: [PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_01_s1.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_03_s2.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_02_r1.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_04_r2.rec')] contain inconsistent xml headers!
+ , [UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0')]
+2020-08-14 08:59:18,626 rec_to_nwb.processing.builder.nwb_file_builder: INFO Building components for NWB
+2020-08-14 08:59:18,945 rec_to_nwb.processing.builder.nwb_file_builder: INFO CorruptedData: Checking
+2020-08-14 08:59:18,946 rec_to_nwb.processing.builder.originators.shanks_electrodes_originator: INFO Probes-ShanksElectrode: Building
+2020-08-14 08:59:18,946 rec_to_nwb.processing.builder.originators.shanks_electrodes_originator: INFO Probes-ShanksElectrode: Creating
+2020-08-14 08:59:18,957 rec_to_nwb.processing.builder.originators.shanks_originator: INFO Probes-Shanks: Building
+2020-08-14 08:59:18,957 rec_to_nwb.processing.builder.originators.shanks_originator: INFO Probes-Shanks: Creating
+2020-08-14 08:59:18,962 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Building
+2020-08-14 08:59:18,962 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Creating probes
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Injecting probes into NWB
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Building
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Creating DataAcqDevice
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Injecting DataAcqDevice into NWB
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Building
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Creating
+2020-08-14 08:59:18,963 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Injecting into NWB
+2020-08-14 08:59:18,964 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Building
+2020-08-14 08:59:18,964 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Creating
+2020-08-14 08:59:18,964 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Injecting into NWB
+2020-08-14 08:59:18,964 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Building
+2020-08-14 08:59:18,964 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Creating
+2020-08-14 08:59:18,965 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Injecting into NWB
+2020-08-14 08:59:18,965 rec_to_nwb.processing.builder.originators.electrodes_originator: INFO Electrodes: Building
+2020-08-14 08:59:18,966 rec_to_nwb.processing.builder.originators.electrodes_originator: INFO Electrodes: Creating&Injecting into NWB
+2020-08-14 08:59:19,012 rec_to_nwb.processing.builder.originators.electrodes_extension_originator: INFO FlElectrodesExtensions: Building
+2020-08-14 08:59:19,014 rec_to_nwb.processing.builder.originators.electrodes_extension_originator: INFO FlElectrodesExtensions: Injecting into NWB
+2020-08-14 08:59:19,016 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Building
+2020-08-14 08:59:19,016 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Creating
+2020-08-14 08:59:22,050 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Injecting
+2020-08-14 08:59:22,053 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating behavior
+2020-08-14 08:59:22,053 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting behavior
+2020-08-14 08:59:22,053 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating tasks
+2020-08-14 08:59:22,053 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting tasks
+2020-08-14 08:59:22,053 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating associated files
+2020-08-14 08:59:22,054 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting associated files
+2020-08-14 08:59:22,054 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating video files
+2020-08-14 08:59:22,054 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting video files
+2020-08-14 08:59:22,054 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating analog
+2020-08-14 08:59:22,055 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting analog
+2020-08-14 08:59:22,055 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating sample count-timestamp corespondence
+2020-08-14 08:59:22,055 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting sample count-timestamp corespondence
+2020-08-14 08:59:22,055 rec_to_nwb.processing.builder.originators.sample_count_timestamp_corespondence_originator: INFO Sample Count Timestamp Corespondence: Building
+2020-08-14 09:03:12,157 rec_to_nwb.processing.builder.originators.sample_count_timestamp_corespondence_originator: INFO Sample Count Timestamp Corespondence: Injecting
+2020-08-14 09:03:12,159 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Building
+2020-08-14 09:03:12,160 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Creating
+2020-08-14 09:03:12,162 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Injecting into ProcessingModule
+2020-08-14 09:03:12,162 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Building
+2020-08-14 09:03:12,163 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Creating
+2020-08-14 09:03:12,163 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Injecting
+2020-08-14 09:03:12,164 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO Files stored inside nwb: [associated file ndx_franklab_novela.associated_files.AssociatedFiles at 0x140466096715408
+Fields:
+  description: test description 1
+  task_epochs: 1
+]
+2020-08-14 09:03:12,164 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Prepare directories
+2020-08-14 09:03:12,164 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Prepare files
+2020-08-14 09:03:12,164 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Retrieve data
+2020-08-14 09:03:12,171 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_01_s1.time/20190718_beans_01_s1.continuoustime.dat
+2020-08-14 09:04:10,647 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_02_r1.time/20190718_beans_02_r1.continuoustime.dat
+2020-08-14 09:06:54,854 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_03_s2.time/20190718_beans_03_s2.continuoustime.dat
+2020-08-14 09:08:08,943 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_04_r2.time/20190718_beans_04_r2.continuoustime.dat
+2020-08-14 09:09:39,048 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Building
+2020-08-14 09:09:39,079 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Injecting into NWB
+2020-08-14 09:09:39,081 rec_to_nwb.processing.builder.originators.mda_originator: INFO MDA: Building
+2020-08-14 13:08:17,070 rec_to_nwb.processing.builder.raw_to_nwb_builder: INFO Extraction parameters :
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+parallel_instances = 4
+extract_analog = True
+extract_dio = True
+extract_time = True
+extract_mda = True
+extract_lfps = False
+extract_spikes = False
+overwrite = False
+lfp_export_args = ('-highpass', '0', '-lowpass', '400', '-interp', '0', '-userefs', '0', '-outputrate', '1500', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+mda_export_args = ('-usespikefilters', '0', '-interp', '0', '-userefs', '0', '-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+analog_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+time_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+spikes_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+dio_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+trodes_rec_export_args = ('-reconfig', '/Users/loren/data/nwb_builder_test_data/beans/Probe_128ch_allnT_DIOs_PTP_reconfig_export_shanks.xml')
+
+2020-08-14 13:08:17,236 rec_to_binaries.core: INFO Extracting analog data...
+2020-08-14 13:08:17,237 rec_to_binaries.core: INFO Extracting DIO...
+2020-08-14 13:08:17,237 rec_to_binaries.core: INFO Extracting mda...
+2020-08-14 13:08:17,239 rec_to_binaries.core: INFO Extracting time...
+2020-08-14 13:08:54,020 rec_to_binaries.core: INFO Making position directory...
+2020-08-14 13:08:54,381 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWBFileBuilder initialization
+2020-08-14 13:08:54,382 rec_to_nwb.processing.builder.nwb_file_builder: INFO NWB builder initialization parameters: 
+data_path = /Users/loren/data/nwb_builder_test_data/
+animal_name = beans
+date = 20190718
+nwb_metadata = Experiment Info:
+Experimenter: Alison Comrie
+Description: Reinforcement learning
+Session Id: beans_01
+Subject: Long Evans Rat
+
+Available probe types: ['128c-4s8mm6cm-20um-40um-sl', 'tetrode_12.5']
+process_dio = True
+process_mda = True
+process_analog = True
+output_file = /Users/loren/data/nwb_builder_test_data/tmpbeans20190718.nwb
+
+2020-08-14 13:08:54,873 rec_to_nwb.processing.header.header_checker.header_logger: WARNING Rec files: [PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_01_s1.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_03_s2.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_02_r1.rec'), PosixPath('/Users/loren/data/nwb_builder_test_data/beans/raw/20190718/20190718_beans_04_r2.rec')] contain inconsistent xml headers!
+ , [UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='controllerSerial', value='00000 00000'), UpdateAttrib(node='/Configuration/GlobalConfiguration[1]', name='headstageFirmwareVersion', value='0.0')]
+2020-08-14 13:08:55,364 rec_to_nwb.processing.builder.nwb_file_builder: INFO Building components for NWB
+2020-08-14 13:08:55,796 rec_to_nwb.processing.builder.nwb_file_builder: INFO CorruptedData: Checking
+2020-08-14 13:08:55,797 rec_to_nwb.processing.builder.originators.shanks_electrodes_originator: INFO Probes-ShanksElectrode: Building
+2020-08-14 13:08:55,797 rec_to_nwb.processing.builder.originators.shanks_electrodes_originator: INFO Probes-ShanksElectrode: Creating
+2020-08-14 13:08:55,809 rec_to_nwb.processing.builder.originators.shanks_originator: INFO Probes-Shanks: Building
+2020-08-14 13:08:55,809 rec_to_nwb.processing.builder.originators.shanks_originator: INFO Probes-Shanks: Creating
+2020-08-14 13:08:55,815 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Building
+2020-08-14 13:08:55,816 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Creating probes
+2020-08-14 13:08:55,816 rec_to_nwb.processing.builder.originators.probe_originator: INFO Probes: Injecting probes into NWB
+2020-08-14 13:08:55,816 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Building
+2020-08-14 13:08:55,817 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Creating DataAcqDevice
+2020-08-14 13:08:55,817 rec_to_nwb.processing.builder.originators.data_acq_device_originator: INFO FlDataAcqDevice: Injecting DataAcqDevice into NWB
+2020-08-14 13:08:55,817 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Building
+2020-08-14 13:08:55,817 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Creating
+2020-08-14 13:08:55,817 rec_to_nwb.processing.builder.originators.header_device_originator: INFO HeaderDevice: Injecting into NWB
+2020-08-14 13:08:55,818 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Building
+2020-08-14 13:08:55,818 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Creating
+2020-08-14 13:08:55,818 rec_to_nwb.processing.builder.originators.camera_device_originator: INFO CameraDevice: Injecting into NWB
+2020-08-14 13:08:55,818 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Building
+2020-08-14 13:08:55,819 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Creating
+2020-08-14 13:08:55,819 rec_to_nwb.processing.builder.originators.electrode_group_originator: INFO ElectrodeGroups: Injecting into NWB
+2020-08-14 13:08:55,819 rec_to_nwb.processing.builder.originators.electrodes_originator: INFO Electrodes: Building
+2020-08-14 13:08:55,821 rec_to_nwb.processing.builder.originators.electrodes_originator: INFO Electrodes: Creating&Injecting into NWB
+2020-08-14 13:08:55,868 rec_to_nwb.processing.builder.originators.electrodes_extension_originator: INFO FlElectrodesExtensions: Building
+2020-08-14 13:08:55,871 rec_to_nwb.processing.builder.originators.electrodes_extension_originator: INFO FlElectrodesExtensions: Injecting into NWB
+2020-08-14 13:08:55,872 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Building
+2020-08-14 13:08:55,873 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Creating
+2020-08-14 13:08:59,116 rec_to_nwb.processing.builder.originators.epochs_originator: INFO Epochs: Injecting
+2020-08-14 13:08:59,119 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating behavior
+2020-08-14 13:08:59,119 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting behavior
+2020-08-14 13:08:59,119 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating tasks
+2020-08-14 13:08:59,119 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting tasks
+2020-08-14 13:08:59,120 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating associated files
+2020-08-14 13:08:59,120 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting associated files
+2020-08-14 13:08:59,120 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating video files
+2020-08-14 13:08:59,120 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting video files
+2020-08-14 13:08:59,120 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating analog
+2020-08-14 13:08:59,121 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting analog
+2020-08-14 13:08:59,121 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Creating sample count-timestamp corespondence
+2020-08-14 13:08:59,121 rec_to_nwb.processing.builder.originators.processing_module_originator: INFO ProcessingModule: Injecting sample count-timestamp corespondence
+2020-08-14 13:08:59,121 rec_to_nwb.processing.builder.originators.sample_count_timestamp_corespondence_originator: INFO Sample Count Timestamp Corespondence: Building
+2020-08-14 13:12:39,727 rec_to_nwb.processing.builder.originators.sample_count_timestamp_corespondence_originator: INFO Sample Count Timestamp Corespondence: Injecting
+2020-08-14 13:12:39,728 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Building
+2020-08-14 13:12:39,729 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Creating
+2020-08-14 13:12:39,730 rec_to_nwb.processing.builder.originators.task_originator: INFO Task: Injecting into ProcessingModule
+2020-08-14 13:12:39,731 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Building
+2020-08-14 13:12:39,731 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Creating
+2020-08-14 13:12:39,731 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO AssociatedFiles: Injecting
+2020-08-14 13:12:39,732 rec_to_nwb.processing.builder.originators.associated_files_originator: INFO Files stored inside nwb: [associated file ndx_franklab_novela.associated_files.AssociatedFiles at 0x140497606366480
+Fields:
+  description: test description 1
+  task_epochs: 1
+]
+2020-08-14 13:12:39,732 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Prepare directories
+2020-08-14 13:12:39,732 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Prepare files
+2020-08-14 13:12:39,733 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Retrieve data
+2020-08-14 13:12:39,738 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_01_s1.time/20190718_beans_01_s1.continuoustime.dat
+2020-08-14 13:13:35,170 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_02_r1.time/20190718_beans_02_r1.continuoustime.dat
+2020-08-14 13:16:11,948 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_03_s2.time/20190718_beans_03_s2.continuoustime.dat
+2020-08-14 13:17:25,118 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_04_r2.time/20190718_beans_04_r2.continuoustime.dat
+2020-08-14 13:18:51,839 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Building
+2020-08-14 13:18:51,878 rec_to_nwb.processing.builder.originators.dio_originator: INFO DIO: Injecting into NWB
+2020-08-14 13:18:51,883 rec_to_nwb.processing.builder.originators.mda_originator: INFO MDA: Building
+2020-08-14 13:19:00,160 rec_to_nwb.processing.builder.originators.mda_originator: INFO MDA: Injecting
+2020-08-14 13:19:00,167 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_01_s1.time/20190718_beans_01_s1.continuoustime.dat
+2020-08-14 13:21:06,527 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_02_r1.time/20190718_beans_02_r1.continuoustime.dat
+2020-08-14 13:26:48,348 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_03_s2.time/20190718_beans_03_s2.continuoustime.dat
+2020-08-14 13:29:20,696 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_04_r2.time/20190718_beans_04_r2.continuoustime.dat
+2020-08-14 13:32:32,529 rec_to_nwb.processing.builder.originators.position_originator: INFO Position: Building
+2020-08-14 13:32:34,064 rec_to_nwb.processing.builder.originators.position_originator: INFO Position: Creating
+2020-08-14 13:32:34,076 rec_to_nwb.processing.builder.originators.position_originator: INFO Position: Injecting into ProcessingModule
+2020-08-14 13:32:34,742 rec_to_nwb.processing.builder.nwb_file_builder: INFO Writing down content to /Users/loren/data/nwb_builder_test_data/tmpbeans20190718.nwb
+2020-08-14 15:02:24,729 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_03_s2.time/20190718_beans_03_s2.continuoustime.dat
+2020-08-14 15:02:24,756 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_04_r2.time/20190718_beans_04_r2.continuoustime.dat
+2020-08-14 15:02:24,726 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_01_s1.time/20190718_beans_01_s1.continuoustime.dat
+2020-08-14 15:02:24,793 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_02_r1.time/20190718_beans_02_r1.continuoustime.dat
+2020-08-14 15:18:09,108 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_01_s1.time/20190718_beans_01_s1.continuoustime.dat
+2020-08-14 15:19:04,138 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 23206543 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:19:04,150 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 23207135 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:19:04,810 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_02_r1.time/20190718_beans_02_r1.continuoustime.dat
+2020-08-14 15:21:33,960 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 56457799 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:21:33,968 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 56458406 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:21:39,352 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_03_s2.time/20190718_beans_03_s2.continuoustime.dat
+2020-08-14 15:22:50,775 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 88911809 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:22:51,686 rec_to_nwb.processing.time.continuous_time_extractor: INFO Reading continuous time dict from: /Users/loren/data/nwb_builder_test_data/beans/preprocessing/20190718/20190718_beans_04_r2.time/20190718_beans_04_r2.continuoustime.dat
+2020-08-14 15:24:14,322 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35051660 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:14,324 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35052256 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:14,324 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35052862 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:14,325 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35053660 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:14,325 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35054255 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:14,325 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35054865 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:14,325 rec_to_nwb.processing.time.timestamp_converter: ERROR Following key: 35055654 does not exist in continioustime dictionary!
+NoneType: None
+2020-08-14 15:24:34,443 rec_to_nwb.processing.builder.nwb_file_builder: INFO /Users/loren/data/nwb_builder_test_data/tmpbeans20190718.nwb file has been created.
+2020-08-14 15:24:36,309 rec_to_nwb.processing.builder.originators.pos_valid_time_originator: INFO POS valid times: Building
+2020-08-14 15:24:36,326 rec_to_nwb.processing.builder.originators.pos_valid_time_originator: INFO POS valid times: Injecting
+2020-08-14 15:24:36,328 rec_to_nwb.processing.builder.originators.pos_invalid_originator: INFO POS invalid times: Building
+2020-08-14 15:24:36,331 rec_to_nwb.processing.builder.originators.pos_invalid_originator: INFO POS invalid times: Injecting
+2020-08-14 15:24:36,332 rec_to_nwb.processing.builder.originators.mda_valid_time_originator: INFO MDA valid times: Building
+2020-08-14 15:24:40,450 rec_to_nwb.processing.builder.originators.mda_valid_time_originator: INFO MDA valid times: Injecting
+2020-08-14 15:24:40,452 rec_to_nwb.processing.builder.originators.mda_invalid_time_originator: INFO MDA invalid times: Building
+2020-08-14 15:24:44,055 rec_to_nwb.processing.builder.originators.mda_invalid_time_originator: INFO MDA invalid times: Injecting

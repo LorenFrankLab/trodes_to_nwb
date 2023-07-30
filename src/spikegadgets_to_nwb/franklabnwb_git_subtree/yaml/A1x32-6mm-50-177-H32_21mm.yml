@@ -1,0 +1,137 @@
+probe_type: A1x32-6mm-50-177-H32_21mm
+units: 'um'
+probe_description: 'neuronexus probe'
+num_shanks: 1
+contact_side_numbering: true
+contact_size: 15.0
+shanks:
+  - shank_id: 0
+    electrodes:
+      - id: 0
+        rel_x: 0
+        rel_y: 0
+        rel_z: 0
+      - id: 1
+        rel_x: 0
+        rel_y: -50
+        rel_z: 0
+      - id: 2
+        rel_x: 0
+        rel_y: -100
+        rel_z: 0
+      - id: 3
+        rel_x: 0
+        rel_y: -150
+        rel_z: 0
+      - id: 4
+        rel_x: 0
+        rel_y: -200
+        rel_z: 0
+      - id: 5
+        rel_x: 0
+        rel_y: -250
+        rel_z: 0
+      - id: 6
+        rel_x: 0
+        rel_y: -300
+        rel_z: 0
+      - id: 7
+        rel_x: 0
+        rel_y: -350
+        rel_z: 0
+      - id: 8
+        rel_x: 0
+        rel_y: -400
+        rel_z: 0
+      - id: 9
+        rel_x: 0
+        rel_y: -450
+        rel_z: 0
+      - id: 10
+        rel_x: 0
+        rel_y: -500
+        rel_z: 0
+      - id: 11
+        rel_x: 0
+        rel_y: -550
+        rel_z: 0
+      - id: 12
+        rel_x: 0
+        rel_y: -600
+        rel_z: 0
+      - id: 13
+        rel_x: 0
+        rel_y: -650
+        rel_z: 0
+      - id: 14
+        rel_x: 0
+        rel_y: -700
+        rel_z: 0
+      - id: 15
+        rel_x: 0
+        rel_y: -750
+        rel_z: 0
+      - id: 16
+        rel_x: 0
+        rel_y: -800
+        rel_z: 0
+      - id: 17
+        rel_x: 0
+        rel_y: -850
+        rel_z: 0
+      - id: 18
+        rel_x: 0
+        rel_y: -900
+        rel_z: 0
+      - id: 19
+        rel_x: 0
+        rel_y: -950
+        rel_z: 0
+      - id: 20
+        rel_x: 0
+        rel_y: -1000
+        rel_z: 0
+      - id: 21
+        rel_x: 0
+        rel_y: -1050
+        rel_z: 0
+      - id: 22
+        rel_x: 0
+        rel_y: -1100
+        rel_z: 0
+      - id: 23
+        rel_x: 0
+        rel_y: -1150
+        rel_z: 0
+      - id: 24
+        rel_x: 0
+        rel_y: -1200
+        rel_z: 0
+      - id: 25
+        rel_x: 0
+        rel_y: -1250
+        rel_z: 0
+      - id: 26
+        rel_x: 0
+        rel_y: -1300
+        rel_z: 0
+      - id: 27
+        rel_x: 0
+        rel_y: -1350
+        rel_z: 0
+      - id: 28
+        rel_x: 0
+        rel_y: -1400
+        rel_z: 0
+      - id: 29
+        rel_x: 0
+        rel_y: -1450
+        rel_z: 0
+      - id: 30
+        rel_x: 0
+        rel_y: -1500
+        rel_z: 0
+      - id: 31
+        rel_x: 0
+        rel_y: -1550
+        rel_z: 0

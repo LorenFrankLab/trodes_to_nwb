@@ -1,0 +1,1263 @@
+experimenter name: Alison Comrie
+lab:               Loren Frank
+institution:       University of California, San Francisco
+experiment description: Memory and value guided decision making
+session description: Spatial bandit task (depletion) #regular or depletion
+session_id:        wilbur_20210407 #use date as the session ID?
+subject:
+  description:     Long Evans Rat
+  genotype:        Wild Type
+  sex:             Male
+  species:         Rat
+  subject id:      wilbur
+  weight:          540g #unit section so this can be int/float not str?
+
+data acq device:
+  - name: SpikeGadgets
+    system: MCU
+    amplifier: Intan  
+    adc_circuit: Intan
+
+#fix paths depending if running locally or on server
+associated_files: #no need to have sleep sc logs, should just be junk
+ -  name: statescript_r1
+    description: state script log run 1
+    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_02_r1.stateScriptLog
+    task_epochs: 
+      - 2 #indexed from 1 not 0
+ -  name: statescript_r2
+    description: state script log run 2
+    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_04_r2.stateScriptLog
+    task_epochs: 
+      - 4
+ -  name: statescript_r3
+    description: state script log run 3
+    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_06_r3.stateScriptLog
+    task_epochs: 
+      - 6
+ -  name: statescript_r4
+    description: state script log run 4
+    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_08_r4.stateScriptLog
+    task_epochs: 
+      - 8
+ -  name: statescript_r5
+    description: state script log run 5
+    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_10_r5.stateScriptLog
+    task_epochs: 
+      - 10
+ # -  name: statescript_r6
+ #    description: state script log run 6
+ #    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_12_r6.stateScriptLog
+ #    task_epochs: 
+ #      - 12
+ # -  name: statescript_r7
+ #    description: state script log run 7
+ #    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_14_r7.stateScriptLog
+ #    task_epochs: 
+ #      - 14
+ # -  name: statescript_r8
+ #    description: state script log run 8
+ #    path: /stelmo/alison/wilbur/raw/20210407/20210407_wilbur_16_r8.stateScriptLog
+ #    task_epochs: 
+ #      - 16
+
+device:
+  name:
+    - Trodes
+
+units:
+  analog: 'unspecified'
+  behavioral_events: 'unspecified'
+
+# From AJ: Times period multiplier is used in pos/mda invalid/valid times, to multiply the period when detecting gaps,
+    #to avoid creating invalid times in case of only small deviations. (optional parameter, default 1.5)
+times_period_multiplier: 1.5 #what is this? is this b/c Beans was at 20khz?
+# A/D units to volts: 0.195 uV / lsb 
+raw_data_to_volts : 0.000000195 
+default_header_file_path: default_header.xml #what's this doing?
+
+cameras:
+  - id: 0
+    meters_per_pixel: 0.000474428 #meters or cm?
+    manufacturer: unknown
+    model: unknown
+    lens: unknown
+    camera_name: wilbur sleep camera
+  - id: 1
+    meters_per_pixel: 0.00317840 #in m currently!
+    manufacturer: unknown2
+    model: unknown2
+    lens: unknown2
+    camera_name: wilbur run camera 
+
+tasks:
+  - task_name:          sleep
+    task_description:   animal is in small empty black box
+    camera_id:
+      - 0
+    task_epochs:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 9
+      - 11
+      # - 13
+      # - 15
+      # - 17
+
+  - task_name:            spatial bandit task (depletion)
+    task_description:     animal navigates track for reward
+    camera_id:
+      - 1
+    task_epochs:
+      - 2
+      - 4
+      - 6
+      - 8
+      - 10
+      # - 12
+      # - 14
+      # - 16
+
+associated_video_files: #need both sleep and run videos
+  - name: 20210407_wilbur_01_s1.1.h264
+    camera_id : 0
+    task_epoch: 1
+  - name: 20210407_wilbur_02_r1.1.h264
+    camera_id : 1
+    task_epoch: 2
+  - name: 20210407_wilbur_03_s2.1.h264
+    camera_id : 0
+    task_epoch: 3
+  - name: 20210407_wilbur_04_r2.1.h264
+    camera_id : 1
+    task_epoch: 4
+  - name: 20210407_wilbur_05_s3.1.h264
+    camera_id : 0
+    task_epoch: 5
+  - name: 20210407_wilbur_06_r3.1.h264
+    camera_id : 1
+    task_epoch: 6
+  - name: 20210407_wilbur_07_s4.1.h264
+    camera_id : 0
+    task_epoch: 7
+  - name: 20210407_wilbur_08_r4.1.h264
+    camera_id : 1
+    task_epoch: 8
+  - name: 20210407_wilbur_09_s5.1.h264
+    camera_id : 0
+    task_epoch: 9
+  - name: 20210407_wilbur_10_r5.1.h264
+    camera_id : 1
+    task_epoch: 10
+  - name: 20210407_wilbur_11_s6.1.h264
+    camera_id : 0
+    task_epoch: 11
+  # - name: 20210407_wilbur_12_r6.1.h264
+  #   camera_id : 1
+  #   task_epoch: 12
+  # - name: 20210407_wilbur_13_s7.1.h264
+  #   camera_id : 0
+  #   task_epoch: 13
+  # - name: 20210407_wilbur_14_r7.1.h264
+  #   camera_id : 1
+  #   task_epoch: 14
+  # - name: 20210407_wilbur_15_s8.1.h264
+  #   camera_id : 0
+  #   task_epoch: 15
+  # - name: 20210407_wilbur_16_r8.1.h264
+  #   camera_id : 1
+  #   task_epoch: 16
+  # - name: 20210407_wilbur_17_s9.1.h264
+  #   camera_id : 0
+  #   task_epoch: 17
+
+behavioral_events:
+  - description: Din1
+    name: Poke1
+  - description: Din2
+    name: Poke2
+  - description: Din18 #not 3!
+    name: Poke3
+  - description: Din4
+    name: Poke4
+  - description: Din5
+    name: Poke5
+  - description: Din6
+    name: Poke6
+  - description: Din13
+    name: Run_Camera_Ticks #no sleep camera ticks
+  - description: Dout1
+    name: Light1
+  - description: Dout2
+    name: Light2
+  - description: Dout18 #not 3!
+    name: Light3
+  - description: Dout4
+    name: Light4
+  - description: Dout5
+    name: Light5
+  - description: Dout6
+    name: Light6
+  - description: Dout7
+    name: Pump1
+  - description: Dout8
+    name: Pump2
+  - description: Dout9
+    name: Pump3
+  - description: Dout10
+    name: Pump4
+  - description: Dout11
+    name: Pump5
+  - description: Dout12
+    name: Pump6
+
+electrode groups:
+  - id: 0
+    location: CorpusCallosum
+    device_type: tetrode_12.5
+    description: 'tetrode_reference'
+    targeted_location: 'Callosum_above_leftHC_CA1'
+    targeted_x: -2.8 #mm from bregma
+    targeted_y: -3.7 
+    targeted_z: 0.0 #targeted to brain surface, lowered as tetrodes
+    units: 'mm'
+  - id: 1
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 2
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 3
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 4
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 5
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 6
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 7
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 8
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 9
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 10
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 11
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'leftHC_CA1'
+    targeted_x: -2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 12
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 13
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 14
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 15
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 16
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 17
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 18
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 19
+    location: Hippocampus
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 20
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 21
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 22
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 23
+    location: NotInBrain
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'rightHC_CA1'
+    targeted_x: 2.8 
+    targeted_y: -3.7 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 24
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 25
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 26
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 27
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 28
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 29
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 30
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 31
+    location: None
+    device_type: tetrode_12.5
+    description: 'tetrode'
+    targeted_location: 'none'
+    targeted_x: 0.0 
+    targeted_y: 0.0 
+    targeted_z: 0.0 
+    units: 'mm'
+  - id: 32
+    location: Cortex
+    device_type: 128c-4s6mm6cm-15um-26um-sl #D2
+    description: 'Probe 1' #Device 12
+    targeted_location: 'leftmPFC'
+    targeted_x: -1.2  #NOT ACCURATE
+    targeted_y: 2.2 #NOT ACCURATE
+    targeted_z: -4 #haven't accounted for 10 deg angle
+    units: 'mm'
+  - id: 33
+    location: Cortex
+    device_type: 128c-4s6mm6cm-15um-26um-sl #D2
+    description: 'Probe 2' #Device 16
+    targeted_location: 'rightmPFC'
+    targeted_x: 1.2 #NOT ACCCURATE
+    targeted_y: 2.2  #NOT ACCURATE
+    targeted_z: -4 #haven't accounted for 10 deg angle
+    units: 'mm'
+  - id: 34
+    location: Cortex
+    device_type: 128c-4s8mm6cm-20um-40um-sl #D1
+    description: 'Probe 3' #Device 16
+    targeted_location: 'leftOFC'
+    targeted_x: -2.2  #NOT ACCURATE
+    targeted_y: 4 #NOT ACCURATE
+    targeted_z: -4 #haven't accounted for 10 deg angle
+    units: 'mm'
+
+ntrode electrode group channel map:
+  - ntrode_id: 1
+    electrode_group_id: 0
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 2
+    electrode_group_id: 1
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 3
+    electrode_group_id: 2
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 4
+    electrode_group_id: 3
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 5
+    electrode_group_id: 4
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 6
+    electrode_group_id: 5
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 7
+    electrode_group_id: 6
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 8
+    electrode_group_id: 7
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 9
+    electrode_group_id: 8
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 10
+    electrode_group_id: 9
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 11
+    electrode_group_id: 10
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 12
+    electrode_group_id: 11
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 13
+    electrode_group_id: 12
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 14
+    electrode_group_id: 13
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 15
+    electrode_group_id: 14
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 16
+    electrode_group_id: 15
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 17
+    electrode_group_id: 16
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 18
+    electrode_group_id: 17
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 19
+    electrode_group_id: 18
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 20
+    electrode_group_id: 19
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 21
+    electrode_group_id: 20
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 22
+    electrode_group_id: 21
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 23
+    electrode_group_id: 22
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 24
+    electrode_group_id: 23
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+  - ntrode_id: 25
+    electrode_group_id: 24
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 26
+    electrode_group_id: 25
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 27
+    electrode_group_id: 26
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 28
+    electrode_group_id: 27
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 29
+    electrode_group_id: 28
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 30
+    electrode_group_id: 29
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 31
+    electrode_group_id: 30
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 32
+    electrode_group_id: 31
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 33
+    electrode_group_id: 32
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+      16: 16
+      17: 17
+      18: 18
+      19: 19
+      20: 20
+      21: 21
+      22: 22
+      23: 23
+      24: 24
+      25: 25
+      26: 26
+      27: 27
+      28: 28
+      29: 29
+      30: 30
+      31: 31
+
+  - ntrode_id: 34
+    electrode_group_id: 32
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+      16: 48
+      17: 49
+      18: 50
+      19: 51
+      20: 52
+      21: 53
+      22: 54
+      23: 55
+      24: 56
+      25: 57
+      26: 58
+      27: 59
+      28: 60
+      29: 61
+      30: 62
+      31: 63
+
+  - ntrode_id: 35
+    electrode_group_id: 32
+    bad_channels: []
+    map:
+      0: 64
+      1: 65
+      2: 66
+      3: 67
+      4: 68
+      5: 69
+      6: 70
+      7: 71
+      8: 72
+      9: 73
+      10: 74
+      11: 75
+      12: 76
+      13: 77
+      14: 78
+      15: 79
+      16: 80
+      17: 81
+      18: 82
+      19: 83
+      20: 84
+      21: 85
+      22: 86
+      23: 87
+      24: 88
+      25: 89
+      26: 90
+      27: 91
+      28: 92
+      29: 93
+      30: 94
+      31: 95
+
+  - ntrode_id: 36
+    electrode_group_id: 32
+    bad_channels: []
+    map:
+      0: 96
+      1: 97
+      2: 98
+      3: 99
+      4: 100
+      5: 101
+      6: 102
+      7: 103
+      8: 104
+      9: 105
+      10: 106
+      11: 107
+      12: 108
+      13: 109
+      14: 110
+      15: 111
+      16: 112
+      17: 113
+      18: 114
+      19: 115
+      20: 116
+      21: 117
+      22: 118
+      23: 119
+      24: 120
+      25: 121
+      26: 122
+      27: 123
+      28: 124
+      29: 125
+      30: 126
+      31: 127
+
+  - ntrode_id: 37
+    electrode_group_id: 33
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+      16: 16
+      17: 17
+      18: 18
+      19: 19
+      20: 20
+      21: 21
+      22: 22
+      23: 23
+      24: 24
+      25: 25
+      26: 26
+      27: 27
+      28: 28
+      29: 29
+      30: 30
+      31: 31
+
+  - ntrode_id: 38
+    electrode_group_id: 33
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+      16: 48
+      17: 49
+      18: 50
+      19: 51
+      20: 52
+      21: 53
+      22: 54
+      23: 55
+      24: 56
+      25: 57
+      26: 58
+      27: 59
+      28: 60
+      29: 61
+      30: 62
+      31: 63
+
+  - ntrode_id: 39
+    electrode_group_id: 33
+    bad_channels: []
+    map:
+      0: 64
+      1: 65
+      2: 66
+      3: 67
+      4: 68
+      5: 69
+      6: 70
+      7: 71
+      8: 72
+      9: 73
+      10: 74
+      11: 75
+      12: 76
+      13: 77
+      14: 78
+      15: 79
+      16: 80
+      17: 81
+      18: 82
+      19: 83
+      20: 84
+      21: 85
+      22: 86
+      23: 87
+      24: 88
+      25: 89
+      26: 90
+      27: 91
+      28: 92
+      29: 93
+      30: 94
+      31: 95
+
+  - ntrode_id: 40
+    electrode_group_id: 33
+    bad_channels: []
+    map:
+      0: 96
+      1: 97
+      2: 98
+      3: 99
+      4: 100
+      5: 101
+      6: 102
+      7: 103
+      8: 104
+      9: 105
+      10: 106
+      11: 107
+      12: 108
+      13: 109
+      14: 110
+      15: 111
+      16: 112
+      17: 113
+      18: 114
+      19: 115
+      20: 116
+      21: 117
+      22: 118
+      23: 119
+      24: 120
+      25: 121
+      26: 122
+      27: 123
+      28: 124
+      29: 125
+      30: 126
+      31: 127
+
+  - ntrode_id: 41
+    electrode_group_id: 34
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+      16: 16
+      17: 17
+      18: 18
+      19: 19
+      20: 20
+      21: 21
+      22: 22
+      23: 23
+      24: 24
+      25: 25
+      26: 26
+      27: 27
+      28: 28
+      29: 29
+      30: 30
+      31: 31
+
+  - ntrode_id: 42
+    electrode_group_id: 34
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+      16: 48
+      17: 49
+      18: 50
+      19: 51
+      20: 52
+      21: 53
+      22: 54
+      23: 55
+      24: 56
+      25: 57
+      26: 58
+      27: 59
+      28: 60
+      29: 61
+      30: 62
+      31: 63
+
+  - ntrode_id: 43
+    electrode_group_id: 34
+    bad_channels: []
+    map:
+      0: 64
+      1: 65
+      2: 66
+      3: 67
+      4: 68
+      5: 69
+      6: 70
+      7: 71
+      8: 72
+      9: 73
+      10: 74
+      11: 75
+      12: 76
+      13: 77
+      14: 78
+      15: 79
+      16: 80
+      17: 81
+      18: 82
+      19: 83
+      20: 84
+      21: 85
+      22: 86
+      23: 87
+      24: 88
+      25: 89
+      26: 90
+      27: 91
+      28: 92
+      29: 93
+      30: 94
+      31: 95
+
+  - ntrode_id: 44
+    electrode_group_id: 34
+    bad_channels: []
+    map:
+      0: 96
+      1: 97
+      2: 98
+      3: 99
+      4: 100
+      5: 101
+      6: 102
+      7: 103
+      8: 104
+      9: 105
+      10: 106
+      11: 107
+      12: 108
+      13: 109
+      14: 110
+      15: 111
+      16: 112
+      17: 113
+      18: 114
+      19: 115
+      20: 116
+      21: 117
+      22: 118
+      23: 119
+      24: 120
+      25: 121
+      26: 122
+      27: 123
+      28: 124
+      29: 125
+      30: 126
+      31: 127
