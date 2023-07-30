@@ -1,0 +1,785 @@
+experimenter_name: Alison
+lab:               Frank lab
+institution:       UCSF
+experiment_description: HC-Cx interactions supporting memory and value-guided decision-making
+session_description: example_experiment_day
+session_id:        20200212_day33_behavior1 #if each yaml is day/session specific it might make sense to keep something about that in the file name? I realize that can require strict formatting though, i.e. "rat_yyyymmdd_metadata"
+subject:
+  description:     Long Evans adult #potentially DOB good to have, or age?
+  genotype:        wild type
+  sex:             male
+  species:         rat
+  subject_id:      chimi #ac23
+  weight:          541 g #units!
+
+tasks:
+  [
+  {
+    task_name:          sleep,
+    task_description:   rat rests in a small empty box #do I need punctuation at the end of the final element w/in ea {} ? Wasn't sure of syntax from example
+  },
+  {
+    task_name:          run,
+    task_description:   spatial bandit stem and leaf task
+  },
+  {
+    task_name:          sleep,
+    task_description:   rat rests in a small empty box
+  }
+  ]
+
+behavioral_events:
+  - name: Din1
+    description: poke1
+  - name: Din2
+    description: poke2
+  - name: Din3
+    description: poke3
+  - name: Din4
+    description: poke4
+  - name: Din5
+    description: poke5
+  - name: Din6
+    description: poke6
+  - name: Din13
+    description: camera_ticks
+  - name: Dout1
+    description: light1
+  - name: Dout2
+    description: light2
+  - name: Dout3
+    description: light3
+  - name: Dout4
+    description: light4
+  - name: Dout5
+    description: light5
+  - name: Dout6
+    description: light6
+  - name: Dout7
+    description: pump1
+  - name: Dout8
+    description: pump2
+  - name: Dout9
+    description: pump3
+  - name: Dout10
+    description: pump4
+  - name: Dout11
+    description: pump5
+  - name: Dout12
+    description: pump6
+
+device:
+  name:
+    - Trodes
+
+electrode_groups:
+  - id: 0
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 1'
+  - id: 1
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 2'
+  - id: 2
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 3'
+  - id: 3
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 4'
+  - id: 4
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 5'
+  - id: 5
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 6'
+  - id: 6
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 7' 
+  - id: 7
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 8'
+  - id: 8
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 9'
+  - id: 9
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 10'
+  - id: 10
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 11'
+  - id: 11
+    location: left dHC
+    device_type: tetrode
+    description: 'tetrode 12'
+  - id: 12
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 13'
+  - id: 13
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 14' 
+  - id: 14
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 15'
+  - id: 15
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 16' 
+  - id: 16
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 17'
+  - id: 17
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 18' 
+  - id: 18
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 19'
+  - id: 19
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 20' 
+  - id: 20
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 21'
+  - id: 21
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 22' 
+  - id: 22
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 23'
+  - id: 23
+    location: right dHC
+    device_type: tetrode
+    description: 'tetrode 24' 
+  - id: 24
+    location: none #I think better to say "none" than NA - there is truly no location, rather than the location info being missing or incomplete
+    device_type: tetrode #possibly could specify device_type as "none" or "empty"? As an indicator that all chans are dead and shouldn't even be read in?
+    description: 'tetrode 25' #could describe as "placeholder tetrode" or something else more informative?
+  - id: 25
+    location: none 
+    device_type: tetrode
+    description: 'tetrode 26' 
+  - id: 26
+    location: none
+    device_type: tetrode
+    description: 'tetrode 27'
+  - id: 27
+    location: none
+    device_type: tetrode
+    description: 'tetrode 28'
+  - id: 28
+    location: none
+    device_type: tetrode
+    description: 'tetrode 29'
+  - id: 29
+    location: none
+    device_type: tetrode
+    description: 'tetrode 30' 
+  - id: 30
+    location: none
+    device_type: tetrode
+    description: 'tetrode 31'
+  - id: 31
+    location: none
+    device_type: tetrode
+    description: 'tetrode 32'
+  - id: 32
+    location: right mPFC
+    device_type: 128c-4s8mm6cm-20um-40um-sl
+    description: 'probe 1'
+
+
+ntrode probe channel map: #should be ntrode to electrode group channel map? (having the word "to" in there implies directionality for user?)
+  - ntrode_id: 1
+    probe_id: 0 #should be elctrode group id?
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 2
+    probe_id: 1
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 3
+    probe_id: 2
+    bad_channels: [2]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 4
+    probe_id: 3
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 5
+    probe_id: 4
+    bad_channels: [1]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 6
+    probe_id: 5
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 7
+    probe_id: 6
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 8
+    probe_id: 7
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 9
+    probe_id: 8
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 10
+    probe_id: 9
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 11
+    probe_id: 10
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 12
+    probe_id: 11
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 13
+    probe_id: 12
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 14
+    probe_id: 13
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 15
+    probe_id: 14
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 16
+    probe_id: 15
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 17
+    probe_id: 16
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 18
+    probe_id: 17
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 19
+    probe_id: 18
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 20
+    probe_id: 19
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 21
+    probe_id: 20
+    bad_channels: [2]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 22
+    probe_id: 21
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 23
+    probe_id: 22
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 24
+    probe_id: 23
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 25 #if we could specify bad electrode groups above it would save us from including any metadata in here about them?
+    probe_id: 24
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 26
+    probe_id: 25
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 27
+    probe_id: 26
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 28
+    probe_id: 27
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 29
+    probe_id: 28
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 30
+    probe_id: 29
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 31
+    probe_id: 30
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 32
+    probe_id: 31
+    bad_channels: [0,1,2,3]
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 33
+    probe_id: 32
+    bad_channels: [2] #probe bad chans labeled based on gross ephys NOT visual opens from images of PEDOT (they are similar but not perfectly matching)
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+
+  - ntrode_id: 34
+    probe_id: 32
+    bad_channels: [2] 
+    map:
+      0: 4
+      1: 5
+      2: 6
+      3: 7
+
+  - ntrode_id: 35
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 8
+      1: 10
+      2: 9
+      3: 11
+
+  - ntrode_id: 36
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 15
+      1: 14
+      2: 13
+      3: 12
+
+  - ntrode_id: 37
+    probe_id: 32
+    bad_channels: [2] 
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+
+  - ntrode_id: 38
+    probe_id: 32
+    bad_channels: [2]
+    map:
+      0: 20
+      1: 21
+      2: 22
+      3: 23
+
+  - ntrode_id: 39
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 24
+      1: 25
+      2: 27
+      3: 26
+
+  - ntrode_id: 40
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 30
+      1: 29
+      2: 31
+      3: 28
+
+  - ntrode_id: 41
+    probe_id: 32
+    bad_channels: [2]
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+
+  - ntrode_id: 42
+    probe_id: 32
+    bad_channels: [2]
+    map:
+      0: 36
+      1: 37
+      2: 38
+      3: 39
+
+  - ntrode_id: 43
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 40
+      1: 41
+      2: 42
+      3: 43
+
+  - ntrode_id: 44
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 47
+      1: 44
+      2: 45
+      3: 46
+
+  - ntrode_id: 45
+    probe_id: 32
+    bad_channels: [2]
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+
+  - ntrode_id: 46
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 52
+      1: 53
+      2: 54
+      3: 55
+
+  - ntrode_id: 47
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 56
+      1: 57
+      2: 58
+      3: 59
+
+  - ntrode_id: 48
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 60
+      1: 61
+      2: 63
+      3: 62
+
+  - ntrode_id: 49
+    probe_id: 32
+    bad_channels: [] #maybe 0
+    map:
+      0: 66
+      1: 65
+      2: 64
+      3: 67
+
+  - ntrode_id: 50
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 71
+      1: 70
+      2: 69
+      3: 68
+
+  - ntrode_id: 51
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 75
+      1: 74
+      2: 73
+      3: 72
+
+  - ntrode_id: 52
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 79
+      1: 78
+      2: 77
+      3: 76
+
+  - ntrode_id: 53
+    probe_id: 32
+    bad_channels: [] #maybe 0
+    map:
+      0: 82
+      1: 83
+      2: 81
+      3: 80
+
+  - ntrode_id: 54
+    probe_id: 32
+    bad_channels: [] #maybe 1
+    map:
+      0: 87
+      1: 86
+      2: 85
+      3: 84
+
+  - ntrode_id: 55
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 91
+      1: 90
+      2: 89
+      3: 88
+
+  - ntrode_id: 56
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 95
+      1: 94
+      2: 93
+      3: 92
+
+  - ntrode_id: 57
+    probe_id: 32
+    bad_channels: [] #maybe 2
+    map:
+      0: 96
+      1: 97
+      2: 98
+      3: 99
+
+  - ntrode_id: 58
+    probe_id: 32
+    bad_channels: [] #maybe 2
+    map:
+      0: 103
+      1: 101
+      2: 102
+      3: 100
+
+  - ntrode_id: 59
+    probe_id: 32
+    bad_channels: []
+    map:
+      0: 107
+      1: 106
+      2: 105
+      3: 104
+
+  - ntrode_id: 60
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 111
+      1: 110
+      2: 109
+      3: 108
+
+  - ntrode_id: 61
+    probe_id: 32
+    bad_channels: [] #maybe 3
+    map:
+      0: 112
+      1: 115
+      2: 113
+      3: 114
+
+  - ntrode_id: 62
+    probe_id: 32
+    bad_channels: [] #maybe 0
+    map:
+      0: 118
+      1: 119
+      2: 117
+      3: 116
+
+  - ntrode_id: 63
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 123
+      1: 122
+      2: 121
+      3: 120
+
+  - ntrode_id: 64
+    probe_id: 32
+    bad_channels: [1]
+    map:
+      0: 127
+      1: 126
+      2: 125
+      3: 124

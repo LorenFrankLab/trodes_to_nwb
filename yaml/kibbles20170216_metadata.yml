@@ -1,0 +1,1580 @@
+experimenter_name: Jason Chung
+lab:               Loren Frank
+institution:       University of California, San Francisco
+experiment_description: 3 choice memory task
+session_description: 3 choice memory task
+session_id:        kibbles20170216
+subject:
+  description:     Long Evans Rat
+  genotype:        Wild Type
+  sex:             Male
+  species:         Rat
+  subject_id:      Kibbles
+  weight:          Unknown
+
+data_acq_device:
+  - name: SpikeGadgets
+    system: SpikeGadgets
+    amplifier: intan
+    adc_circuit: intan
+
+associated_files:
+ -  name: stateScriptLog_s1
+    description: stateScriptLog epoch s1
+    path: /data2/data1_backup/jason/kibbles/raw/20170216/20170216_kibbles_01_s1.stateScriptLog
+
+
+
+units:
+  analog: 'unspecified'
+  behavioral_events: 'unspecified'
+
+times_period_multiplier: 1.5
+
+cameras:
+  - id: 0
+    meters_per_pixel: 0.00055
+  - id: 1
+    meters_per_pixel: 0.002
+
+tasks:
+  - task_name:          Sleep,
+    task_description:   The animal sleeps in a small empty box.
+    camera_id:
+      - 0
+    task_epochs:
+      - 1
+      - 3
+      - 5
+      - 7
+  - task_name:            3 choice memory
+    task_description:     3 choice on tree track
+    camera_id:
+      - 1
+    task_epochs:
+      - 2
+      - 4
+      - 6
+
+
+associated_video_files:
+  - name: 20170216_kibbles_01_s1.1.h264
+    camera_id : 0
+  - name: 20170216_kibbles_02_r1.1.h264
+    camera_id : 1
+  - name: 20170216_kibbles_03_s2.1.h264
+    camera_id : 0
+  - name: 20170216_kibbles_04_r2.1.h264
+    camera_id : 1
+  - name: 20170216_kibbles_05_s3.1.h264
+    camera_id : 0
+  - name: 20170216_kibbles_06_r3.1.h264
+    camera_id : 1
+  - name: 20170216_kibbles_07_s4.1.h264
+    camera_id : 0
+
+
+behavioral_events:
+  - description: Din1
+    name: Din1
+  - description: Din2
+    name: Din2
+  - description: Din3
+    name: Din3
+  - description: Din4
+    name: Din4
+  - description: Din5
+    name: Din5
+  - description: Din6
+    name: Din6
+
+
+device:
+  name:
+    - Trodes
+
+
+electrode_groups:
+  - id: 1
+    location: Hippocampus
+    device_type: 64c-3s6mm6cm-20um-40um-sl
+    description: 'Probe 1'
+    targeted_location: 'Hp'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 2
+    location: Hippocampus
+    device_type: 64c-3s6mm6cm-20um-40um-sl
+    description: 'Probe 2'
+    targeted_location: 'Hp'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 3
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 3'
+    targeted_location: 'Unknown'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 4
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 4'
+    targeted_location: 'Unknown'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 5
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 5'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 6
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 6'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 7
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 7'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 8
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 8'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 9
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 9'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 10
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 10'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 11
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 11'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 12
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 12'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 13
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 13'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 14
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 14'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 15
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 15'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+  - id: 16
+    location: 'Unknown'
+    device_type: 64c-4s6mm6cm-20um-40um-dl
+    description: 'Probe 16'
+    targeted_location: 'Sample predicted location'
+    targeted_x: 0.0
+    targeted_y: 0.0
+    targeted_z: 0.0
+    units: 'um'
+
+ntrode_electrode_group_channel_map:
+  - ntrode_id: 1
+    electrode_group_id: 1
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+      16: 16
+      17: 17
+      18: 18
+      19: 19
+      20: 20
+
+  - ntrode_id: 2
+    electrode_group_id: 1
+    bad_channels: []
+    map:
+      0: 21
+      1: 22
+      2: 23
+      3: 24
+      4: 25
+      5: 26
+      6: 27
+      7: 28
+      8: 29
+      9: 30
+      10: 31
+      11: 32
+      12: 33
+      13: 34
+      14: 35
+      15: 36
+      16: 37
+      17: 38
+      18: 39
+      19: 40
+      20: 41
+
+  - ntrode_id: 3
+    electrode_group_id: 1
+    bad_channels: []
+    map:
+      0: 42
+      1: 43
+      2: 44
+      3: 45
+      4: 46
+      5: 47
+      6: 48
+      7: 49
+      8: 50
+      9: 51
+      10: 52
+      11: 53
+      12: 54
+      13: 55
+      14: 56
+      15: 57
+      16: 58
+      17: 59
+      18: 60
+      19: 61
+      20: 62
+      21: 63
+
+  - ntrode_id: 4
+    electrode_group_id: 2
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+      16: 16
+      17: 17
+      18: 18
+      19: 19
+      20: 20
+
+  - ntrode_id: 5
+    electrode_group_id: 2
+    bad_channels: []
+    map:
+      0: 21
+      1: 22
+      2: 23
+      3: 24
+      4: 25
+      5: 26
+      6: 27
+      7: 28
+      8: 29
+      9: 30
+      10: 31
+      11: 32
+      12: 33
+      13: 34
+      14: 35
+      15: 36
+      16: 37
+      17: 38
+      18: 39
+      19: 40
+      20: 41
+
+  - ntrode_id: 6
+    electrode_group_id: 2
+    bad_channels: []
+    map:
+      0: 42
+      1: 43
+      2: 44
+      3: 45
+      4: 46
+      5: 47
+      6: 48
+      7: 49
+      8: 50
+      9: 51
+      10: 52
+      11: 53
+      12: 54
+      13: 55
+      14: 56
+      15: 57
+      16: 58
+      17: 59
+      18: 60
+      19: 61
+      20: 62
+      21: 63
+
+  - ntrode_id: 7
+    electrode_group_id: 3
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 8
+    electrode_group_id: 3
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 9
+    electrode_group_id: 3
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 10
+    electrode_group_id: 3
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 11
+    electrode_group_id: 4
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 12
+    electrode_group_id: 4
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 13
+    electrode_group_id: 4
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 14
+    electrode_group_id: 4
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 15
+    electrode_group_id: 5
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+
+  - ntrode_id: 16
+    electrode_group_id: 5
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 17
+    electrode_group_id: 5
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 18
+    electrode_group_id: 5
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 19
+    electrode_group_id: 6
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 20
+    electrode_group_id: 6
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 21
+    electrode_group_id: 6
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 22
+    electrode_group_id: 6
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+
+  - ntrode_id: 23
+    electrode_group_id: 7
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 24
+    electrode_group_id: 7
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 25
+    electrode_group_id: 7
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 26
+    electrode_group_id: 7
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+
+  - ntrode_id: 27
+    electrode_group_id: 8
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 28
+    electrode_group_id: 8
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 29
+    electrode_group_id: 8
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 30
+    electrode_group_id: 8
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 31
+    electrode_group_id: 9
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 32
+    electrode_group_id: 9
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 33
+    electrode_group_id: 9
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 34
+    electrode_group_id: 9
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 35
+    electrode_group_id: 10
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 36
+    electrode_group_id: 10
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 37
+    electrode_group_id: 10
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 38
+    electrode_group_id: 10
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+
+  - ntrode_id: 39
+    electrode_group_id: 11
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 40
+    electrode_group_id: 11
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 41
+    electrode_group_id: 11
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 42
+    electrode_group_id: 11
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 43
+    electrode_group_id: 12
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 44
+    electrode_group_id: 12
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 45
+    electrode_group_id: 12
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 46
+    electrode_group_id: 12
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 47
+    electrode_group_id: 13
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 48
+    electrode_group_id: 13
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 49
+    electrode_group_id: 13
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 50
+    electrode_group_id: 13
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 51
+    electrode_group_id: 14
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 52
+    electrode_group_id: 14
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 53
+    electrode_group_id: 14
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 54
+    electrode_group_id: 14
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 55
+    electrode_group_id: 15
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 56
+    electrode_group_id: 15
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 57
+    electrode_group_id: 15
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 58
+    electrode_group_id: 15
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63
+
+  - ntrode_id: 59
+    electrode_group_id: 16
+    bad_channels: []
+    map:
+      0: 0
+      1: 1
+      2: 2
+      3: 3
+      4: 4
+      5: 5
+      6: 6
+      7: 7
+      8: 8
+      9: 9
+      10: 10
+      11: 11
+      12: 12
+      13: 13
+      14: 14
+      15: 15
+
+  - ntrode_id: 60
+    electrode_group_id: 16
+    bad_channels: []
+    map:
+      0: 16
+      1: 17
+      2: 18
+      3: 19
+      4: 20
+      5: 21
+      6: 22
+      7: 23
+      8: 24
+      9: 25
+      10: 26
+      11: 27
+      12: 28
+      13: 29
+      14: 30
+      15: 31
+
+  - ntrode_id: 61
+    electrode_group_id: 16
+    bad_channels: []
+    map:
+      0: 32
+      1: 33
+      2: 34
+      3: 35
+      4: 36
+      5: 37
+      6: 38
+      7: 39
+      8: 40
+      9: 41
+      10: 42
+      11: 43
+      12: 44
+      13: 45
+      14: 46
+      15: 47
+
+  - ntrode_id: 16
+    electrode_group_id: 16
+    bad_channels: []
+    map:
+      0: 48
+      1: 49
+      2: 50
+      3: 51
+      4: 52
+      5: 53
+      6: 54
+      7: 55
+      8: 56
+      9: 57
+      10: 58
+      11: 59
+      12: 60
+      13: 61
+      14: 62
+      15: 63

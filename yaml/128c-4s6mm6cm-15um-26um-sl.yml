@@ -1,0 +1,527 @@
+probe_type: 128c-4s6mm6cm-15um-26um-sl
+units: 'um'
+probe_description: '128 channel polyimide probe'
+num_shanks: 4
+contact_side_numbering: true
+contact_size: 20.0
+shanks:
+  - shank_id: 0
+    electrodes:
+      - id: 0
+        rel_x: 0
+        rel_y: 0
+        rel_z: 0
+      - id: 1
+        rel_x: 0
+        rel_y: -26
+        rel_z: 0
+      - id: 2
+        rel_x: 0
+        rel_y: -52
+        rel_z: 0
+      - id: 3
+        rel_x: 0
+        rel_y: -78
+        rel_z: 0
+      - id: 4
+        rel_x: 0
+        rel_y: -104
+        rel_z: 0
+      - id: 5
+        rel_x: 0
+        rel_y: -130
+        rel_z: 0
+      - id: 6
+        rel_x: 0
+        rel_y: -156
+        rel_z: 0
+      - id: 7
+        rel_x: 0
+        rel_y: -182
+        rel_z: 0
+      - id: 8
+        rel_x: 0
+        rel_y: -208
+        rel_z: 0
+      - id: 9
+        rel_x: 0
+        rel_y: -234
+        rel_z: 0
+      - id: 10
+        rel_x: 0
+        rel_y: -260
+        rel_z: 0
+      - id: 11
+        rel_x: 0
+        rel_y: -286
+        rel_z: 0
+      - id: 12
+        rel_x: 0
+        rel_y: -312
+        rel_z: 0
+      - id: 13
+        rel_x: 0
+        rel_y: -338
+        rel_z: 0
+      - id: 14
+        rel_x: 0
+        rel_y: -364
+        rel_z: 0
+      - id: 15
+        rel_x: 0
+        rel_y: -390
+        rel_z: 0
+      - id: 16
+        rel_x: 0
+        rel_y: -416
+        rel_z: 0
+      - id: 17
+        rel_x: 0
+        rel_y: -442
+        rel_z: 0
+      - id: 18
+        rel_x: 0
+        rel_y: -468
+        rel_z: 0
+      - id: 19
+        rel_x: 0
+        rel_y: -494
+        rel_z: 0
+      - id: 20
+        rel_x: 0
+        rel_y: -520
+        rel_z: 0
+      - id: 21
+        rel_x: 0
+        rel_y: -546
+        rel_z: 0
+      - id: 22
+        rel_x: 0
+        rel_y: -572
+        rel_z: 0
+      - id: 23
+        rel_x: 0
+        rel_y: -598
+        rel_z: 0
+      - id: 24
+        rel_x: 0
+        rel_y: -624
+        rel_z: 0
+      - id: 25
+        rel_x: 0
+        rel_y: -650
+        rel_z: 0
+      - id: 26
+        rel_x: 0
+        rel_y: -676
+        rel_z: 0
+      - id: 27
+        rel_x: 0
+        rel_y: -702
+        rel_z: 0
+      - id: 28
+        rel_x: 0
+        rel_y: -728
+        rel_z: 0
+      - id: 29
+        rel_x: 0
+        rel_y: -754
+        rel_z: 0
+      - id: 30
+        rel_x: 0
+        rel_y: -780
+        rel_z: 0
+      - id: 31
+        rel_x: 0
+        rel_y: -806
+        rel_z: 0
+  - shank_id: 1
+    electrodes:
+      - id: 32
+        rel_x: 350
+        rel_y: 0
+        rel_z: 0
+      - id: 33
+        rel_x: 350
+        rel_y: -26
+        rel_z: 0
+      - id: 34
+        rel_x: 350
+        rel_y: -52
+        rel_z: 0
+      - id: 35
+        rel_x: 350
+        rel_y: -78
+        rel_z: 0
+      - id: 36
+        rel_x: 350
+        rel_y: -104
+        rel_z: 0
+      - id: 37
+        rel_x: 350
+        rel_y: -130
+        rel_z: 0
+      - id: 38
+        rel_x: 350
+        rel_y: -156
+        rel_z: 0
+      - id: 39
+        rel_x: 350
+        rel_y: -182
+        rel_z: 0
+      - id: 40
+        rel_x: 350
+        rel_y: -208
+        rel_z: 0
+      - id: 41
+        rel_x: 350
+        rel_y: -234
+        rel_z: 0
+      - id: 42
+        rel_x: 350
+        rel_y: -260
+        rel_z: 0
+      - id: 43
+        rel_x: 350
+        rel_y: -286
+        rel_z: 0
+      - id: 44
+        rel_x: 350
+        rel_y: -312
+        rel_z: 0
+      - id: 45
+        rel_x: 350
+        rel_y: -338
+        rel_z: 0
+      - id: 46
+        rel_x: 350
+        rel_y: -364
+        rel_z: 0
+      - id: 47
+        rel_x: 350
+        rel_y: -390
+        rel_z: 0
+      - id: 48
+        rel_x: 350
+        rel_y: -416
+        rel_z: 0
+      - id: 49
+        rel_x: 350
+        rel_y: -442
+        rel_z: 0
+      - id: 50
+        rel_x: 350
+        rel_y: -468
+        rel_z: 0
+      - id: 51
+        rel_x: 350
+        rel_y: -494
+        rel_z: 0
+      - id: 52
+        rel_x: 350
+        rel_y: -520
+        rel_z: 0
+      - id: 53
+        rel_x: 350
+        rel_y: -546
+        rel_z: 0
+      - id: 54
+        rel_x: 350
+        rel_y: -572
+        rel_z: 0
+      - id: 55
+        rel_x: 350
+        rel_y: -598
+        rel_z: 0
+      - id: 56
+        rel_x: 350
+        rel_y: -624
+        rel_z: 0
+      - id: 57
+        rel_x: 350
+        rel_y: -650
+        rel_z: 0
+      - id: 58
+        rel_x: 350
+        rel_y: -676
+        rel_z: 0
+      - id: 59
+        rel_x: 350
+        rel_y: -702
+        rel_z: 0
+      - id: 60
+        rel_x: 350
+        rel_y: -728
+        rel_z: 0
+      - id: 61
+        rel_x: 350
+        rel_y: -754
+        rel_z: 0
+      - id: 62
+        rel_x: 350
+        rel_y: -780
+        rel_z: 0
+      - id: 63
+        rel_x: 350
+        rel_y: -806
+        rel_z: 0
+  - shank_id: 2
+    electrodes:
+      - id: 64
+        rel_x: 774
+        rel_y: 0
+        rel_z: 0
+      - id: 65
+        rel_x: 774
+        rel_y: -26
+        rel_z: 0
+      - id: 66
+        rel_x: 774
+        rel_y: -52
+        rel_z: 0
+      - id: 67
+        rel_x: 774
+        rel_y: -78
+        rel_z: 0
+      - id: 68
+        rel_x: 774
+        rel_y: -104
+        rel_z: 0
+      - id: 69
+        rel_x: 774
+        rel_y: -130
+        rel_z: 0
+      - id: 70
+        rel_x: 774
+        rel_y: -156
+        rel_z: 0
+      - id: 71
+        rel_x: 774
+        rel_y: -182
+        rel_z: 0
+      - id: 72
+        rel_x: 774
+        rel_y: -208
+        rel_z: 0
+      - id: 73
+        rel_x: 774
+        rel_y: -234
+        rel_z: 0
+      - id: 74
+        rel_x: 774
+        rel_y: -260
+        rel_z: 0
+      - id: 75
+        rel_x: 774
+        rel_y: -286
+        rel_z: 0
+      - id: 76
+        rel_x: 774
+        rel_y: -312
+        rel_z: 0
+      - id: 77
+        rel_x: 774
+        rel_y: -338
+        rel_z: 0
+      - id: 78
+        rel_x: 774
+        rel_y: -364
+        rel_z: 0
+      - id: 79
+        rel_x: 774
+        rel_y: -390
+        rel_z: 0
+      - id: 80
+        rel_x: 774
+        rel_y: -416
+        rel_z: 0
+      - id: 81
+        rel_x: 774
+        rel_y: -442
+        rel_z: 0
+      - id: 82
+        rel_x: 774
+        rel_y: -468
+        rel_z: 0
+      - id: 83
+        rel_x: 774
+        rel_y: -494
+        rel_z: 0
+      - id: 84
+        rel_x: 774
+        rel_y: -520
+        rel_z: 0
+      - id: 85
+        rel_x: 774
+        rel_y: -546
+        rel_z: 0
+      - id: 86
+        rel_x: 774
+        rel_y: -572
+        rel_z: 0
+      - id: 87
+        rel_x: 774
+        rel_y: -598
+        rel_z: 0
+      - id: 88
+        rel_x: 774
+        rel_y: -624
+        rel_z: 0
+      - id: 89
+        rel_x: 774
+        rel_y: -650
+        rel_z: 0
+      - id: 90
+        rel_x: 774
+        rel_y: -676
+        rel_z: 0
+      - id: 91
+        rel_x: 774
+        rel_y: -702
+        rel_z: 0
+      - id: 92
+        rel_x: 774
+        rel_y: -728
+        rel_z: 0
+      - id: 93
+        rel_x: 774
+        rel_y: -754
+        rel_z: 0
+      - id: 94
+        rel_x: 774
+        rel_y: -780
+        rel_z: 0
+      - id: 95
+        rel_x: 774
+        rel_y: -806
+        rel_z: 0
+  - shank_id: 3
+    electrodes:
+      - id: 96
+        rel_x: 1124
+        rel_y: 0
+        rel_z: 0
+      - id: 97
+        rel_x: 1124
+        rel_y: -26
+        rel_z: 0
+      - id: 98
+        rel_x: 1124
+        rel_y: -52
+        rel_z: 0
+      - id: 99
+        rel_x: 1124
+        rel_y: -78
+        rel_z: 0
+      - id: 100
+        rel_x: 1124
+        rel_y: -104
+        rel_z: 0
+      - id: 101
+        rel_x: 1124
+        rel_y: -130
+        rel_z: 0
+      - id: 102
+        rel_x: 1124
+        rel_y: -156
+        rel_z: 0
+      - id: 103
+        rel_x: 1124
+        rel_y: -182
+        rel_z: 0
+      - id: 104
+        rel_x: 1124
+        rel_y: -208
+        rel_z: 0
+      - id: 105
+        rel_x: 1124
+        rel_y: -234
+        rel_z: 0
+      - id: 106
+        rel_x: 1124
+        rel_y: -260
+        rel_z: 0
+      - id: 107
+        rel_x: 1124
+        rel_y: -286
+        rel_z: 0
+      - id: 108
+        rel_x: 1124
+        rel_y: -312
+        rel_z: 0
+      - id: 109
+        rel_x: 1124
+        rel_y: -338
+        rel_z: 0
+      - id: 110
+        rel_x: 1124
+        rel_y: -364
+        rel_z: 0
+      - id: 111
+        rel_x: 1124
+        rel_y: -390
+        rel_z: 0
+      - id: 112
+        rel_x: 1124
+        rel_y: -416
+        rel_z: 0
+      - id: 113
+        rel_x: 1124
+        rel_y: -442
+        rel_z: 0
+      - id: 114
+        rel_x: 1124
+        rel_y: -468
+        rel_z: 0
+      - id: 115
+        rel_x: 1124
+        rel_y: -494
+        rel_z: 0
+      - id: 116
+        rel_x: 1124
+        rel_y: -520
+        rel_z: 0
+      - id: 117
+        rel_x: 1124
+        rel_y: -546
+        rel_z: 0
+      - id: 118
+        rel_x: 1124
+        rel_y: -572
+        rel_z: 0
+      - id: 119
+        rel_x: 1124
+        rel_y: -598
+        rel_z: 0
+      - id: 120
+        rel_x: 1124
+        rel_y: -624
+        rel_z: 0
+      - id: 121
+        rel_x: 1124
+        rel_y: -650
+        rel_z: 0
+      - id: 122
+        rel_x: 1124
+        rel_y: -676
+        rel_z: 0
+      - id: 123
+        rel_x: 1124
+        rel_y: -702
+        rel_z: 0
+      - id: 124
+        rel_x: 1124
+        rel_y: -728
+        rel_z: 0
+      - id: 125
+        rel_x: 1124
+        rel_y: -754
+        rel_z: 0
+      - id: 126
+        rel_x: 1124
+        rel_y: -780
+        rel_z: 0
+      - id: 127
+        rel_x: 1124
+        rel_y: -806
+        rel_z: 0
