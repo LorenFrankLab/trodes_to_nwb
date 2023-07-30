@@ -50,3 +50,22 @@ exclude = [".git_archival.txt"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/spikegadgets_to_nwb"]
 exclude = ["src/spikegadgets_to_nwb/data/test_data"]
+
+[tool.black]
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+)
+'''

@@ -1,18 +1,19 @@
 name: spikegadgets_to_nwb
 channels:
-- defaults
-- conda-forge
-- franklab
+  - defaults
+  - conda-forge
+  - franklab
 dependencies:
-- numpy
-- scipy
-- pandas
-- pynwb
-- ipython
-- black
-- pytest
-- pytest-cov
-- pip
-- pyyaml
-- pip:
-    - ndx-franklab-novela
+  - numpy
+  - scipy
+  - pandas
+  - pynwb
+  - ipython
+  - black
+  - pytest
+  - pytest-cov
+  - pip
+  - pyyaml
+  - jsonschema
+  - pip:
+      - ndx-franklab-novela

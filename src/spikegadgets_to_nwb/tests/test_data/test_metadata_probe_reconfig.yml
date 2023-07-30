@@ -56,34 +56,27 @@ associated_files:
   - name: associated1.txt
     description: good file
     path: path/
-    task_epochs:
-      - 1
+    task_epochs: 1
   - name: associated2.txt
     description: good file
     path: path/
-    task_epochs:
-      - 2
+    task_epochs: 2
 associated_video_files:
   - name: video1
     camera_id: 0
-    task_epochs:
-      - 1
+    task_epochs: 1
   - name: video3
     camera_id: 0
-    task_epochs:
-      - 3
+    task_epochs: 3
   - name: video5
     camera_id: 0
-    task_epochs:
-      - 5
+    task_epochs: 5
   - name: video2
     camera_id: 1
-    task_epochs:
-      - 2
+    task_epochs: 2
   - name: video4
     camera_id: 1
-    task_epochs:
-      - 2
+    task_epochs: 2
 units:
   analog: "-1"
   behavioral_events: "-1"
