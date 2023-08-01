@@ -8,7 +8,7 @@ VALID_FILE_EXTENSIONS = [
     "h264",  # video file
     "cameraHWSync",  # position timestamps
     "stateScriptLog",  # state script controls the experimenter parameters
-    "yaml",  # metadata file
+    "yml",  # metadata file
     "videoTimeStamps",  # not used
     "track_geometry",  # used if using Trodes linearization
 ]
