@@ -33,18 +33,30 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
     full_path : str
 
     """
-    date, animal_name, epoch, tag = path.stem.split("_")
-    tag = tag.split(".")
-    tag_index = tag[1] if len(tag) > 1 else 1
-    tag = tag[0]
-    full_path = str(path.absolute())
-    extension = path.suffix
     try:
-        # check if date, epoch, and tag_index are integers
-        int(date), int(epoch), int(tag_index)
+        if path.suffix == ".yml":
+            date, animal_name, _ = path.stem.split("_")
+            epoch = "NA"
+            tag = "NA"
+            tag_index = 1
+        else:
+            date, animal_name, epoch, tag = path.stem.split("_")
+            tag = tag.split(".")
+            tag_index = tag[1] if len(tag) > 1 else 1
+            tag = tag[0]
+            try:
+                # check if date, epoch, and tag_index are integers
+                int(date), int(epoch), int(tag_index)
+            except ValueError:
+                print(f"Invalid file name: {path.stem}. Skipping...")
+
+        full_path = str(path.absolute())
+        extension = path.suffix
+
+        return date, animal_name, epoch, tag, tag_index, extension, full_path
     except ValueError:
-        print(f"Invalid file name: {path.stem}")
-    return date, animal_name, epoch, tag, tag_index, extension, full_path
+        print(f"Invalid file name: {path.stem}. Skipping...")
+        return None, None, None, None, None, None, None
 
 
 def get_file_info(path: Path) -> pd.DataFrame:
@@ -71,12 +83,16 @@ def get_file_info(path: Path) -> pd.DataFrame:
         "full_path",
     ]
 
-    return pd.concat(
-        [
-            pd.DataFrame(
-                [_process_path(files) for files in path.glob(f"**/*.{ext}")],
-                columns=COLUMN_NAMES,
-            )
-            for ext in VALID_FILE_EXTENSIONS
-        ]
-    ).sort_values(by=["date", "animal", "epoch", "tag_index"])
+    return (
+        pd.concat(
+            [
+                pd.DataFrame(
+                    [_process_path(files) for files in path.glob(f"**/*.{ext}")],
+                    columns=COLUMN_NAMES,
+                )
+                for ext in VALID_FILE_EXTENSIONS
+            ]
+        )
+        .sort_values(by=["date", "animal", "epoch", "tag_index"])
+        .dropna(how="all")
+    )
