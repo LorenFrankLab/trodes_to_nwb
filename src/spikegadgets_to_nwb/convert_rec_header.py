@@ -1,9 +1,27 @@
 from xml.etree import ElementTree
 from ndx_franklab_novela import HeaderDevice
 from pynwb import NWBFile
+from pathlib import Path
 
 
-def read_header(recfile: str) -> ElementTree.Element:
+def read_header(recfile: Path | str) -> ElementTree.Element:
+    """Read xml header from rec file
+
+    Parameters
+    ----------
+    recfile : Path
+        Path to rec file
+
+    Returns
+    -------
+    ElementTree.Element
+        xml header
+
+    Raises
+    ------
+    ValueError
+        If the xml header does not contain '</Configuration>'
+    """
     header_size = None
     with open(recfile, mode="rb") as f:
         while True:
@@ -23,7 +41,7 @@ def read_header(recfile: str) -> ElementTree.Element:
     return ElementTree.fromstring(header_txt)
 
 
-def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
+def add_header_device(nwbfile: NWBFile, rec_header: ElementTree.Element) -> None:
     """Reads global configuration from rec file and inserts into a header device within the nwbfile
 
     Parameters
@@ -34,9 +52,7 @@ def add_header_device(nwbfile: NWBFile, recfile: str) -> None:
         path to rec file
     """
 
-    # explore xml header
-    root = read_header(recfile)
-    global_configuration = root.find("GlobalConfiguration")
+    global_configuration = rec_header.find("GlobalConfiguration")
 
     nwbfile.add_device(
         HeaderDevice(
