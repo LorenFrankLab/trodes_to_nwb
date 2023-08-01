@@ -41,11 +41,15 @@ def test_add_header_device():
     try:
         # running on github
         recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
-        convert_rec_header.add_header_device(nwbfile, recfile)
+        convert_rec_header.add_header_device(
+            nwbfile, convert_rec_header.read_header(recfile)
+        )
     except (TypeError, FileNotFoundError):
         # running locally
         recfile = path + "/test_data/20230622_155936.rec"
-        convert_rec_header.add_header_device(nwbfile, recfile)
+        convert_rec_header.add_header_device(
+            nwbfile, convert_rec_header.read_header(recfile)
+        )
 
     # Perform assertions to check the results
     # Check if the device was added correctly

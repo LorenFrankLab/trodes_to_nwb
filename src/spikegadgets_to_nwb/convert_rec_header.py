@@ -48,8 +48,8 @@ def add_header_device(nwbfile: NWBFile, rec_header: ElementTree.Element) -> None
     ----------
     nwbfile : NWBFile
         nwb file being assembled
-    recfile : str
-        path to rec file
+    recfile : ElementTree.Element
+        xml header from rec file
     """
 
     global_configuration = rec_header.find("GlobalConfiguration")
