@@ -169,4 +169,3 @@ _version.py
 *.h264
 *.rec
 *.stateScriptLog
-*_metadata.yml
