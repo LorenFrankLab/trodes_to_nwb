@@ -169,5 +169,3 @@ _version.py
 *.h264
 *.rec
 *.stateScriptLog
-*.yml
-!environment.yml
