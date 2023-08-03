@@ -5,6 +5,7 @@ from ndx_franklab_novela import HeaderDevice
 from xml.etree import ElementTree
 
 import os
+import pytest
 
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -78,3 +79,62 @@ def test_add_header_device():
     assert header_device.commit_head == "heads/Release_2.4.0-0-g499429f3"
     assert header_device.system_time_at_creation == "       1687474797888"
     assert header_device.file_path == ""
+
+    # Check if error raised if improper header file is passed
+    recfile = path + "/test_data/bad_header.trodesconf"
+    with pytest.raises(
+        ValueError,
+        match="SpikeGadgets: the xml header does not contain '</Configuration>'",
+    ):
+        convert_rec_header.read_header(recfile)
+
+
+def test_detect_ptp():
+    assert convert_rec_header.detect_ptp_from_header(default_test_xml_tree())
+
+
+def test_validate_yaml_header_electrode_map():
+    # get metadata and rec_header
+    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    try:
+        # running on github
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = path + "/test_data/20230622_155936.rec"
+    rec_header = convert_rec_header.read_header(recfile)
+
+    # correct matching
+    convert_rec_header.validate_yaml_header_electrode_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
+
+    # check if error is raised when there is extra channel map
+    new_map_entry = metadata["ntrode_electrode_group_channel_map"][0].copy()
+    new_map_entry["ntrode_id"] = 33
+    new_map_entry["electrode_group_id"] = 32
+    metadata["ntrode_electrode_group_channel_map"].append(new_map_entry)
+    with pytest.raises(
+        IndexError, match="XML Header contains less ntrodes than the yaml indicates"
+    ):
+        convert_rec_header.validate_yaml_header_electrode_map(
+            metadata, rec_header.find("SpikeConfiguration")
+        )
+    # check if error is raised when there is missing channel map
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    metadata["ntrode_electrode_group_channel_map"].pop(0)
+    with pytest.raises(KeyError, match="Missing yaml metadata for ntrodes 1"):
+        convert_rec_header.validate_yaml_header_electrode_map(
+            metadata, rec_header.find("SpikeConfiguration")
+        )
+    # check if error is raised when channel map has wrong number of channels
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    metadata["ntrode_electrode_group_channel_map"][0]["map"]["4"] = 4
+    with pytest.raises(
+        ValueError,
+        match="Ntrode group 1 does not contain the number of channels indicated by the metadata yaml",
+    ):
+        convert_rec_header.validate_yaml_header_electrode_map(
+            metadata, rec_header.find("SpikeConfiguration")
+        )
