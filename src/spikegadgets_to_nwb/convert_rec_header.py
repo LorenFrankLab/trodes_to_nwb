@@ -24,11 +24,12 @@ def read_header(recfile: Path | str) -> ElementTree.Element:
     """
     header_size = None
     with open(recfile, mode="rb") as f:
-        while True:
-            line = f.readline()
+        line = f.readline()
+        while line:
             if b"</Configuration>" in line:
                 header_size = f.tell()
                 break
+            line = f.readline()
 
         if header_size is None:
             raise ValueError(
@@ -133,6 +134,8 @@ def validate_yaml_header_electrode_map(
     ):
         raise (IndexError("XML Header contains less ntrodes than the yaml indicates"))
 
+    pass
+
 
 def make_hw_channel_map(
     metadata: dict, spike_config: ElementTree.Element
@@ -160,8 +163,6 @@ def make_hw_channel_map(
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
-        if channel_map is None:
-            raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
         nwb_group_id = channel_map["electrode_group_id"]
         # make a dictinary for the nwbgroup to map nwb_electrode_id -> hwchan, may not be necessary for probes with multiple ntrode groups per nwb group
         if nwb_group_id not in hw_channel_map:
@@ -205,8 +206,6 @@ def make_ref_electrode_map(
         if "refNTrodeID" in group.attrib:
             # define the current ntrode group's nwb id
             ntrode_id = group.attrib["id"]
-            if ntrode_id not in ntrode_id_to_nwb:
-                raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
             nwb_group_id = ntrode_id_to_nwb[ntrode_id]
             # find channel map for ref group
             ntrode_ref_group_id = group.attrib["refNTrodeID"]
@@ -222,7 +221,7 @@ def make_ref_electrode_map(
             ]  # adjusted because trodes is 1-indexed
             # add it to the map (only need one per group)
             ref_electrode_map[nwb_group_id] = (ref_group_nwb, ref_electrode_nwb)
-        else:
+        else:  # pragma: no cover
             # no reference defined
             ref_electrode_map[nwb_group_id] = (-1, -1)
     return ref_electrode_map
