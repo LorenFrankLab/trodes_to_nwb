@@ -10,12 +10,20 @@ from spikegadgets_to_nwb import convert_rec_header
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 MICROVOLTS_PER_VOLT = 1e6
+VOLTS_PER_MICROVOLT = 1e-6
 
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
-    def __init__(self, rec_file_path: list[str], nwb_hw_channel_order=[], **kwargs):
+    def __init__(
+        self,
+        rec_file_path: list[str],
+        nwb_hw_channel_order=[],
+        conversion: float = 1.0,
+        **kwargs,
+    ):
+        self.conversion = conversion
         self.neo_io = [
             SpikeGadgetsRawIO(filename=file) for file in rec_file_path
         ]  # get all streams for all files
@@ -124,7 +132,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 - (i - file_start_ind[io_stream]),  # if added up to the end of stream
                 time_index[-1] - i,  # if finished in this stream
             )
-        data = np.array(data).astype("int16")
+        data = (np.array(data) * self.conversion).astype("int16")
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:
@@ -164,10 +172,15 @@ def add_raw_ephys(
     nwb_hw_chan_order = [
         int(x) for x in list(nwbfile.electrodes.to_dataframe()["hwChan"])
     ]
+    # get conversion factor from rec file
+    rec_header = convert_rec_header.read_header(recfile[0])
+    spike_config = rec_header.find("SpikeConfiguration")
+    conversion = float(spike_config[0].attrib["rawScalingToUv"])
     # make the data iterator
     rec_dci = RecFileDataChunkIterator(
         recfile,
         nwb_hw_channel_order=nwb_hw_chan_order,
+        conversion=conversion,
     )  # can set buffer_gb if needed
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended
@@ -176,17 +189,13 @@ def add_raw_ephys(
     # they require the hdf5plugin library to be installed. gzip is available by default.
     data_data_io = H5DataIO(rec_dci, chunks=(16384, min(rec_dci.n_channel, 32)))
 
-    # get conversion factor from rec file
-    rec_header = convert_rec_header.read_header(recfile[0])
-    spike_config = rec_header.find("SpikeConfiguration")
-    conversion = float(spike_config[0].attrib["rawScalingToUv"]) / MICROVOLTS_PER_VOLT
     # do we want to pull the timestamps from the rec file? or is there another source?
     eseries = ElectricalSeries(
         name="e-series",
         data=data_data_io,
         timestamps=rec_dci.timestamps,
         electrodes=electrode_table_region,  # TODO
-        conversion=conversion,
+        conversion=VOLTS_PER_MICROVOLT,
         offset=0.0,  # TODO
     )
 
