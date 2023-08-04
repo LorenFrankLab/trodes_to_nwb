@@ -36,7 +36,7 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
     try:
         if path.suffix == ".yml":
             date, animal_name, _ = path.stem.split("_")
-            epoch = "NA"
+            epoch = 1
             tag = "NA"
             tag_index = 1
         else:
