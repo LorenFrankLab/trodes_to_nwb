@@ -68,15 +68,15 @@ jobs:
         run: pip install --upgrade pip
       - name: Install wheel
         if: matrix.package == 'wheel'
-        run: pip install dist/*.whl
+        run: pip install -e dist/*.whl
       - name: Install sdist
         if: matrix.package == 'sdist'
-        run: pip install dist/*.tar.gz
+        run: pip install -e dist/*.tar.gz
       - name: Install archive
         if: matrix.package == 'archive'
-        run: pip install archive/archive.tgz
+        run: pip install -e archive/archive.tgz
       - name: Install test extras
-        run: pip install -e spikegadgets_to_nwb[test]
+        run: pip install spikegadgets_to_nwb[test]
       - name: Download test rec files
         env:
           UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
