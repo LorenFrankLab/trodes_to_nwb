@@ -6,6 +6,7 @@ from hdmf.common.table import DynamicTable, VectorData
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 import os
+import pytest
 
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -283,7 +284,7 @@ def test_add_tasks():
         assert task_df["task_environment"][0] == task_metadata["task_environment"]
 
 
-def test_add_associated_files():
+def test_add_associated_files(capsys):
     # Set up test data
     metadata_path = path + "/test_data/test_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -309,6 +310,19 @@ def test_add_associated_files():
         nwbfile.processing["associated_files"]["associated1.txt"].content
         == "test file 1"
     )
+
+    # Test printed errormessage for missing file
+    # Change path of files to be relative to this directory
+    metadata["associated_files"][0]["path"] = ""
+    metadata["associated_files"][0]["name"] = "bad_path.txt"
+    metadata["associated_files"].pop(1)
+    convert_yaml.add_associated_files(nwbfile, metadata)
+    captured = capsys.readouterr()
+    printed_warning = False
+    for line in captured.out.split("\n"):
+        if "ERROR: associated file bad_path.txt does not exist" in line:
+            printed_warning = True
+    assert printed_warning
 
     def test_add_associated_video_files():
         return

@@ -438,9 +438,10 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
                 task_epochs=task_epochs,
             )
         )
-    nwbfile.create_processing_module(
-        name="associated_files", description="Contains all associated files data"
-    )
+    if "associated_files" not in nwbfile.processing:
+        nwbfile.create_processing_module(
+            name="associated_files", description="Contains all associated files data"
+        )
     nwbfile.processing["associated_files"].add(associated_files)
 
 
