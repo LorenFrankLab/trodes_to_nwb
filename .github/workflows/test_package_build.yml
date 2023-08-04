@@ -76,7 +76,7 @@ jobs:
         if: matrix.package == 'archive'
         run: pip install archive/archive.tgz
       - name: Install test extras
-        run: pip install spikegadgets_to_nwb[test]
+        run: pip install -e spikegadgets_to_nwb[test]
       - name: Download test rec files
         env:
           UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
