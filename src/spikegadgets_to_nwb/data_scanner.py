@@ -39,6 +39,13 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
             epoch = 1
             tag = "NA"
             tag_index = 1
+
+            try:
+                # check if date is an integer
+                date = int(date)
+            except ValueError:
+                print(f"Invalid file name: {path.stem}. Skipping...")
+                return None, None, None, None, None, None, None
         else:
             date, animal_name, epoch, tag = path.stem.split("_")
             tag = tag.split(".")
@@ -46,7 +53,9 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
             tag = tag[0]
             try:
                 # check if date, epoch, and tag_index are integers
-                int(date), int(epoch), int(tag_index)
+                date = int(date)
+                epoch = int(epoch)
+                tag_index = int(tag_index)
             except ValueError:
                 print(f"Invalid file name: {path.stem}. Skipping...")
 
@@ -95,4 +104,5 @@ def get_file_info(path: Path) -> pd.DataFrame:
         )
         .sort_values(by=["date", "animal", "epoch", "tag_index"])
         .dropna(how="all")
+        .astype({"date": int, "epoch": int, "tag_index": int})
     )
