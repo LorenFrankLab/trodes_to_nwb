@@ -45,7 +45,7 @@ jobs:
     needs: [build]
     strategy:
       matrix:
-        package: ['wheel', 'sdist', 'archive']
+        package: ['wheel', 'sdist', 'archive', 'editable']
     steps:
       - name: Download sdist and wheel artifacts
         if: matrix.package != 'archive'
@@ -59,6 +59,11 @@ jobs:
         with:
           name: archive
           path: archive/
+      - name: Checkout repo
+        if: matrix.package == 'editable'
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: 3
@@ -68,13 +73,16 @@ jobs:
         run: pip install --upgrade pip
       - name: Install wheel
         if: matrix.package == 'wheel'
-        run: pip install -e dist/*.whl
+        run: pip install dist/*.whl
       - name: Install sdist
         if: matrix.package == 'sdist'
-        run: pip install -e dist/*.tar.gz
+        run: pip install dist/*.tar.gz
       - name: Install archive
         if: matrix.package == 'archive'
-        run: pip install -e archive/archive.tgz
+        run: pip install archive/archive.tgz
+      - name: Install editable
+        if: matrix.package == 'editable'
+        run: pip install -e .
       - name: Install test extras
         run: pip install spikegadgets_to_nwb[test]
       - name: Download test rec files
@@ -86,11 +94,18 @@ jobs:
         run: |
           wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR $WEBSITE
           tree $DOWNLOAD_DIR
-      - name: Run tests
+      - name: Run tests without coverage
+        if: matrix.package != 'editable'
+        env:
+          DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
+        run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
+      - name: Run tests with coverage
+        if: matrix.package == 'editable'
         env:
           DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
         run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs spikegadgets_to_nwb
       - name: Upload coverage reports to Codecov
+        if: matrix.package == 'editable'
         uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
