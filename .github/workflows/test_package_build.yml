@@ -94,13 +94,6 @@ jobs:
         uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
-          files: coverage.xml
-          flags: unittests
-          name: codecov-umbrella
-          verbose: true
   publish:
     runs-on: ubuntu-latest
     needs: [test-package]
