@@ -21,13 +21,13 @@ def default_test_xml_tree() -> ElementTree:
     try:
         # running on github
         trodesconf_file = (
-            os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1"
         )  # "/test_data/reconfig_probeDevice.trodesconf"
         rec_header = convert_rec_header.read_header(trodesconf_file)
     except:
         # running locally
         trodesconf_file = (
-            path + "/test_data/20230622_155936.rec"
+            path + "/test_data/20230622_sample_01_a1.rec"
         )  # "/test_data/reconfig_probeDevice.trodesconf"
         rec_header = convert_rec_header.read_header(trodesconf_file)
     return rec_header
@@ -41,13 +41,13 @@ def test_add_header_device():
     # Call the function to be tested
     try:
         # running on github
-        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
         convert_rec_header.add_header_device(
             nwbfile, convert_rec_header.read_header(recfile)
         )
     except (TypeError, FileNotFoundError):
         # running locally
-        recfile = path + "/test_data/20230622_155936.rec"
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
         convert_rec_header.add_header_device(
             nwbfile, convert_rec_header.read_header(recfile)
         )
@@ -99,10 +99,10 @@ def test_validate_yaml_header_electrode_map():
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     try:
         # running on github
-        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
     except (TypeError, FileNotFoundError):
         # running locally
-        recfile = path + "/test_data/20230622_155936.rec"
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
     rec_header = convert_rec_header.read_header(recfile)
 
     # correct matching

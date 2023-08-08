@@ -87,10 +87,10 @@ def test_electrode_creation():
     # create the hw_channel map using rec data
     try:
         # running on github
-        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.rec"
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
     except (TypeError, FileNotFoundError):
         # running locally
-        recfile = path + "/test_data/20230622_155936.rec"
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
     rec_header = convert_rec_header.read_header(recfile)
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
