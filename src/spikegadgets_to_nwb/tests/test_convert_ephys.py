@@ -127,7 +127,7 @@ def test_add_raw_ephys_single_rec_probe_configuration():
 
     try:
         # running on github
-        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1"
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
         rec_to_nwb_file = (
             os.environ.get("DOWNLOAD_DIR") + "/probe_reconfig_20230622_155936.nwb"
         )
