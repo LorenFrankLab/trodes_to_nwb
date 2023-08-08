@@ -12,7 +12,7 @@ path = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_initial_nwb_creation():
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # check that things were added in
@@ -33,7 +33,7 @@ def test_initial_nwb_creation():
 
 
 def test_subject_creation():
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_subject(nwb_file, metadata)
@@ -49,7 +49,7 @@ def test_subject_creation():
 
 
 def test_camera_creation():
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_cameras(nwb_file, metadata)
@@ -63,7 +63,7 @@ def test_camera_creation():
 
 
 def test_acq_device_creation():
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
@@ -77,7 +77,7 @@ def test_acq_device_creation():
 
 def test_electrode_creation():
     # load metadata yml and make nwb file
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     probe_metadata = [
         path + "/test_data/tetrode_12.5.yml",
     ]
@@ -155,7 +155,7 @@ def test_electrode_creation():
 
 def test_electrode_creation_reconfigured():
     # load metadata yml and make nwb file
-    metadata_path = path + "/test_data/test_metadata_probe_reconfig.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadataProbeReconfig.yml"
     probe_metadata = [
         path + "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
     ]
@@ -234,7 +234,7 @@ def test_electrode_creation_reconfigured():
 
 def test_add_tasks():
     # Set up test data
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
@@ -286,7 +286,7 @@ def test_add_tasks():
 
 def test_add_associated_files(capsys):
     # Set up test data
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # Change path of files to be relative to this directory

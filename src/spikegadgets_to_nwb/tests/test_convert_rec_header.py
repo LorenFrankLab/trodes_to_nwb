@@ -35,7 +35,7 @@ def default_test_xml_tree() -> ElementTree:
 
 def test_add_header_device():
     # Set up test data
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # Call the function to be tested
@@ -95,7 +95,7 @@ def test_detect_ptp():
 
 def test_validate_yaml_header_electrode_map():
     # get metadata and rec_header
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     try:
         # running on github

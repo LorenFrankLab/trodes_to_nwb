@@ -10,12 +10,9 @@ path = os.path.dirname(os.path.abspath(__file__))
 
 def test_add_raw_ephys_single_rec():
     # load metadata yml and make nwb file
-    metadata_path = (
-        path + "/test_data/test_metadata.yml"
-    )  # "/test_data/test_metadata_probe_reconfig.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     probe_metadata = [
-        path
-        + "/test_data/tetrode_12.5.yml",  # "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
+        path + "/test_data/tetrode_12.5.yml",
     ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
@@ -103,7 +100,7 @@ def test_add_raw_ephys_single_rec():
 
 def test_add_raw_ephys_single_rec_probe_configuration():
     # load metadata yml and make nwb file
-    metadata_path = path + "/test_data/test_metadata_probe_reconfig.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadataProbeReconfig.yml"
     probe_metadata = [
         path + "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
     ]
@@ -185,7 +182,7 @@ def test_add_raw_ephys_single_rec_probe_configuration():
 
 def test_add_raw_ephys_two_epoch():
     # load metadata yml and make nwb file
-    metadata_path = path + "/test_data/test_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     probe_metadata = [
         path + "/test_data/tetrode_12.5.yml",
     ]
