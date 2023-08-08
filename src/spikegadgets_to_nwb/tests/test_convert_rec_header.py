@@ -21,7 +21,7 @@ def default_test_xml_tree() -> ElementTree:
     try:
         # running on github
         trodesconf_file = (
-            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1"
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
         )  # "/test_data/reconfig_probeDevice.trodesconf"
         rec_header = convert_rec_header.read_header(trodesconf_file)
     except:
