@@ -22,6 +22,8 @@ def test_get_file_info():
         ".videoTimeStamps",
         ".videoPositionTracking",
         ".rec",
+        ".trackgeometry",
+        ".stateScriptLog",
     ]:
         assert len(path_df[path_df.file_extension == file_type]) == 2
 

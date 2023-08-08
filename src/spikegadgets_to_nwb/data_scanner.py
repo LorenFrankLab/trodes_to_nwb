@@ -10,7 +10,7 @@ VALID_FILE_EXTENSIONS = [
     "stateScriptLog",  # state script controls the experimenter parameters
     "yml",  # metadata file
     "videoTimeStamps",  # not used
-    "track_geometry",  # used if using Trodes linearization
+    "trackgeometry",  # used if using Trodes linearization
 ]
 
 
