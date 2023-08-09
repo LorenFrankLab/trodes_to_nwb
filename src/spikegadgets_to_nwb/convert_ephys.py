@@ -21,6 +21,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         rec_file_path: list[str],
         nwb_hw_channel_order=[],
         conversion: float = 1.0,
+        stream_index: int = 1,
         **kwargs,
     ):
         self.conversion = conversion
@@ -37,7 +38,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         self.block_index = 0
         self.seg_index = 0
-        self.stream_index = 1  # TODO confirm that the stream index is trodes
+        self.stream_index = stream_index  # TODO confirm that the stream index is trodes
 
         self.n_time = [
             neo_io.get_signal_size(
