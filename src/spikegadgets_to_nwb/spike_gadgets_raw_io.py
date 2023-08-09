@@ -127,9 +127,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
         signal_streams = []
         signal_channels = []
 
-        # walk in xml device and keep only "analog" one
+        self._mask_channels_ids = {}
         self._mask_channels_bytes = {}
         self._mask_channels_bits = {}  # for digital data
+
+        # walk through xml devices
         for device in hconf:
             stream_id = device.attrib["name"]
             for channel in device:
@@ -165,6 +167,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
                         )
                     )
 
+                    self._mask_channels_ids[stream_id].append(channel.attrib['id'])
+
                     num_bytes = stream_bytes[stream_id] + int(
                         channel.attrib["startByte"]
                     )
@@ -175,31 +179,53 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     chan_mask_bits = np.zeros(packet_size * 8, dtype="bool")  # TODO
                     self._mask_channels_bits[stream_id].append(chan_mask_bits)
 
-                # elif channel.attrib['dataType'] == 'digital' and channel.attrib['input'] == '0':  # handle DIO
+                elif channel.attrib['dataType'] == 'digital':  # handle DIO
 
-                #     if stream_id not in stream_ids:
-                #         stream_ids.append(stream_id)
-                #         stream_name = stream_id
-                #         signal_streams.append((stream_name, stream_id))
-                #         self._mask_channels_bytes[stream_id] = []
-                #         self._mask_channels_bits[stream_id] = []
+                    if stream_id not in stream_ids:
+                        stream_ids.append(stream_id)
+                        stream_name = stream_id
+                        signal_streams.append((stream_name, stream_id))
+                        self._mask_channels_ids[stream_id] = []
+                        self._mask_channels_bytes[stream_id] = []
+                        self._mask_channels_bits[stream_id] = []
 
-                #     name = channel.attrib['id']
-                #     chan_id = channel.attrib['id']
-                #     dtype = 'bool'
-                #     # TODO LATER : handle gain correctly according the file version
-                #     units = ''
-                #     gain = 1.
-                #     offset = 0.
-                #     signal_channels.append((name, chan_id, self._sampling_rate, dtype,
-                #                          units, gain, offset, stream_id))
+                    # NOTE store data in signal_channels to make neo happy
+                    name = channel.attrib["id"]
+                    chan_id = channel.attrib["id"]
+                    dtype = "int8"
+                    units = ""
+                    gain = 1.0
+                    offset = 0.0
 
-                #     start_bit = stream_bytes[stream_id] + int(channel.attrib['startByte']) + int(channel.attrib['bit'])
-                #     chan_mask_bytes = np.zeros(packet_size, dtype='bool')  # TODO
-                #     self._mask_channels_bytes[stream_id].append(chan_mask_bytes)
-                #     chan_mask_bits = np.zeros(packet_size * 8, dtype='bool')
-                #     chan_mask_bits[start_bit] = True
-                #     self._mask_channels_bits[stream_id].append(chan_mask_bits)
+                    signal_channels.append(
+                        (
+                            name,
+                            chan_id,
+                            self._sampling_rate,
+                            dtype,
+                            units,
+                            gain,
+                            offset,
+                            stream_id,
+                        )
+                    )
+
+                    self._mask_channels_ids[stream_id].append(channel.attrib['id'])
+
+                    # to handle digital data, need to split the data by bits
+                    num_bytes = stream_bytes[stream_id] + int(channel.attrib['startByte'])
+                    chan_byte_mask = np.zeros(packet_size, dtype='bool')
+                    chan_byte_mask[num_bytes] = True
+                    self._mask_channels_bytes[stream_id].append(chan_byte_mask)
+
+                    # within the concatenated, masked bytes, mask the bit (flipped order)
+                    chan_bit_mask = np.zeros(8 * 1, dtype='bool')
+                    chan_bit_mask[int(channel.attrib['bit'])] = True
+                    chan_bit_mask = np.flip(chan_bit_mask)
+                    self._mask_channels_bits[stream_id].append(chan_bit_mask)
+
+                    # NOTE: _mask_channels_ids, _mask_channels_bytes, and
+                    # _mask_channels_bits are parallel lists
 
         if num_ephy_channels > 0:
             stream_id = "trodes"
@@ -355,3 +381,70 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ]
         raw_uint32 = raw_uint8.flatten().view("uint32")
         return raw_uint32
+
+    def get_digitalsignal(self, stream_id, channel_id):
+        # stream_id = self.header["signal_streams"][stream_index]["id"]
+
+        # for now, allow only reading the entire dataset
+        i_start = 0
+        i_stop = self._raw_memmap.shape[0]
+        raw_packets = self._raw_memmap[i_start:i_stop]
+
+        channel_index = -1
+        for i, chan_id in enumerate(self._mask_channels_ids[stream_id]):
+            if chan_id == channel_id:
+                channel_index = i
+                break
+        assert channel_index >= 0, f"channel_id {channel_id} not found in stream {stream_id}"
+
+        # num_chan = len(self._mask_channels_bytes[stream_id])
+        # re_order = None
+        # if channel_indexes is None:
+        #     # no loop : entire stream mask
+        #     stream_mask = self._mask_streams[stream_id]
+        # else:
+        #     # accumulate mask
+        #     if isinstance(channel_indexes, slice):
+        #         chan_inds = np.arange(num_chan)[channel_indexes]
+        #     else:
+        #         chan_inds = channel_indexes
+
+        #         if np.any(np.diff(channel_indexes) < 0):
+        #             # handle channel are not ordered
+        #             sorted_channel_indexes = np.sort(channel_indexes)
+        #             re_order = np.array(
+        #                 [
+        #                     list(sorted_channel_indexes).index(ch)
+        #                     for ch in channel_indexes
+        #                 ]
+        #             )
+
+        #     stream_mask = np.zeros(raw_packets.shape[1], dtype="bool")
+        #     for chan_ind in chan_inds:
+        #         chan_mask = self._mask_channels_bytes[stream_id][chan_ind]
+        #         stream_mask |= chan_mask
+
+        # this copies the data from the memmap into memory
+        byte_mask = self._mask_channels_bytes[stream_id][channel_index]
+        raw_packets_masked = raw_packets[:, byte_mask]
+
+        bit_mask = self._mask_channels_bits[stream_id][channel_index]
+        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[:,bit_mask].flatten()
+        change_dir = np.diff(continuous_dio).astype("int8")  # possible values: [-1, 0, 1]
+        change_dir_trim = change_dir[change_dir != 0]  # keeps -1 and 1
+        change_dir_trim[change_dir_trim == -1] = 0  # change -1 to 0
+        # resulting array has 1 when there is a change from 0 to 1,
+        # 0 when there is change from 1 to 0
+
+        # track the timestamps when there is a change from 0 to 1 or 1 to 0
+        timestamps = self.get_analogsignal_timestamps(i_start, i_stop)
+        dio_change_times = timestamps[np.where(change_dir)[0]+1]
+
+        # insert the first timestamp with the first value
+        dio_change_times = np.insert(dio_change_times, 0, timestamps[0])
+        change_dir_trim = np.insert(change_dir_trim, 0, continuous_dio[0])
+
+        # if re_order is not None:
+        #     raw_unit16 = raw_unit16[:, re_order]
+
+        return dio_change_times, change_dir_trim
