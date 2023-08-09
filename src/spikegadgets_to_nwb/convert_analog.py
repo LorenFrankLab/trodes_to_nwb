@@ -2,6 +2,7 @@ from hdmf.data_utils import GenericDataChunkIterator
 from hdmf.backends.hdf5 import H5DataIO
 import numpy as np
 import pynwb
+from xml.etree import ElementTree
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 from warnings import warn
@@ -38,7 +39,7 @@ def add_analog_data(nwbfile: NWBFile, rec_file_path: list[str], **kwargs) -> Non
 
     # make the data chunk iterator
     rec_dci = RecFileDataChunkIterator(
-        rec_file_path, nwb_hw_channel_order=analog_channel_ids
+        rec_file_path, nwb_hw_channel_order=analog_channel_ids, stream_index=0
     )
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended
@@ -72,3 +73,31 @@ def __merge_row_description(row_ids: list[str]) -> str:
     for id in row_ids:
         description += id + "   "
     return description
+
+
+def get_analog_channel_names(header: ElementTree) -> list[str]:
+    """Returns a list of the names of the analog channels in the rec file.
+
+    Parameters
+    ----------
+    header : ElementTree
+        The root element of the rec file header
+
+    Returns
+    -------
+    list[str]
+        List of the names of the analog channels in the rec file
+    """
+    hconf = header.find("HardwareConfiguration")
+    ecu_conf = None
+    # find the ECU configuration
+    for conf in hconf:
+        if conf.attrib["name"] == "ECU":
+            ecu_conf = conf
+            break
+    # get the names of the analog channels
+    analog_channel_names = []
+    for channel in ecu_conf:
+        if channel.attrib["dataType"] == "analog":
+            analog_channel_names.append(channel.attrib["id"])
+    return analog_channel_names
