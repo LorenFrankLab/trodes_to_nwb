@@ -32,12 +32,10 @@ def test_parse_dtype_no_repeat():
     assert dtype == expected_dtype
 
 
-def test_parse_dtype_invalid_type(capsys):
-    fieldstr = "<field1 uint32><field2 nonexist>"
-    parse_dtype(fieldstr)
-    captured = capsys.readouterr()
-    assert "nonexist is not a valid field type." in captured.out
-    # You can also check if the program exits correctly, depending on your requirements.
+def test_parse_dtype_invalid_dtype():
+    fieldstr = "<time nonexisttype>"
+    with pytest.raises(AttributeError):
+        parse_dtype(fieldstr)
 
 
 def test_parse_dtype_inverted_order():
@@ -114,7 +112,7 @@ def test_find_large_frame_jumps():
 def test_detect_repeat_timestamps():
     timestamps = np.array([1, 2, 2, 3, 3, 3, 4])
     repeats = detect_repeat_timestamps(timestamps)
-    assert np.array_equal(repeats, [False, False, True, True, True, False, False])
+    assert np.array_equal(repeats, [False, False, True, False, True, True, False])
 
 
 def test_detect_trodes_time_repeats_or_frame_jumps():
