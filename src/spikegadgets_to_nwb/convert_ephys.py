@@ -11,6 +11,8 @@ from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 MICROVOLTS_PER_VOLT = 1e6
 VOLTS_PER_MICROVOLT = 1e-6
+MILLISECONDS_PER_SECOND = 1e3
+NANOSECONDS_PER_SECOND = 1e9
 
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
@@ -72,12 +74,19 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
         # NOTE: this will read all the timestamps from the rec file, which can be slow
-        if self.neo_io[0].sysClock_byte:  # use this if have sysClock from ptp
+        if self.neo_io[0].sysClock_byte:  # use this if have sysClock
             self.timestamps = []
             [
-                self.timestamps.extend(neo_io.get_sys_clock(0, n_time) / 1e9)
+                self.timestamps.extend(
+                    self._regress_systime(
+                        systime=neo_io.get_sys_clock(0, n_time),
+                        trodestime=neo_io.get_analogsignal_timestamps(0, n_time),
+                    )
+                    / NANOSECONDS_PER_SECOND
+                )
                 for neo_io, n_time in zip(self.neo_io, self.n_time)
             ]
+
         else:  # use this to convert Trodes timestamps into systime based on sampling rate
             [
                 self.timestamps.extend(
@@ -86,7 +95,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                         - int(neo_io.timestamp_at_creation)
                     )
                     * (1.0 / neo_io._sampling_rate)
-                    + int(neo_io.system_time_at_creation) / 1000
+                    + int(neo_io.system_time_at_creation) / MILLISECONDS_PER_SECOND
                 )
                 for neo_io, n_time in zip(self.neo_io, self.n_time)
             ]
@@ -158,6 +167,20 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
     def _get_dtype(self) -> np.dtype:
         return np.dtype("int16")
+
+    def _regress_systime(self, systime, trodestime):
+        NANOSECONDS_TO_SECONDS = 1e9
+        # Convert
+        systime_seconds = np.asarray(systime).astype(np.float64)
+        trodestime_index = np.asarray(trodestime).astype(np.float64)
+
+        from scipy.stats import linregress
+
+        slope, intercept, r_value, p_value, std_err = linregress(
+            trodestime_index, systime_seconds
+        )
+        adjusted_timestamps = intercept + slope * trodestime_index
+        return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
 
 def add_raw_ephys(
