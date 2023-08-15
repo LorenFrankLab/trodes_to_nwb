@@ -42,15 +42,24 @@ def test_add_dios_single_rec():
     with pynwb.NWBHDF5IO(filename, "r", load_namespaces=True) as io:
         read_nwbfile = io.read()
         assert "behavior" in read_nwbfile.processing
-        assert "behavioral_events" in read_nwbfile.processing["behavior"].data_interfaces
+        assert (
+            "behavioral_events" in read_nwbfile.processing["behavior"].data_interfaces
+        )
         expected_dios = ["Poke_1", "Light_1", "Light_2"]
         for name in expected_dios:
-            assert name in read_nwbfile.processing["behavior"]["behavioral_events"].time_series
+            assert (
+                name
+                in read_nwbfile.processing["behavior"]["behavioral_events"].time_series
+            )
 
         with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
             old_nwbfile = io2.read()
-            for old_dio in read_nwbfile.processing["behavior"]["behavioral_events"].time_series.values():
-                current_dio = read_nwbfile.processing["behavior"]["behavioral_events"][old_dio.name]
+            for old_dio in read_nwbfile.processing["behavior"][
+                "behavioral_events"
+            ].time_series.values():
+                current_dio = read_nwbfile.processing["behavior"]["behavioral_events"][
+                    old_dio.name
+                ]
                 # check that timeseries match
                 assert np.all(current_dio.data == old_dio.data)
                 assert np.all(current_dio.timestamps == old_dio.timestamps)
