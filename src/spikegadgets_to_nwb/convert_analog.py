@@ -38,8 +38,9 @@ def add_analog_data(nwbfile: NWBFile, rec_file_path: list[str], **kwargs) -> Non
             analog_channel_ids.append(channel.attrib["id"])
 
     # make the data chunk iterator
+    # TODO use the stream name instead of the stream index to be more robust
     rec_dci = RecFileDataChunkIterator(
-        rec_file_path, nwb_hw_channel_order=analog_channel_ids, stream_index=0
+        rec_file_path, nwb_hw_channel_order=analog_channel_ids, stream_index=2
     )
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended

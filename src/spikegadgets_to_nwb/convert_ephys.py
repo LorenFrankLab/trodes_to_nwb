@@ -21,7 +21,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         rec_file_path: list[str],
         nwb_hw_channel_order=[],
         conversion: float = 1.0,
-        stream_index: int = 1,
+        stream_index: int = 3,  # TODO use the stream name instead of the index
         **kwargs,
     ):
         self.conversion = conversion
@@ -31,10 +31,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
 
-        # for now, make sure that there is only one block, one segment, and two streams
+        # for now, make sure that there is only one block, one segment, and four streams:
+        # Controller_DIO_digital
+        # ECU_digital
+        # ECU_analog
+        # trodes
         assert all([neo_io.block_count() == 1 for neo_io in self.neo_io])
         assert all([neo_io.segment_count(0) == 1 for neo_io in self.neo_io])
-        assert all([neo_io.signal_streams_count() == 2 for neo_io in self.neo_io])
+        assert all([neo_io.signal_streams_count() == 4 for neo_io in self.neo_io])
 
         self.block_index = 0
         self.seg_index = 0

@@ -98,11 +98,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # explore sub stream and count packet size
         # first bytes is 0x55
         packet_size = 1
-        stream_bytes = {}
+        device_bytes = {}
         for device in hconf:
-            stream_id = device.attrib["name"]
+            device_name = device.attrib["name"]
             num_bytes = int(device.attrib["numBytes"])
-            stream_bytes[stream_id] = packet_size
+            device_bytes[device_name] = packet_size
             packet_size += num_bytes
 
         # timestamps 4 uint32
@@ -133,8 +133,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # walk through xml devices
         for device in hconf:
-            stream_id = device.attrib["name"]
+            device_name = device.attrib["name"]
             for channel in device:
+                # one device can have streams with different data types,
+                # so create a stream_id that differentiates them.
+                # users need to be aware of this when using the API
+                stream_id = device_name + "_" + channel.attrib["dataType"]
+
                 if "interleavedDataIDByte" in channel.attrib:
                     # TODO LATER: deal with "headstageSensor" which have interleaved
                     continue
@@ -144,6 +149,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                         stream_ids.append(stream_id)
                         stream_name = stream_id
                         signal_streams.append((stream_name, stream_id))
+                        self._mask_channels_ids[stream_id] = []
                         self._mask_channels_bytes[stream_id] = []
                         self._mask_channels_bits[stream_id] = []
 
@@ -167,9 +173,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
                         )
                     )
 
-                    self._mask_channels_ids[stream_id].append(channel.attrib['id'])
+                    self._mask_channels_ids[stream_id].append(channel.attrib["id"])
 
-                    num_bytes = stream_bytes[stream_id] + int(
+                    num_bytes = device_bytes[device_name] + int(
                         channel.attrib["startByte"]
                     )
                     chan_mask_bytes = np.zeros(packet_size, dtype="bool")
@@ -179,8 +185,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     chan_mask_bits = np.zeros(packet_size * 8, dtype="bool")  # TODO
                     self._mask_channels_bits[stream_id].append(chan_mask_bits)
 
-                elif channel.attrib['dataType'] == 'digital':  # handle DIO
-
+                elif channel.attrib["dataType"] == "digital":  # handle DIO
                     if stream_id not in stream_ids:
                         stream_ids.append(stream_id)
                         stream_name = stream_id
@@ -210,17 +215,19 @@ class SpikeGadgetsRawIO(BaseRawIO):
                         )
                     )
 
-                    self._mask_channels_ids[stream_id].append(channel.attrib['id'])
+                    self._mask_channels_ids[stream_id].append(channel.attrib["id"])
 
                     # to handle digital data, need to split the data by bits
-                    num_bytes = stream_bytes[stream_id] + int(channel.attrib['startByte'])
-                    chan_byte_mask = np.zeros(packet_size, dtype='bool')
+                    num_bytes = device_bytes[device_name] + int(
+                        channel.attrib["startByte"]
+                    )
+                    chan_byte_mask = np.zeros(packet_size, dtype="bool")
                     chan_byte_mask[num_bytes] = True
                     self._mask_channels_bytes[stream_id].append(chan_byte_mask)
 
                     # within the concatenated, masked bytes, mask the bit (flipped order)
-                    chan_bit_mask = np.zeros(8 * 1, dtype='bool')
-                    chan_bit_mask[int(channel.attrib['bit'])] = True
+                    chan_bit_mask = np.zeros(8 * 1, dtype="bool")
+                    chan_bit_mask[int(channel.attrib["bit"])] = True
                     chan_bit_mask = np.flip(chan_bit_mask)
                     self._mask_channels_bits[stream_id].append(chan_bit_mask)
 
@@ -395,7 +402,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
             if chan_id == channel_id:
                 channel_index = i
                 break
-        assert channel_index >= 0, f"channel_id {channel_id} not found in stream {stream_id}"
+        assert (
+            channel_index >= 0
+        ), f"channel_id {channel_id} not found in stream {stream_id}"
 
         # num_chan = len(self._mask_channels_bytes[stream_id])
         # re_order = None
@@ -429,8 +438,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_packets_masked = raw_packets[:, byte_mask]
 
         bit_mask = self._mask_channels_bits[stream_id][channel_index]
-        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[:,bit_mask].flatten()
-        change_dir = np.diff(continuous_dio).astype("int8")  # possible values: [-1, 0, 1]
+        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[
+            :, bit_mask
+        ].flatten()
+        change_dir = np.diff(continuous_dio).astype(
+            "int8"
+        )  # possible values: [-1, 0, 1]
         change_dir_trim = change_dir[change_dir != 0]  # keeps -1 and 1
         change_dir_trim[change_dir_trim == -1] = 0  # change -1 to 0
         # resulting array has 1 when there is a change from 0 to 1,
@@ -438,7 +451,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # track the timestamps when there is a change from 0 to 1 or 1 to 0
         timestamps = self.get_analogsignal_timestamps(i_start, i_stop)
-        dio_change_times = timestamps[np.where(change_dir)[0]+1]
+        dio_change_times = timestamps[np.where(change_dir)[0] + 1]
 
         # insert the first timestamp with the first value
         dio_change_times = np.insert(dio_change_times, 0, timestamps[0])

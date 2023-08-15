@@ -365,43 +365,6 @@ def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
         nwbfile.processing["tasks"].add(task)
 
 
-def add_dios(nwbfile: NWBFile, metadata: dict) -> None:
-    """Adds DIO event information and data to nwb file
-
-    Parameters
-    ----------
-    nwbfile : NWBFile
-        nwb file being assembled
-    metadata : dict
-        metadata from the yaml generator
-    """
-    # TODO: pass the dio data and include in this
-    # Make a processing module for behavior and add to the nwbfile
-    if not "behavior" in nwbfile.processing:
-        nwbfile.create_processing_module(
-            name="behavior", description="Contains all behavior-related data"
-        )
-    # Make Behavioral events object to hold DIO data
-    events = BehavioralEvents(name="behavioral_events")
-    # Loop through and add timeseries for each one
-    dio_metadata = metadata["behavioral_events"]
-    for dio_event in dio_metadata:
-        events.add_timeseries(
-            TimeSeries(
-                name=dio_event["name"],
-                description=dio_event["description"],
-                data=np.array(
-                    []
-                ),  # TODO: from rec file // self.data[dio_event['description']],
-                unit="N/A",
-                timestamps=np.array([]),
-                # TODO: data, timestamps,
-            )
-        )
-    # add it to your file
-    nwbfile.processing["behavior"].add(events)
-
-
 def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
     """Adds associated files processing module. Reads in file referenced in metadata and stores in processing
 
