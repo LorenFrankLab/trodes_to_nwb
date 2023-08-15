@@ -94,7 +94,14 @@ def test_add_raw_ephys_single_rec():
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
-        return read_nwbfile
+            # check that timestamps are less than one sample different
+            assert (
+                (
+                    read_nwbfile.acquisition["e-series"].timestamps[:]
+                    - read_nwbfile.acquisition["e-series"].timestamps[:]
+                )
+                < 1 / 30000.0
+            ).all()
     os.remove(filename)
 
 
@@ -175,6 +182,14 @@ def test_add_raw_ephys_single_rec_probe_configuration():
                     "int16"
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
+            ).all()
+            # check that timestamps are less than one sample different
+            assert (
+                (
+                    read_nwbfile.acquisition["e-series"].timestamps[:]
+                    - read_nwbfile.acquisition["e-series"].timestamps[:]
+                )
+                < 1 / 30000.0
             ).all()
 
     os.remove(filename)
@@ -269,6 +284,14 @@ def test_add_raw_ephys_two_epoch():
                     "int16"
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
+            ).all()
+            # check that timestamps are less than one sample different
+            assert (
+                (
+                    read_nwbfile.acquisition["e-series"].timestamps[:]
+                    - read_nwbfile.acquisition["e-series"].timestamps[:]
+                )
+                < 1 / 30000.0
             ).all()
 
     os.remove(filename)
