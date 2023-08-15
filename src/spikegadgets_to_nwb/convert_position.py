@@ -40,8 +40,7 @@ def parse_dtype(fieldstr: str) -> np.dtype:
         try:
             fieldtype = getattr(np, ftype)
         except AttributeError:
-            print(ftype + " is not a valid field type.\n")
-            sys.exit(1)
+            raise AttributeError(ftype + " is not a valid field type.\n")
         else:
             typearr.append((str(fieldname), fieldtype, repeats))
 
