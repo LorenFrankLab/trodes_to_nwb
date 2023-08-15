@@ -74,9 +74,17 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         self.timestamps = []
         [
-            self.timestamps.extend(neo_io.get_analogsignal_timestamps(0, n_time))
+            self.timestamps.extend(
+                (
+                    neo_io.get_analogsignal_timestamps(0, n_time)
+                    - int(neo_io.timestamp_at_creation)
+                ).astype("float")
+                * (1.0 / neo_io._sampling_rate)
+                + int(neo_io.system_time_at_creation) / 1000
+            )
             for neo_io, n_time in zip(self.neo_io, self.n_time)
         ]
+
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
