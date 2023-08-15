@@ -104,10 +104,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
             num_bytes = int(device.attrib["numBytes"])
             stream_bytes[stream_id] = packet_size
             packet_size += num_bytes
-        print(stream_bytes)
-        self.sysClock_byte = False
-        if "SysClock" in stream_bytes:
-            self.sysClock_byte = stream_bytes["SysClock"]
+        self.sysClock_byte = (
+            stream_bytes["SysClock"] if "SysClock" in stream_bytes else False
+        )
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size

@@ -2,6 +2,7 @@ from typing import Tuple
 from hdmf.data_utils import GenericDataChunkIterator
 from hdmf.backends.hdf5 import H5DataIO
 import numpy as np
+from scipy.stats import linregress
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 from warnings import warn
@@ -169,12 +170,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         return np.dtype("int16")
 
     def _regress_systime(self, systime, trodestime):
-        NANOSECONDS_TO_SECONDS = 1e9
         # Convert
         systime_seconds = np.asarray(systime).astype(np.float64)
         trodestime_index = np.asarray(trodestime).astype(np.float64)
-
-        from scipy.stats import linregress
 
         slope, intercept, r_value, p_value, std_err = linregress(
             trodestime_index, systime_seconds
