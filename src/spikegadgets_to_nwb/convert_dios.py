@@ -57,21 +57,20 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
     channel_name_map = _get_channel_name_map(metadata)
 
     # Loop through the channels from the metadata YAML and add a TimeSeries for each one
-    stream_name = "ECU"
+    stream_name = "ECU_digital"
     for channel_name in channel_name_map:
         # TODO merge streams from multiple files
         timestamps, state_changes = neo_io[0].get_digitalsignal(
-            stream_name, channel_name
+            stream_name, "ECU_" + channel_name
         )
         ts = TimeSeries(
             name=channel_name_map[channel_name],
             description=channel_name,
             data=state_changes,
             unit="-1",  # TODO change to "N/A",
-            timestamps=timestamps,
-            # TODO: data, timestamps,
+            timestamps=timestamps,  # apparently this does not need to be adjusted
         )
-        ts.add_timeseries(ts)
+        beh_events.add_timeseries(ts)
 
     # Add the BehavioralEvents object to the file
     nwbfile.processing["behavior"].add(beh_events)

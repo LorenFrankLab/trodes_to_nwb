@@ -83,18 +83,13 @@ units:
 times_period_multiplier: 1
 raw_data_to_volts: 1.95e-07
 default_header_file_path: default/header/path/
-behavioral_events:
-  - description: Din1
-    name: Light_1
-  - description: Din1
-    name: Light_2
 device:
   name:
     - device1
 behavioral_events:
   - description: Din1
     name: Light_1
-  - description: Din1
+  - description: Din2
     name: Light_2
   - description: Dout2
     name: Poke_1
