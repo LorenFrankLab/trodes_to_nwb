@@ -1,3 +1,4 @@
+import numpy as np
 from pynwb import NWBFile, TimeSeries
 from pynwb.behavior import BehavioralEvents
 
@@ -59,16 +60,22 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
     # Loop through the channels from the metadata YAML and add a TimeSeries for each one
     stream_name = "ECU_digital"
     for channel_name in channel_name_map:
-        # TODO merge streams from multiple files
-        timestamps, state_changes = neo_io[0].get_digitalsignal(
-            stream_name, "ECU_" + channel_name
-        )
+        # merge streams from multiple files
+        all_timestamps = np.array([], dtype=np.float64)
+        all_state_changes = np.array([], dtype=np.uint8)
+        for io in neo_io:
+            timestamps, state_changes = io.get_digitalsignal(
+                stream_name, "ECU_" + channel_name
+            )
+            all_timestamps = np.concatenate((all_timestamps, timestamps))
+            all_state_changes = np.concatenate((all_state_changes, state_changes))
+
         ts = TimeSeries(
             name=channel_name_map[channel_name],
             description=channel_name,
-            data=state_changes,
+            data=all_state_changes,
             unit="-1",  # TODO change to "N/A",
-            timestamps=timestamps,  # apparently this does not need to be adjusted
+            timestamps=all_timestamps,  # TODO adjust timestamps
         )
         beh_events.add_timeseries(ts)
 

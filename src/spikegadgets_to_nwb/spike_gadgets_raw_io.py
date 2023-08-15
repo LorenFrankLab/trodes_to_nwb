@@ -442,7 +442,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             :, bit_mask
         ].flatten()
         change_dir = np.diff(continuous_dio).astype(
-            "int8"
+            np.int8
         )  # possible values: [-1, 0, 1]
         change_dir_trim = change_dir[change_dir != 0]  # keeps -1 and 1
         change_dir_trim[change_dir_trim == -1] = 0  # change -1 to 0
@@ -456,6 +456,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # insert the first timestamp with the first value
         dio_change_times = np.insert(dio_change_times, 0, timestamps[0])
         change_dir_trim = np.insert(change_dir_trim, 0, continuous_dio[0])
+
+        change_dir_trim = change_dir_trim.astype(np.uint8)
 
         # if re_order is not None:
         #     raw_unit16 = raw_unit16[:, re_order]
