@@ -104,6 +104,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
             num_bytes = int(device.attrib["numBytes"])
             stream_bytes[stream_id] = packet_size
             packet_size += num_bytes
+        print(stream_bytes)
+        self.sysClock_byte = False
+        if "SysClock" in stream_bytes:
+            self.sysClock_byte = stream_bytes["SysClock"]
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
@@ -355,3 +359,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ]
         raw_uint32 = raw_uint8.flatten().view("uint32")
         return raw_uint32
+
+    def get_sys_clock(self, i_start, i_stop):
+        if not self.sysClock_byte:
+            raise ValueError("sysClock not available")
+        raw_uint8 = self._raw_memmap[
+            i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
+        ]
+        raw_uint64 = raw_uint8.flatten().view(dtype=np.int64)
+        return raw_uint64
