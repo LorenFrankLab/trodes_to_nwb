@@ -94,7 +94,7 @@ def test_add_raw_ephys_single_rec():
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
-
+        return read_nwbfile
     os.remove(filename)
 
 
