@@ -348,7 +348,7 @@ def detect_repeat_timestamps(timestamps: np.ndarray) -> np.ndarray:
 
 def detect_trodes_time_repeats_or_frame_jumps(
     trodes_time: np.ndarray, frame_count: np.ndarray
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     """If a trodes time index repeats, then the Trodes clock has frozen
     due to headstage disconnects."""
     trodes_time = np.asarray(trodes_time)
@@ -356,13 +356,15 @@ def detect_trodes_time_repeats_or_frame_jumps(
     print(f"repeat timestamps ind: {np.nonzero(is_repeat_timestamp)[0]}")
 
     is_large_frame_jump = find_large_frame_jumps(frame_count)
-    is_repeat_timestamp = is_repeat_timestamp | is_large_frame_jump
+    is_repeat_timestamp = np.logical_or(is_repeat_timestamp, is_large_frame_jump)
 
     repeat_timestamp_labels = label(is_repeat_timestamp)[0]
     repeat_timestamp_labels_id, repeat_timestamp_label_counts = np.unique(
         repeat_timestamp_labels, return_counts=True
     )
-    is_repeat = (repeat_timestamp_labels_id != 0) & (repeat_timestamp_label_counts > 2)
+    is_repeat = np.logical_and(
+        repeat_timestamp_labels_id != 0, repeat_timestamp_label_counts > 2
+    )
     repeat_timestamp_labels_id = repeat_timestamp_labels_id[is_repeat]
     repeat_timestamp_label_counts = repeat_timestamp_label_counts[is_repeat]
     is_repeat_timestamp[
