@@ -47,17 +47,20 @@ def test_parse_dtype_inverted_order():
 
 def test_read_trodes_datafile_correct_settings(tmp_path):
     filename = tmp_path / "test_file.bin"
-    content = "<Start settings>\nfield1: uint32\nfield2: int32\n<End settings>\n"
+    content = "<Start settings>\nClock rate: 30000\nfields: <field1 uint32><field2 int32>\n<End settings>\n"
     data = [1, 2, 3, 4]
     with open(filename, "wb") as file:
         file.write(content.encode())
         file.write(np.array(data, dtype=np.uint32).tobytes())
 
     result = read_trodes_datafile(filename)
-    expected_data = np.array(data, dtype=np.uint32)
-    assert result["field1"] == "uint32"
-    assert result["field2"] == "int32"
-    assert np.array_equal(result["data"], expected_data)
+    assert result["clock rate"] == "30000"
+
+    expected_data = pd.DataFrame(result["data"])
+    assert expected_data["field1"].dtype == np.uint32
+    assert expected_data["field2"].dtype == np.int32
+    assert np.array_equal(expected_data.field1, np.array([1, 3], dtype=np.uint32))
+    assert np.array_equal(expected_data.field2, np.array([2, 4], dtype=np.uint32))
 
 
 def test_read_trodes_datafile_incorrect_settings(tmp_path):
