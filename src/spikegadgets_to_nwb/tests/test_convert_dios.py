@@ -55,7 +55,7 @@ def test_add_dios_single_rec():
                 ]
                 # check that timeseries match
                 np.testing.assert_array_equal(current_dio.data, old_dio.data)
-                # np.testing.assert_array_equal(current_dio.timestamps, old_dio.timestamps)  # TODO uncomment
+                np.testing.assert_array_equal(current_dio.timestamps, old_dio.timestamps)
                 assert current_dio.unit == old_dio.unit
                 assert current_dio.description == old_dio.description
 

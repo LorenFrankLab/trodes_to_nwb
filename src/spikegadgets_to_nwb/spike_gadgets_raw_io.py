@@ -81,7 +81,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # explore xml header
         root = ElementTree.fromstring(header_txt)
-        gconf = sr = root.find("GlobalConfiguration")
+        gconf = root.find("GlobalConfiguration")
         hconf = root.find("HardwareConfiguration")
         sconf = root.find("SpikeConfiguration")
 
@@ -131,10 +131,34 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self._mask_channels_bytes = {}
         self._mask_channels_bits = {}  # for digital data
 
+        self.multiplexed_channel_xml = {}  # dictionary from id to channel xml
+        self._multiplexed_byte_start = device_bytes['Multiplexed']
+
         # walk through xml devices
         for device in hconf:
             device_name = device.attrib["name"]
             for channel in device:
+                if device.attrib['name'] == 'Multiplexed' and channel.attrib['dataType'] == 'analog':
+                    # the multiplexed analog device has interleaved data from multiple sources
+                    # that are sampled at a lower rate.
+                    # for each packet,
+                    # the interleavedDataIDByte and the interleavedDataIDBit indicate which
+                    # channel has an updated value.
+                    # the startByte contains the int16 updated value.
+                    # if there was no update, use the last value received.
+                    # thus, there is a value at every timestamp, but usually it will be the same
+                    # as the previous value.
+                    # it is assumed that for a given startByte, only one of the
+                    # interleavedDataIDByte and interleavedDataIDBit combinations that
+                    # use that startByte is active at any given timestamp,
+                    # i.e. there should be at most one 1 in the interleavedDataIDByte value
+                    # at each timestamp.
+
+                    # the typical mask approach will not work, so store the channel specs
+                    # and use them to read the analog data on demand.
+                    self.multiplexed_channel_xml[channel.attrib['id']] = channel
+                    continue
+
                 # one device can have streams with different data types,
                 # so create a stream_id that differentiates them.
                 # users need to be aware of this when using the API
@@ -380,6 +404,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if re_order is not None:
             raw_unit16 = raw_unit16[:, re_order]
 
+        if stream_id == "ECU_analog":
+            # automatically include the interleaved analog signals:
+            analog_multiplexed_data = self.get_analogsignal_multiplexed()
+            analog_multiplexed_data = analog_multiplexed_data[i_start:i_stop,:]
+            raw_unit16 = np.concatenate((raw_unit16, analog_multiplexed_data), axis=1)
+
         return raw_unit16
 
     def get_analogsignal_timestamps(self, i_start, i_stop):
@@ -388,6 +418,36 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ]
         raw_uint32 = raw_uint8.flatten().view("uint32")
         return raw_uint32
+
+    def get_analogsignal_multiplexed(self, channel_names = None) -> dict[str, np.ndarray]:
+        if channel_names is None:
+            # read all multiplexed channels
+            channel_names = list(self.multiplexed_channel_xml.keys())
+        else:
+            for ch_name in channel_names:
+                if ch_name not in self.multiplexed_channel_xml:
+                    raise ValueError(f"Channel name '{ch_name}' not found in file.")
+
+        # because of the encoding scheme, it is easiest to read all the data in sequence
+        # one packet at a time
+        num_packet = self._raw_memmap.shape[0]
+        analog_multiplexed_data = np.empty((num_packet, len(channel_names)), dtype=np.int16)
+        for i, packet in enumerate(self._raw_memmap):
+            for j, ch_name in enumerate(channel_names):
+                ch_xml = self.multiplexed_channel_xml[ch_name]
+                interleaved_data_id_byte = int(ch_xml.attrib['interleavedDataIDByte'])
+                interleaved_data_id_bit = int(ch_xml.attrib['interleavedDataIDBit'])
+                relative_start_byte = int(ch_xml.attrib['startByte'])
+                start_byte = self._multiplexed_byte_start + relative_start_byte
+                interleaved_data_id_byte_value = packet[self._multiplexed_byte_start + interleaved_data_id_byte]
+                interleaved_data_id_bit_value = np.flip(np.unpackbits(interleaved_data_id_byte_value))[interleaved_data_id_bit]
+                if i == 0 or interleaved_data_id_bit_value == 1:  # initialize the stream or record new value
+                    data = packet[start_byte:start_byte + 2].view("int16")[0]  # int16 = two bytes
+                else:  # copy last value
+                    data = analog_multiplexed_data[i-1,j]
+                analog_multiplexed_data[i,j] = data
+
+        return analog_multiplexed_data
 
     def get_digitalsignal(self, stream_id, channel_id):
         # stream_id = self.header["signal_streams"][stream_index]["id"]

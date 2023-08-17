@@ -53,6 +53,7 @@ def test_add_analog_data():
                 "analog"
             ].description.split("   ")[:-1]
             index_order = [old_id_order.index(id) for id in id_order]
+            # TODO check that all the same channels are present
 
             # compare data
             assert (

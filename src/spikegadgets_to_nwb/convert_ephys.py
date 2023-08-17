@@ -22,9 +22,11 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         nwb_hw_channel_order=[],
         conversion: float = 1.0,
         stream_index: int = 3,  # TODO use the stream name instead of the index
+        is_analog: bool = False,
         **kwargs,
     ):
         self.conversion = conversion
+        self.is_analog = is_analog
         self.neo_io = [
             SpikeGadgetsRawIO(filename=file) for file in rec_file_path
         ]  # get all streams for all files
@@ -68,6 +70,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         self.n_channel = self.neo_io[0].signal_channels_count(
             stream_index=self.stream_index
         )
+        self.n_multiplexed_channel = 0
+        if self.is_analog:
+            self.n_multiplexed_channel += len(self.neo_io[0].multiplexed_channel_xml)
 
         # order that the hw channels are in within the nwb table
         if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
@@ -97,11 +102,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # DCI will want channels 0 to X first to put into the array in that order
         # those are stored in the file as channel IDs
         # make into list form passed to neo_io
-        channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection[1]]]
+        selection_list = list(selection)
+        if self.is_analog:
+            selection_list[1] = slice(selection[1].start, min(selection[1].stop, self.n_channel), selection[1].step)
+        channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection_list[1]]]
         # what global index each file starts at
         file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
         # the time indexes we want
-        time_index = np.arange(self._get_maxshape()[0])[selection[0]]
+        time_index = np.arange(self._get_maxshape()[0])[selection_list[0]]
         data = []
         i = time_index[0]
         while i < min(time_index[-1], self._get_maxshape()[0]):
@@ -138,12 +146,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 time_index[-1] - i,  # if finished in this stream
             )
         data = (np.array(data) * self.conversion).astype("int16")
+
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:
         return (
             np.sum(self.n_time),
-            self.n_channel,
+            self.n_channel + self.n_multiplexed_channel,
         )  # TODO: Is this right for maxshape @rly
 
     def _get_dtype(self) -> np.dtype:
