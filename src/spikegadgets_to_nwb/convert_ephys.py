@@ -104,7 +104,11 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # make into list form passed to neo_io
         selection_list = list(selection)
         if self.is_analog:
-            selection_list[1] = slice(selection[1].start, min(selection[1].stop, self.n_channel), selection[1].step)
+            selection_list[1] = slice(
+                selection[1].start,
+                min(selection[1].stop, self.n_channel),
+                selection[1].step,
+            )
         channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection_list[1]]]
         # what global index each file starts at
         file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
