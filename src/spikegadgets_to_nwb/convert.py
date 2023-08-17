@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from spikegadgets_to_nwb.convert_dios import add_dios
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb.convert_position import add_position
 from spikegadgets_to_nwb.convert_rec_header import (
@@ -14,7 +15,6 @@ from spikegadgets_to_nwb.convert_yaml import (
     add_acquisition_devices,
     add_associated_files,
     add_cameras,
-    add_dios,
     add_electrode_groups,
     add_subject,
     add_tasks,
