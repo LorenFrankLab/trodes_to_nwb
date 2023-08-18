@@ -17,3 +17,4 @@ dependencies:
 - pip:
     - ndx-franklab-novela
     - neo
+    - hdmf=3.8.1
