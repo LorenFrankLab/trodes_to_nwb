@@ -52,6 +52,9 @@ def test_add_analog_data():
             old_id_order = old_nwbfile.processing["analog"]["analog"][
                 "analog"
             ].description.split("   ")[:-1]
+            old_id_order.pop(
+                old_id_order.index("timestamps")
+            )  # deals with rec_to_nwb's poor handling of this label
             index_order = [old_id_order.index(id) for id in id_order]
             # TODO check that all the same channels are present
 
