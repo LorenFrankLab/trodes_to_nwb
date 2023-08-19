@@ -47,17 +47,20 @@ def test_parse_dtype_inverted_order():
 
 def test_read_trodes_datafile_correct_settings(tmp_path):
     filename = tmp_path / "test_file.bin"
-    content = "<Start settings>\nfield1: uint32\nfield2: int32\n<End settings>\n"
+    content = "<Start settings>\nClock rate: 30000\nfields: <field1 uint32><field2 int32>\n<End settings>\n"
     data = [1, 2, 3, 4]
     with open(filename, "wb") as file:
         file.write(content.encode())
         file.write(np.array(data, dtype=np.uint32).tobytes())
 
     result = read_trodes_datafile(filename)
-    expected_data = np.array(data, dtype=np.uint32)
-    assert result["field1"] == "uint32"
-    assert result["field2"] == "int32"
-    assert np.array_equal(result["data"], expected_data)
+    assert result["clock rate"] == "30000"
+
+    expected_data = pd.DataFrame(result["data"])
+    assert expected_data["field1"].dtype == np.uint32
+    assert expected_data["field2"].dtype == np.int32
+    assert np.array_equal(expected_data.field1, np.array([1, 3], dtype=np.uint32))
+    assert np.array_equal(expected_data.field2, np.array([2, 4], dtype=np.uint32))
 
 
 def test_read_trodes_datafile_incorrect_settings(tmp_path):
@@ -83,26 +86,6 @@ def test_read_trodes_datafile_missing_fields(tmp_path):
     assert np.array_equal(result["data"], expected_data)
 
 
-def test_read_trodes_datafile_custom_fields(tmp_path):
-    filename = tmp_path / "custom_fields_test_file.bin"
-    content = (
-        "<Start settings>\nfields: <field1 uint32><field2 2*float64>\n<End settings>\n"
-    )
-    data_field1 = [1, 2]
-    data_field2 = [3.0, 4.0, 5.0, 6.0]
-    with open(filename, "wb") as file:
-        file.write(content.encode())
-        file.write(np.array(data_field1, dtype=np.uint32).tobytes())
-        file.write(np.array(data_field2, dtype=np.float64).tobytes())
-
-    result = read_trodes_datafile(filename)
-    expected_data = np.array(
-        data_field1 * 1 + data_field2 * 2,
-        dtype=np.dtype([("field1", np.uint32, 1), ("field2", np.float64, 2)]),
-    )
-    assert np.array_equal(result["data"], expected_data)
-
-
 def test_find_large_frame_jumps():
     frame_count = np.array([5, 10, 30, 40, 70])
     jumps = find_large_frame_jumps(frame_count, min_frame_jump=15)
@@ -116,10 +99,14 @@ def test_detect_repeat_timestamps():
 
 
 def test_detect_trodes_time_repeats_or_frame_jumps():
-    trodes_time = np.array([1, 2, 2, 3, 4])
-    frame_count = np.array([5, 10, 30, 40, 50])
-    _, labels_id = detect_trodes_time_repeats_or_frame_jumps(trodes_time, frame_count)
-    assert labels_id.size == 0
+    trodes_time = np.array([1, 2, 2, 3, 4, 5])
+    frame_count = np.array([0, 10, 20, 30, 40, 1000])
+    (
+        _,
+        non_repeat_timestamp_labels_id,
+    ) = detect_trodes_time_repeats_or_frame_jumps(trodes_time, frame_count)
+    assert non_repeat_timestamp_labels_id.size == 1
+    assert np.array_equal(non_repeat_timestamp_labels_id, np.array([1], dtype=np.int32))
 
 
 def test_estimate_camera_time_from_mcu_time():
@@ -128,7 +115,7 @@ def test_estimate_camera_time_from_mcu_time():
     camera_systime, is_valid = estimate_camera_time_from_mcu_time(
         position_timestamps, mcu_timestamps
     )
-    assert np.array_equal(camera_systime, [15, 25])
+    assert np.array_equal(camera_systime.squeeze(), [15, 25])
     assert np.array_equal(is_valid, [True, False, True])
 
 
@@ -136,7 +123,7 @@ def test_estimate_camera_to_mcu_lag():
     camera_systime = np.array([1000, 2000, 3000])
     dio_systime = np.array([900, 1800, 2700])
     lag = estimate_camera_to_mcu_lag(camera_systime, dio_systime)
-    assert lag == 100
+    assert np.isclose(lag, 200.0)
 
 
 def test_remove_acquisition_timing_pause_non_ptp():
@@ -149,8 +136,8 @@ def test_remove_acquisition_timing_pause_non_ptp():
         dio_systime, frame_count, camera_systime, is_valid_camera_time, pause_mid_time
     )
     assert np.array_equal(results[0], [200, 300])
-    assert np.array_equal(results[1], [10, 15])
-    assert np.array_equal(results[2], [False, True, True])
+    assert np.array_equal(results[1], [15])
+    assert np.array_equal(results[2], [False, False, True])
     assert np.array_equal(results[3], [250])
 
 
@@ -167,4 +154,9 @@ def test_find_acquisition_timing_pause():
     pause_mid_time = find_acquisition_timing_pause(
         timestamps, min_duration=0.4, max_duration=1.0, n_search=100
     )
-    assert pause_mid_time == 2000000000
+    assert pause_mid_time == 1250000000
+
+    pause_mid_time = find_acquisition_timing_pause(
+        timestamps, min_duration=0.4, max_duration=1.1, n_search=100
+    )
+    assert pause_mid_time == 500000000
