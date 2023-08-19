@@ -83,7 +83,6 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                         systime=neo_io.get_sys_clock(0, n_time),
                         trodestime=neo_io.get_analogsignal_timestamps(0, n_time),
                     )
-                    / NANOSECONDS_PER_SECOND
                 )
                 for neo_io, n_time in zip(self.neo_io, self.n_time)
             ]
