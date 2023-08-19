@@ -4,6 +4,19 @@ from spikegadgets_to_nwb.convert_rec_header import read_header
 
 
 def add_epochs(nwbfile: NWBFile, file_info: pd.DataFrame, date: int, animal: str):
+    """add epochs to nwbfile
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        nwbfle to add epochs to
+    file_info : pd.DataFrame
+        dataframe with file info
+    date : int
+        date of session
+    animal : str
+        animal name
+    """
     session_info = file_info[(file_info.date == date) & (file_info.animal == animal)]
     for epoch in set(session_info.epoch):
         rec_file_list = session_info[
