@@ -425,7 +425,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_uint32 = raw_uint8.flatten().view("uint32")
         return raw_uint32
 
-
     def get_sys_clock(self, i_start, i_stop):
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
@@ -549,4 +548,3 @@ class SpikeGadgetsRawIO(BaseRawIO):
         #     raw_unit16 = raw_unit16[:, re_order]
 
         return dio_change_times, change_dir_trim
-
