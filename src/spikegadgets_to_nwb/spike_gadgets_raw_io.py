@@ -10,7 +10,7 @@ from neo.rawio.baserawio import (
 )  # TODO the import location was updated for this notebook
 
 import numpy as np
-
+from scipy.stats import linregress
 from xml.etree import ElementTree
 
 
@@ -535,7 +535,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # 0 when there is change from 1 to 0
 
         # track the timestamps when there is a change from 0 to 1 or 1 to 0
-        timestamps = self.get_analogsignal_timestamps(i_start, i_stop)
+        if self.sysClock_byte:
+            timestamps = self._get_regressesed_systime(i_start, i_stop)
+        else:
+            timestamps = self.get_analogsignal_timestamps(i_start, i_stop)
         dio_change_times = timestamps[np.where(change_dir)[0] + 1]
 
         # insert the first timestamp with the first value
@@ -548,3 +551,26 @@ class SpikeGadgetsRawIO(BaseRawIO):
         #     raw_unit16 = raw_unit16[:, re_order]
 
         return dio_change_times, change_dir_trim
+
+    def _get_regressesed_systime(self, i_start, i_stop):
+        NANOSECONDS_PER_SECOND = 1e9
+        # get values
+        systime = self.get_sys_clock(i_start, i_stop)
+        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
+        # Convert
+        systime_seconds = np.asarray(systime).astype(np.float64)
+        trodestime_index = np.asarray(trodestime).astype(np.float64)
+
+        slope, intercept, r_value, p_value, std_err = linregress(
+            trodestime_index, systime_seconds
+        )
+        adjusted_timestamps = intercept + slope * trodestime_index
+        return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
+
+    def _get_systime_from_trodes_timestamps(self, i_start, i_stop):
+        MILLISECONDS_PER_SECOND = 1e3
+        # get values
+        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
+        return (trodestime - int(self.timestamp_at_creation)) * (
+            1.0 / self._sampling_rate
+        ) + int(self.system_time_at_creation) / MILLISECONDS_PER_SECOND
