@@ -5,6 +5,9 @@ from typing import List
 from spikegadgets_to_nwb.convert_rec_header import read_header
 from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
+MILLISECONDS_PER_SECOND = 1e3
+NANOSECONDS_PER_SECOND = 1e9
+
 
 def add_epochs(
     nwbfile: NWBFile,
@@ -38,12 +41,17 @@ def add_epochs(
         print(list(rec_file_list.full_path))
         for io in neo_io:
             if io.filename in list(rec_file_list.full_path):
-                file_start_time = float(io.system_time_at_creation) / 1000.0
+                file_start_time = (
+                    float(io.system_time_at_creation) / MILLISECONDS_PER_SECOND
+                )
                 if start_time is None or file_start_time < start_time:
                     start_time = file_start_time
                 n_time = io._raw_memmap.shape[0]
                 if io.sysClock_byte:
-                    file_end_time = np.max(io.get_sys_clock(n_time - 1, n_time)) / 1e9
+                    file_end_time = (
+                        np.max(io.get_sys_clock(n_time - 1, n_time))
+                        / NANOSECONDS_PER_SECOND
+                    )
                 else:
                     file_end_time = np.max(
                         io._get_systime_from_trodes_timestamps(n_time - 1, n_time)
@@ -54,9 +62,3 @@ def add_epochs(
         tag = f"{epoch:02d}_{rec_file_list.tag.iloc[0]}"
         nwbfile.add_epoch(start_time, end_time, tag)
     return
-
-
-def get_file_start_time(rec_file: str) -> float:
-    header = read_header(rec_file)
-    gconf = header.find("GlobalConfiguration")
-    return float(gconf.attrib["systemTimeAtCreation"].strip()) / 1000.0
