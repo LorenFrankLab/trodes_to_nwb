@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pynwb
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb import convert_yaml, convert_rec_header
@@ -94,7 +95,13 @@ def test_add_raw_ephys_single_rec():
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
-
+            # check that timestamps are less than one sample different
+            assert np.isclose(
+                read_nwbfile.acquisition["e-series"].timestamps[:],
+                old_nwbfile.acquisition["e-series"].timestamps[:],
+                rtol=0,
+                atol=1.0 / 30000,
+            ).all()
     os.remove(filename)
 
 
@@ -175,6 +182,13 @@ def test_add_raw_ephys_single_rec_probe_configuration():
                     "int16"
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
+            ).all()
+            # check that timestamps are less than one sample different
+            assert np.isclose(
+                read_nwbfile.acquisition["e-series"].timestamps[:],
+                old_nwbfile.acquisition["e-series"].timestamps[:],
+                rtol=0,
+                atol=1.0 / 30000,
             ).all()
 
     os.remove(filename)
@@ -269,6 +283,13 @@ def test_add_raw_ephys_two_epoch():
                     "int16"
                 )
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
+            ).all()
+            # check that timestamps are less than one sample different
+            assert np.isclose(
+                read_nwbfile.acquisition["e-series"].timestamps[:],
+                old_nwbfile.acquisition["e-series"].timestamps[:],
+                rtol=0,
+                atol=1.0 / 30000,
             ).all()
 
     os.remove(filename)

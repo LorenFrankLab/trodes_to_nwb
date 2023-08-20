@@ -104,6 +104,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
             num_bytes = int(device.attrib["numBytes"])
             device_bytes[device_name] = packet_size
             packet_size += num_bytes
+        self.sysClock_byte = (
+            device_bytes["SysClock"] if "SysClock" in device_bytes else False
+        )
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
@@ -421,6 +424,15 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ]
         raw_uint32 = raw_uint8.flatten().view("uint32")
         return raw_uint32
+
+    def get_sys_clock(self, i_start, i_stop):
+        if not self.sysClock_byte:
+            raise ValueError("sysClock not available")
+        raw_uint8 = self._raw_memmap[
+            i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
+        ]
+        raw_uint64 = raw_uint8.flatten().view(dtype=np.int64)
+        return raw_uint64
 
     def get_analogsignal_multiplexed(self, channel_names=None) -> dict[str, np.ndarray]:
         if channel_names is None:
