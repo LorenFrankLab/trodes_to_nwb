@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
-from pynwb import NWBFile
+from pynwb import NWBFile, TimeSeries
 from typing import List
 from spikegadgets_to_nwb.convert_rec_header import read_header
 from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
+from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
 
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
@@ -62,3 +63,44 @@ def add_epochs(
         tag = f"{epoch:02d}_{rec_file_list.tag.iloc[0]}"
         nwbfile.add_epoch(start_time, end_time, tag)
     return
+
+
+def add_sample_count(
+    nwbfile: NWBFile,
+    rec_dci: RecFileDataChunkIterator,
+):
+    """add sample counts to nwbfile
+    nwbfile : NWBFile
+        nwbfle to add sample counts to
+    rec_dci: RecFileDataChunkIterator
+        rec file iterator with all the rec files for the session already in it
+    """
+    if "sample_count" in nwbfile.processing:
+        raise ValueError("sample_count already exists in nwbfile.processing")
+
+    # make the objects to add to the nwb file
+    nwbfile.create_processing_module(
+        name="sample_count",
+        description="corespondence between sample count and timestamps",
+    )
+
+    # get the systime information
+    systime = np.array(rec_dci.timestamps) * 1e9
+    # get the sample count information
+    trodes_sample = np.concatenate(
+        [
+            neo_io.get_analogsignal_timestamps(0, n_time)
+            for neo_io, n_time in zip(rec_dci.neo_io, rec_dci.n_time)
+        ]
+    )
+
+    # insert into nwbfile
+    nwbfile.processing["sample_count"].add(
+        TimeSeries(
+            name="sample_count",
+            description="acquisition system sample count",
+            data=trodes_sample,
+            timestamps=systime,
+            unit="int64",
+        )
+    )
