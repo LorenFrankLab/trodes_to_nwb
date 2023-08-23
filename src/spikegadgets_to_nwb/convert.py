@@ -2,14 +2,19 @@ from pathlib import Path
 
 import pandas as pd
 
+from pynwb import NWBHDF5IO
+
 from spikegadgets_to_nwb.convert_dios import add_dios
-from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
+from spikegadgets_to_nwb.convert_ephys import add_raw_ephys, RecFileDataChunkIterator
 from spikegadgets_to_nwb.convert_position import add_position
+from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
+from spikegadgets_to_nwb.convert_analog import add_analog_data
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
     make_hw_channel_map,
     make_ref_electrode_map,
     read_header,
+    validate_yaml_header_electrode_map,
 )
 from spikegadgets_to_nwb.convert_yaml import (
     add_acquisition_devices,
@@ -36,7 +41,7 @@ def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
 
     Returns
     -------
-    file_paths : list[str]
+    file_paths : list[s
         File paths for the given file extension
     """
     return df.loc[df.file_extension == file_extension].full_path.to_list()
@@ -46,6 +51,7 @@ def create_nwbs(
     path: Path,
     header_reconfig_path: Path | None = None,
     probe_metadata_paths: list[Path] | None = None,
+    output_dir: str = "/home/stelmo/nwb/raw",
 ):
     if not isinstance(path, Path):
         path = Path(path)
@@ -61,11 +67,15 @@ def _create_nwb(
     session_df: pd.DataFrame,
     header_reconfig_path: Path | None = None,
     probe_metadata_paths: list[Path] | None = None,
+    output_dir: str = "/home/stelmo/nwb/raw",
 ):
     print(f"Creating NWB file for session: {session}")
 
     rec_filepaths = _get_file_paths(session_df, ".rec")
     print(f"\trec_filepaths: {rec_filepaths}")
+
+    # make generic rec file data chunk iterator to pass to functions
+    rec_dci = RecFileDataChunkIterator(rec_filepaths)
 
     if header_reconfig_path is not None:
         pass
@@ -83,13 +93,16 @@ def _create_nwb(
         metadata_filepaths, probe_metadata_paths=probe_metadata_paths
     )
 
+    # test that yaml and headder are compatible hardware maps
+    validate_yaml_header_electrode_map(metadata, rec_header.find("SpikeConfiguration"))
+    # make necessary maps for ephys channels
     hw_channel_map = make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
     )
     ref_electrode_map = make_ref_electrode_map(
         metadata, rec_header.find("SpikeConfiguration")
     )
-
+    # make the nwbfile with the basic entries
     nwb_file = initialize_nwb(metadata, first_epoch_config=rec_header)
     add_subject(nwb_file, metadata)
     add_cameras(nwb_file, metadata)
@@ -99,22 +112,37 @@ def _create_nwb(
     add_electrode_groups(
         nwb_file, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
+    add_header_device(nwb_file, rec_header)
+
     # add_associated_video_files(
     #     nwb_file, metadata, video_directory, raw_data_path, convert_timestamps
-    # )
-    add_dios(nwb_file, metadata)
-
-    add_header_device(nwb_file, rec_header)
+    # ) #TODO: deal with timestamps and uncomment
 
     ### add rec file data ###
     map_row_ephys_data_to_row_electrodes_table = list(
         range(len(nwb_file.electrodes))
     )  # TODO: Double check this
-
     add_raw_ephys(
         nwb_file,
         rec_filepaths,
         map_row_ephys_data_to_row_electrodes_table,
     )
+    add_dios(nwb_file, rec_filepaths, metadata)
+    add_analog_data(nwb_file, rec_filepaths)
+    add_sample_count(nwb_file, rec_dci)
     ### add position ###
     add_position(nwb_file, metadata, session_df, rec_header)
+
+    # add epochs
+    add_epochs(
+        nwbfile=nwb_file,
+        file_info=session_df,
+        date=session[0],
+        animal=session[1],
+        neo_io=rec_dci.neo_io,
+    )
+
+    # write file
+    print(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
+    with NWBHDF5IO(f"{output_dir}/{session[1]}{session[0]}.nwb", "w") as io:
+        io.write(nwb_file)
