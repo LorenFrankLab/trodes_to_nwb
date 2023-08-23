@@ -59,6 +59,9 @@ def test_convert():
     if append_yml_df:
         path_df = pd.concat([path_df, yml_path_df])
         path_df = path_df[
+            path_df.file_extension != ".yml"
+        ]  # strip ymls, fixes github runner issue where yamls only sometimes present between jobs
+        path_df = path_df[
             path_df.full_path
             != yml_data_path.as_posix() + "/20230622_sample_metadataProbeReconfig.yml"
         ]
