@@ -58,10 +58,15 @@ def test_convert():
     path_df = get_file_info(data_path)
     if append_yml_df:
         path_df = pd.concat([path_df, yml_path_df])
-    path_df = path_df[
-        path_df.full_path
-        != data_path.as_posix() + "/20230622_sample_metadataProbeReconfig.yml"
-    ]
+        path_df = path_df[
+            path_df.full_path
+            != yml_data_path.as_posix() + "/20230622_sample_metadataProbeReconfig.yml"
+        ]
+    else:
+        path_df = path_df[
+            path_df.full_path
+            != data_path.as_posix() + "/20230622_sample_metadataProbeReconfig.yml"
+        ]
     session_df = path_df[(path_df.animal == "sample")]
     assert len(session_df[session_df.file_extension == ".yml"]) == 1
     _create_nwb(
