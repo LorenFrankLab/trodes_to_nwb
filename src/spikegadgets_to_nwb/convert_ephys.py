@@ -87,24 +87,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         if self.neo_io[0].sysClock_byte:  # use this if have sysClock
             self.timestamps = []
             [
-                self.timestamps.extend(
-                    self._regress_systime(
-                        systime=neo_io.get_sys_clock(0, n_time),
-                        trodestime=neo_io.get_analogsignal_timestamps(0, n_time),
-                    )
-                )
+                self.timestamps.extend(neo_io.get_regressed_systime(0, n_time))
                 for neo_io, n_time in zip(self.neo_io, self.n_time)
             ]
 
         else:  # use this to convert Trodes timestamps into systime based on sampling rate
             [
                 self.timestamps.extend(
-                    (
-                        neo_io.get_analogsignal_timestamps(0, n_time)
-                        - int(neo_io.timestamp_at_creation)
-                    )
-                    * (1.0 / neo_io._sampling_rate)
-                    + int(neo_io.system_time_at_creation) / MILLISECONDS_PER_SECOND
+                    neo_io.get_systime_from_trodes_timestamps(0, n_time)
                 )
                 for neo_io, n_time in zip(self.neo_io, self.n_time)
             ]
@@ -184,17 +174,6 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
     def _get_dtype(self) -> np.dtype:
         return np.dtype("int16")
-
-    def _regress_systime(self, systime, trodestime):
-        # Convert
-        systime_seconds = np.asarray(systime).astype(np.float64)
-        trodestime_index = np.asarray(trodestime).astype(np.float64)
-
-        slope, intercept, r_value, p_value, std_err = linregress(
-            trodestime_index, systime_seconds
-        )
-        adjusted_timestamps = intercept + slope * trodestime_index
-        return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
 
 def add_raw_ephys(
