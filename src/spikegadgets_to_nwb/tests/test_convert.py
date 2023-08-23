@@ -42,7 +42,7 @@ def test_get_file_info():
 def test_convert():
     try:
         # running on github
-        data_path = Path(os.environ.get("DOWNLOAD_DIR") + "/test_data")
+        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
     except (TypeError, FileNotFoundError):
         # running locally
         data_path = Path(path + "/test_data")
