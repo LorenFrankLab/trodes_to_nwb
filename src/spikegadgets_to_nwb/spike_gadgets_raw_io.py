@@ -536,7 +536,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # track the timestamps when there is a change from 0 to 1 or 1 to 0
         if self.sysClock_byte:
-            timestamps = self._get_regressesed_systime(i_start, i_stop)
+            timestamps = self.get_regressed_systime(i_start, i_stop)
         else:
             timestamps = self.get_analogsignal_timestamps(i_start, i_stop)
         dio_change_times = timestamps[np.where(change_dir)[0] + 1]
@@ -552,7 +552,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return dio_change_times, change_dir_trim
 
-    def _get_regressesed_systime(self, i_start, i_stop):
+    def get_regressed_systime(self, i_start, i_stop):
         NANOSECONDS_PER_SECOND = 1e9
         # get values
         systime = self.get_sys_clock(i_start, i_stop)
@@ -567,7 +567,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
-    def _get_systime_from_trodes_timestamps(self, i_start, i_stop):
+    def get_systime_from_trodes_timestamps(self, i_start, i_stop):
         MILLISECONDS_PER_SECOND = 1e3
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
