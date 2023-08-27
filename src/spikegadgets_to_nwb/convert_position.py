@@ -21,7 +21,10 @@ def parse_dtype(fieldstr: str) -> np.dtype:
     Returns: np.dtype
     """
     # Returns np.dtype from field string
-    sep = re.split("\s", re.sub(r"\>\<|\>|\<", " ", fieldstr).strip())
+    sep = " ".join(
+        fieldstr.replace("><", " ").replace(">", " ").replace("<", " ").split()
+    ).split()
+
     typearr = []
 
     # Every two elemets is fieldname followed by datatype
