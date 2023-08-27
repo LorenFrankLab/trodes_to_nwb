@@ -250,9 +250,11 @@ def get_position_timestamps(
     ptp_enabled=True,
 ):
     # Get video timestamps
-    video_timestamps = pd.DataFrame(
-        read_trodes_datafile(position_timestamps_filepath)["data"]
-    ).set_index("PosTimestamp")
+    video_timestamps = (
+        pd.DataFrame(read_trodes_datafile(position_timestamps_filepath)["data"])
+        .set_index("PosTimestamp")
+        .rename(columns={"frameCount": "HWframeCount"})
+    )
 
     # On AVT cameras, HWFrame counts wraps to 0 above this value.
     video_timestamps["HWframeCount"] = np.unwrap(
