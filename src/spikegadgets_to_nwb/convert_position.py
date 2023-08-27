@@ -247,9 +247,15 @@ def correct_timestamps_for_camera_to_mcu_lag(
     return corrected_camera_systime
 
 
+def find_camera_dio_channel(dios):
+    raise NotImplementedError
+
+
 def get_position_timestamps(
     position_timestamps_filepath,
     position_tracking_filepath=None,
+    mcu_neural_timestamps=None,
+    dios=None,
     ptp_enabled=True,
 ):
     # Get video timestamps
@@ -329,7 +335,63 @@ def get_position_timestamps(
         )
         return video_timestamps
     else:
-        raise NotImplementedError("Non-PTP position tracking not implemented yet.")
+        dio_camera_ticks = find_camera_dio_channel(dios)
+        is_valid_tick = np.isin(dio_camera_ticks, mcu_neural_timestamps.index)
+        dio_systime = np.asarray(
+            mcu_neural_timestamps.loc[dio_camera_ticks[is_valid_tick]]
+        )
+        # The DIOs and camera frames are initially unaligned. There is a
+        # half second pause at the start to allow for alignment.
+        pause_mid_time = find_acquisition_timing_pause(dio_systime)
+
+        # Estimate the frame rate from the DIO camera ticks as a sanity check.
+        frame_rate_from_dio = get_framerate(dio_systime[dio_systime > pause_mid_time])
+        print(
+            "Camera frame rate estimated from DIO camera ticks:"
+            f" {frame_rate_from_dio:0.1f} frames/s"
+        )
+        frame_count = np.asarray(video_timestamps.HWframeCount)
+
+        camera_systime, is_valid_camera_time = estimate_camera_time_from_mcu_time(
+            video_timestamps, mcu_neural_timestamps
+        )
+        (
+            dio_systime,
+            frame_count,
+            is_valid_camera_time,
+            camera_systime,
+        ) = remove_acquisition_timing_pause_non_ptp(
+            dio_systime,
+            frame_count,
+            camera_systime,
+            is_valid_camera_time,
+            pause_mid_time,
+        )
+        video_timestamps = video_timestamps.iloc[is_valid_camera_time]
+
+        frame_rate_from_camera_systime = get_framerate(camera_systime)
+        print(
+            "Camera frame rate estimated from MCU timestamps:"
+            f" {frame_rate_from_camera_systime:0.1f} frames/s"
+        )
+
+        camera_to_mcu_lag = estimate_camera_to_mcu_lag(
+            camera_systime, dio_systime, len(non_repeat_timestamp_labels_id)
+        )
+        corrected_camera_systime = []
+        for id in non_repeat_timestamp_labels_id:
+            is_chunk = video_timestamps.non_repeat_timestamp_labels == id
+            corrected_camera_systime.append(
+                correct_timestamps_for_camera_to_mcu_lag(
+                    frame_count[is_chunk],
+                    camera_systime[is_chunk],
+                    camera_to_mcu_lag,
+                )
+            )
+        corrected_camera_systime = np.concatenate(corrected_camera_systime)
+        return video_timestamps.set_index(
+            pd.Index(corrected_camera_systime, name="time")
+        )
 
 
 def add_position(
