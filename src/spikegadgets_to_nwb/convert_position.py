@@ -327,13 +327,13 @@ def get_position_timestamps(
             )[0][0]
             + 1
         )
-
+        original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[pause_mid_ind:]
         print(
             "Camera frame rate estimated from MCU timestamps:"
             f" {1 / np.median(np.diff(video_timestamps.index)):0.1f} frames/s"
         )
-        return video_timestamps
+        return video_timestamps, original_video_timestamps
     else:
         dio_camera_ticks = find_camera_dio_channel(dios)
         is_valid_tick = np.isin(dio_camera_ticks, mcu_neural_timestamps.index)
@@ -367,6 +367,7 @@ def get_position_timestamps(
             is_valid_camera_time,
             pause_mid_time,
         )
+        original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[is_valid_camera_time]
 
         frame_rate_from_camera_systime = get_framerate(camera_systime)
@@ -389,8 +390,12 @@ def get_position_timestamps(
                 )
             )
         corrected_camera_systime = np.concatenate(corrected_camera_systime)
-        return video_timestamps.set_index(
-            pd.Index(corrected_camera_systime, name="time")
+        video_timestamps.iloc[
+            is_valid_camera_time
+        ].index = corrected_camera_systime.index
+        return (
+            video_timestamps.set_index(pd.Index(corrected_camera_systime, name="time")),
+            original_video_timestamps,
         )
 
 
@@ -451,7 +456,7 @@ def add_position(
         print(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
         print(f"\tposition_tracking_filepath: {position_tracking_filepath}")
 
-        position_df = get_position_timestamps(
+        position_df, original_video_timestamps = get_position_timestamps(
             position_timestamps_filepath,
             position_tracking_filepath,
             ptp_enabled=ptp_enabled,
