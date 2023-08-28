@@ -1,5 +1,4 @@
 import re
-import sys
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -252,11 +251,11 @@ def find_camera_dio_channel(dios):
 
 
 def get_position_timestamps(
-    position_timestamps_filepath,
-    position_tracking_filepath=None,
-    mcu_neural_timestamps=None,
+    position_timestamps_filepath: Path,
+    position_tracking_filepath=None | Path,
+    mcu_neural_timestamps=None | np.ndarray,
     dios=None,
-    ptp_enabled=True,
+    ptp_enabled: bool = True,
 ):
     # Get video timestamps
     video_timestamps = (
