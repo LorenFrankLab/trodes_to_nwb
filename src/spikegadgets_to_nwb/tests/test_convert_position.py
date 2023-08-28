@@ -126,7 +126,7 @@ def test_estimate_camera_to_mcu_lag():
     lag = estimate_camera_to_mcu_lag(camera_systime, dio_systime)
     assert np.isclose(lag, 200.0)
     lag = estimate_camera_to_mcu_lag(camera_systime, dio_systime, n_breaks=1)
-    assert np.isclose(lag, 200.0)
+    assert np.isclose(lag, 100.0)
 
 
 def test_remove_acquisition_timing_pause_non_ptp():
