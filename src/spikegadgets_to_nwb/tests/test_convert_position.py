@@ -13,6 +13,7 @@ from spikegadgets_to_nwb.convert_position import (
     parse_dtype,
     read_trodes_datafile,
     remove_acquisition_timing_pause_non_ptp,
+    correct_timestamps_for_camera_to_mcu_lag,
 )
 
 
@@ -124,6 +125,8 @@ def test_estimate_camera_to_mcu_lag():
     dio_systime = np.array([900, 1800, 2700])
     lag = estimate_camera_to_mcu_lag(camera_systime, dio_systime)
     assert np.isclose(lag, 200.0)
+    lag = estimate_camera_to_mcu_lag(camera_systime, dio_systime, n_breaks=1)
+    assert np.isclose(lag, 200.0)
 
 
 def test_remove_acquisition_timing_pause_non_ptp():
@@ -160,3 +163,19 @@ def test_find_acquisition_timing_pause():
         timestamps, min_duration=0.4, max_duration=1.1, n_search=100
     )
     assert pause_mid_time == 500000000
+
+
+def test_correct_timestamps_for_camera_to_mcu_lag():
+    NANOSECONDS_PER_SECOND = 1e9
+    frame_count = np.arange(5)
+    camera_systime = np.array([10, 20, 30, 40, 50]) * NANOSECONDS_PER_SECOND
+    camera_to_mcu_lag = np.ones((5,)) * 10 * NANOSECONDS_PER_SECOND
+
+    corrected_camera_systime = correct_timestamps_for_camera_to_mcu_lag(
+        frame_count, camera_systime, camera_to_mcu_lag
+    )
+
+    expected_corrected_camera_systime = np.arange(0, 50, 10)
+
+    # Assert that the corrected timestamps are as expected
+    np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
