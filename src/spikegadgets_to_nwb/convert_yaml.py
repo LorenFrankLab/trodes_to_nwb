@@ -43,10 +43,12 @@ def load_metadata(
     for path in probe_metadata_paths:
         with open(path, "r") as stream:
             probe_metadata.append(yaml.safe_load(stream))
-    for file in metadata["associated_files"]:
-        file["task_epochs"] = [file["task_epochs"]]
-    for file in metadata["associated_video_files"]:
-        file["task_epochs"] = [file["task_epochs"]]
+    if not metadata["associated_files"] is None:
+        for file in metadata["associated_files"]:
+            file["task_epochs"] = [file["task_epochs"]]
+    if not metadata["associated_video_files"] is None:
+        for file in metadata["associated_video_files"]:
+            file["task_epochs"] = [file["task_epochs"]]
     return metadata, probe_metadata
 
 
