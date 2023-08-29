@@ -128,6 +128,7 @@ def _create_nwb(
         nwb_file,
         rec_filepaths,
         map_row_ephys_data_to_row_electrodes_table,
+        metadata,
     )
     add_dios(nwb_file, rec_filepaths, metadata)
     add_analog_data(nwb_file, rec_filepaths)

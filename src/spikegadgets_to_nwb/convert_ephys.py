@@ -180,6 +180,7 @@ def add_raw_ephys(
     nwbfile: NWBFile,
     recfile: list[str],
     electrode_row_indices: list[int],
+    metadata: dict = None,
 ) -> None:
     """Adds the raw ephys data to a NWB file. Must be called after add_electrode_groups
 
@@ -191,8 +192,8 @@ def add_raw_ephys(
         ordered list of file paths to all recfiles with session's data
     electrode_row_indices : list
         which electrodes to add to table
-    conversion : float
-        The conversion factor from nwb data to volts
+    metadata : dict, optional
+        metadata dictionary, useed only for conversion if not in rec, by default None
     """
 
     electrode_table_region = nwbfile.create_electrode_table_region(
@@ -206,7 +207,13 @@ def add_raw_ephys(
     # get conversion factor from rec file
     rec_header = convert_rec_header.read_header(recfile[0])
     spike_config = rec_header.find("SpikeConfiguration")
-    conversion = float(spike_config[0].attrib["rawScalingToUv"])
+    if "rawScalingToUv" in spike_config[0].attrib:
+        conversion = float(spike_config[0].attrib["rawScalingToUv"])
+    else:
+        conversion = (
+            metadata["raw_data_to_volts"] * MICROVOLTS_PER_VOLT
+        )  # Use metadata-provided conversion if not available in rec file
+
     # make the data iterator
     rec_dci = RecFileDataChunkIterator(
         recfile,
