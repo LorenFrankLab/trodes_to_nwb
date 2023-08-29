@@ -59,13 +59,20 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
 
     # Loop through the channels from the metadata YAML and add a TimeSeries for each one
     stream_name = "ECU_digital"
+    # Address issue where some Trodes verions have ECU_ prefix and some don't
+    prefix = ""
+    for chan_id in enumerate(neo_io[0]._mask_channels_ids[stream_name]):
+        if "ECU_" in chan_id[1]:
+            prefix = "ECU_"
+            break
+
     for channel_name in channel_name_map:
         # merge streams from multiple files
         all_timestamps = np.array([], dtype=np.float64)
         all_state_changes = np.array([], dtype=np.uint8)
         for io in neo_io:
             timestamps, state_changes = io.get_digitalsignal(
-                stream_name, "ECU_" + channel_name
+                stream_name, prefix + channel_name
             )
             all_timestamps = np.concatenate((all_timestamps, timestamps))
             all_state_changes = np.concatenate((all_state_changes, state_changes))
