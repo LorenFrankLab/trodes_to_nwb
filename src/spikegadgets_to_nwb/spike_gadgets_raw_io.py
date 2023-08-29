@@ -135,7 +135,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self._mask_channels_bits = {}  # for digital data
 
         self.multiplexed_channel_xml = {}  # dictionary from id to channel xml
-        self._multiplexed_byte_start = device_bytes["Multiplexed"]
+        if "Multiplexed" in device_bytes:
+            self._multiplexed_byte_start = device_bytes["Multiplexed"]
 
         # walk through xml devices
         for device in hconf:
