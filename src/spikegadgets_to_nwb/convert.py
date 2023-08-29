@@ -77,10 +77,10 @@ def _create_nwb(
     # make generic rec file data chunk iterator to pass to functions
     rec_dci = RecFileDataChunkIterator(rec_filepaths)
 
-    if header_reconfig_path is not None:
-        pass
-
     rec_header = read_header(rec_filepaths[0])
+    reconfig_header = rec_header
+    if header_reconfig_path is not None:
+        reconfig_header = read_header(header_reconfig_path)
 
     metadata_filepaths = _get_file_paths(session_df, ".yml")
     if len(metadata_filepaths) != 1:
@@ -94,13 +94,15 @@ def _create_nwb(
     )
 
     # test that yaml and headder are compatible hardware maps
-    validate_yaml_header_electrode_map(metadata, rec_header.find("SpikeConfiguration"))
+    validate_yaml_header_electrode_map(
+        metadata, reconfig_header.find("SpikeConfiguration")
+    )
     # make necessary maps for ephys channels
     hw_channel_map = make_hw_channel_map(
-        metadata, rec_header.find("SpikeConfiguration")
+        metadata, reconfig_header.find("SpikeConfiguration")
     )
     ref_electrode_map = make_ref_electrode_map(
-        metadata, rec_header.find("SpikeConfiguration")
+        metadata, reconfig_header.find("SpikeConfiguration")
     )
     # make the nwbfile with the basic entries
     nwb_file = initialize_nwb(metadata, first_epoch_config=rec_header)
