@@ -562,9 +562,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         systime_seconds = np.asarray(systime).astype(np.float64)
         trodestime_index = np.asarray(trodestime).astype(np.float64)
 
-        slope, intercept, r_value, p_value, std_err = linregress(
-            trodestime_index, systime_seconds
-        )
+        slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
