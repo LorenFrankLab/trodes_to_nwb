@@ -12,6 +12,7 @@ from neo.rawio.baserawio import (
 import numpy as np
 from scipy.stats import linregress
 from xml.etree import ElementTree
+import functools
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -93,7 +94,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         self._sampling_rate = float(hconf.attrib["samplingRate"])
         num_ephy_channels = int(hconf.attrib["numChannels"])
-        num_chan_per_chip = int(sconf.attrib["chanPerChip"])
+        try:
+            num_chan_per_chip = int(sconf.attrib["chanPerChip"])
+        except KeyError:
+            num_chan_per_chip = 32  # default value
 
         # explore sub stream and count packet size
         # first bytes is 0x55
@@ -435,6 +439,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_uint64 = raw_uint8.flatten().view(dtype=np.int64)
         return raw_uint64
 
+    @functools.lru_cache(maxsize=None)
     def get_analogsignal_multiplexed(self, channel_names=None) -> dict[str, np.ndarray]:
         if channel_names is None:
             # read all multiplexed channels
