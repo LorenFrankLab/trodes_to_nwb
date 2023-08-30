@@ -129,9 +129,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         time_index = np.arange(self._get_maxshape()[0])[selection_list[0]]
         data = []
         i = time_index[0]
+        stream_count = 0
         while i < min(time_index[-1], self._get_maxshape()[0]):
             # find the stream where this piece of slice begins
             io_stream = np.argmin(i >= file_start_ind) - 1
+            # clear cache if starting a new stream
+            if stream_count > 0:
+                self.neo_io[io_stream - 1].get_analogsignal_multiplexed.cache_clear()
             # get the data from that stream
             data.extend(
                 (
@@ -151,19 +155,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                     )
                 )
             )
-            print(
-                "added",
-                self.n_time[io_stream]
-                - (i - file_start_ind[io_stream]),  # if added up to the end of stream
-                time_index[-1] - i,  # if finished in this stream
-            )
             i += min(
                 self.n_time[io_stream]
                 - (i - file_start_ind[io_stream]),  # if added up to the end of stream
                 time_index[-1] - i,  # if finished in this stream
             )
-        data = (np.array(data) * self.conversion).astype("int16")
+            stream_count += 1
 
+        data = (np.array(data) * self.conversion).astype("int16")
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:
