@@ -326,6 +326,3 @@ def test_add_associated_files(capsys):
 
     def test_add_associated_video_files():
         return
-
-    def test_add_dio():
-        return
