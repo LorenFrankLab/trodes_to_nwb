@@ -20,6 +20,9 @@ def test_get_file_info():
         # running locally
         data_path = Path(path)
     path_df = get_file_info(data_path)
+    path_df = path_df[
+        path_df.animal == "sample"
+    ]  # restrict to exclude truncated rec files
 
     for file_type in [
         ".h264",
