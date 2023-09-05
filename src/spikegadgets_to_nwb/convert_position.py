@@ -4,8 +4,10 @@ from xml.etree import ElementTree
 
 import numpy as np
 import pandas as pd
+import os
 from pynwb import NWBFile, TimeSeries
-from pynwb.behavior import Position
+from pynwb.behavior import Position, BehavioralEvents
+from pynwb.image import ImageSeries
 from scipy.ndimage import label
 from scipy.stats import linregress
 
@@ -403,6 +405,7 @@ def add_position(
     metadata: dict,
     session_df: pd.DataFrame,
     rec_header: ElementTree.ElementTree,
+    video_directory: str,
 ):
     LED_POS_NAMES = [
         [
@@ -432,6 +435,13 @@ def add_position(
 
     position = Position(name="position")
     ptp_enabled = detect_ptp_from_header(rec_header)
+
+    # make processing module for video files
+    nwb_file.create_processing_module(
+        name="video_files", description="Contains all associated video files data"
+    )
+    # make a behavioral Event object to hold videos
+    video = BehavioralEvents(name="video")
 
     for epoch in session_df.epoch.unique():
         position_timestamps_filepath = session_df.loc[
@@ -519,4 +529,29 @@ def add_position(
                 timestamps=np.asarray(position_df.index),
             )
         )
+
+        # add the video file data
+        # find the video metadata for this epoch
+        video_metadata = None
+        for vid_ in metadata["associated_video_files"]:
+            if vid_["task_epochs"][0] == epoch:
+                video_metadata = vid_
+                break
+        if video_metadata is None:
+            raise KeyError(f"Missing video metadata for epoch {epoch}")
+
+        video.add_timeseries(
+            ImageSeries(
+                device=nwb_file.devices[
+                    "camera_device " + str(video_metadata["camera_id"])
+                ],
+                name=video_metadata["name"],
+                timestamps=np.asarray(position_df.index),
+                external_file=[os.path.join(video_directory, video_metadata["name"])],
+                format="external",
+                starting_frame=[0],
+                description="video of animal behavior from epoch",
+            )
+        )
     nwb_file.processing["behavior"].add(position)
+    nwb_file.processing["video_files"].add(video)

@@ -96,7 +96,7 @@ def test_convert():
 def check_module_entries(test, reference):
     todo = [
         "camera_sample_frame_counts",
-        "video_files",
+        # "video_files",
     ]  # TODO: known missing entries
     for entry in reference:
         if entry in todo:

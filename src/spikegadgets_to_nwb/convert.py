@@ -134,7 +134,9 @@ def _create_nwb(
     add_analog_data(nwb_file, rec_filepaths)
     add_sample_count(nwb_file, rec_dci)
     ### add position ###
-    add_position(nwb_file, metadata, session_df, rec_header)
+    add_position(
+        nwb_file, metadata, session_df, rec_header, video_directory=""
+    )  # TODO: video_directory needs passed from create function
 
     # add epochs
     add_epochs(
