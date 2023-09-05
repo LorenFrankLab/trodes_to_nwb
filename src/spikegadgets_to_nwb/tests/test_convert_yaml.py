@@ -69,7 +69,7 @@ def test_acq_device_creation():
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
     devices = nwb_file.devices
     assert len(devices) == 1
-    name = f"dataacq_deviceSpikeGadgets"
+    name = f"dataacq_device0"
     assert devices[name].system == "Main Control Unit"
     assert devices[name].amplifier == "Intan"
     assert devices[name].adc_circuit == "Intan"
@@ -325,4 +325,8 @@ def test_add_associated_files(capsys):
     assert printed_warning
 
     def test_add_associated_video_files():
+        # Set up test data
+        metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+        metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+        nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
         return
