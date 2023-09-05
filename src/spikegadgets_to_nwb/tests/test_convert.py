@@ -97,7 +97,6 @@ def check_module_entries(test, reference):
     todo = [
         "camera_sample_frame_counts",
         "video_files",
-        "dataacq_device0",
     ]  # TODO: known missing entries
     for entry in reference:
         if entry in todo:

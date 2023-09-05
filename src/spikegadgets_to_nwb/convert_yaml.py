@@ -137,11 +137,11 @@ def add_acquisition_devices(nwbfile: NWBFile, metadata: dict) -> None:
         metadata from the yaml generator
     """
     # add each acquisition device to the nwb
-    for acq_metadata in metadata["data_acq_device"]:
+    for i, acq_metadata in enumerate(metadata["data_acq_device"]):
         # NOTE: naming convention taken from the old rec_to_nwb"
         nwbfile.add_device(
             DataAcqDevice(
-                name=f'dataacq_device{acq_metadata["name"]}',
+                name=f"dataacq_device{i}",
                 system=acq_metadata["system"],
                 amplifier=acq_metadata["amplifier"],
                 adc_circuit=acq_metadata["adc_circuit"],
