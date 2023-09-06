@@ -1,7 +1,8 @@
+from pathlib import Path
 from xml.etree import ElementTree
+
 from ndx_franklab_novela import HeaderDevice
 from pynwb import NWBFile
-from pathlib import Path
 
 
 def read_header(recfile: Path | str) -> ElementTree.Element:

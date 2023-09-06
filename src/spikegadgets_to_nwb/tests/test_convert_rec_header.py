@@ -1,11 +1,10 @@
-from spikegadgets_to_nwb import convert_yaml, convert_rec_header
-
-from pynwb.file import NWBFile
-from ndx_franklab_novela import HeaderDevice
+import os
 from xml.etree import ElementTree
 
-import os
 import pytest
+from ndx_franklab_novela import HeaderDevice
+
+from spikegadgets_to_nwb import convert_rec_header, convert_yaml
 
 path = os.path.dirname(os.path.abspath(__file__))
 

@@ -1,8 +1,10 @@
-import numpy as np
 import os
+
+import numpy as np
 import pynwb
+
+from spikegadgets_to_nwb import convert_yaml
 from spikegadgets_to_nwb.convert_dios import add_dios
-from spikegadgets_to_nwb import convert_yaml, convert_rec_header
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 path = os.path.dirname(os.path.abspath(__file__))

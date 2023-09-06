@@ -1,12 +1,12 @@
+import os
 import re
 from pathlib import Path
 from xml.etree import ElementTree
 
 import numpy as np
 import pandas as pd
-import os
 from pynwb import NWBFile, TimeSeries
-from pynwb.behavior import Position, BehavioralEvents
+from pynwb.behavior import BehavioralEvents, Position
 from pynwb.image import ImageSeries
 from scipy.ndimage import label
 from scipy.stats import linregress

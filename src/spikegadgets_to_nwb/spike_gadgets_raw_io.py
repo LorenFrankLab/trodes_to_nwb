@@ -1,18 +1,18 @@
 # TODO use neo.rawio.SpikeGadgetsRawIO instead of this file when it is available in neo
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
-from neo.rawio.baserawio import (
+import functools
+from xml.etree import ElementTree
+
+import numpy as np
+from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
+    _event_channel_dtype,
     _signal_channel_dtype,
     _signal_stream_dtype,
     _spike_channel_dtype,
-    _event_channel_dtype,
-)  # TODO the import location was updated for this notebook
-
-import numpy as np
+)
 from scipy.stats import linregress
-from xml.etree import ElementTree
-import functools
 
 
 class SpikeGadgetsRawIO(BaseRawIO):

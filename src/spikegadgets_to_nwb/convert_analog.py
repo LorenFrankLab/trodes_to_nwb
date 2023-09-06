@@ -1,15 +1,13 @@
-from hdmf.data_utils import GenericDataChunkIterator
-from hdmf.backends.hdf5 import H5DataIO
+from warnings import warn
+from xml.etree import ElementTree
+
 import numpy as np
 import pynwb
-from xml.etree import ElementTree
+from hdmf.backends.hdf5 import H5DataIO
 from pynwb import NWBFile
-from pynwb.ecephys import ElectricalSeries
-from warnings import warn
+
 from spikegadgets_to_nwb import convert_rec_header
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
-
-from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
 def add_analog_data(nwbfile: NWBFile, rec_file_path: list[str], **kwargs) -> None:

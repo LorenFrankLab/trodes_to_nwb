@@ -1,8 +1,15 @@
+import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+from pynwb import NWBHDF5IO
 
+from spikegadgets_to_nwb import convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_position import (
+    add_position,
+    correct_timestamps_for_camera_to_mcu_lag,
     detect_repeat_timestamps,
     detect_trodes_time_repeats_or_frame_jumps,
     estimate_camera_time_from_mcu_time,
@@ -13,8 +20,10 @@ from spikegadgets_to_nwb.convert_position import (
     parse_dtype,
     read_trodes_datafile,
     remove_acquisition_timing_pause_non_ptp,
-    correct_timestamps_for_camera_to_mcu_lag,
 )
+from spikegadgets_to_nwb.data_scanner import get_file_info
+
+path = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_parse_dtype_standard():
@@ -179,20 +188,6 @@ def test_correct_timestamps_for_camera_to_mcu_lag():
 
     # Assert that the corrected timestamps are as expected
     np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
-
-
-from spikegadgets_to_nwb.data_scanner import get_file_info
-
-import os
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from pynwb import NWBHDF5IO
-
-from spikegadgets_to_nwb import convert_yaml, convert_rec_header
-from spikegadgets_to_nwb.convert_position import add_position
-
-path = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_add_position():

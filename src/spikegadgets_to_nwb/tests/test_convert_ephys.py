@@ -1,8 +1,10 @@
 import os
+
 import numpy as np
 import pynwb
+
+from spikegadgets_to_nwb import convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
-from spikegadgets_to_nwb import convert_yaml, convert_rec_header
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 MICROVOLTS_PER_VOLT = 1e6

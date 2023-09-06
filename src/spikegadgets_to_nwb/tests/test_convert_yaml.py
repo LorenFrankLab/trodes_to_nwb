@@ -1,12 +1,12 @@
-from spikegadgets_to_nwb import convert_yaml, convert_rec_header
-from datetime import datetime
-from pynwb.file import Subject, ProcessingModule
-from ndx_franklab_novela import Probe, Shank, ShanksElectrode
-from hdmf.common.table import DynamicTable, VectorData
-from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-
 import os
-import pytest
+from datetime import datetime
+
+from hdmf.common.table import DynamicTable, VectorData
+from ndx_franklab_novela import Probe, Shank, ShanksElectrode
+from pynwb.file import ProcessingModule, Subject
+
+from spikegadgets_to_nwb import convert_rec_header, convert_yaml
+from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 path = os.path.dirname(os.path.abspath(__file__))
 

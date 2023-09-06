@@ -1,23 +1,25 @@
-import yaml
-from xml.etree import ElementTree
-
-from pynwb import NWBFile, TimeSeries
-from pynwb.file import Subject, ProcessingModule
-from pynwb.behavior import BehavioralEvents
-from pynwb.image import ImageSeries
-from hdmf.common.table import DynamicTable, VectorData
+import os
+import uuid
 from copy import deepcopy
 from datetime import datetime
-import pandas as pd
-import numpy as np
-import os
-import pytz
-import uuid
+from xml.etree import ElementTree
 
-from ndx_franklab_novela import CameraDevice, DataAcqDevice
-from ndx_franklab_novela import Probe, Shank, ShanksElectrode
-from ndx_franklab_novela import AssociatedFiles
+import numpy as np
+import pandas as pd
+import pytz
+import yaml
+from hdmf.common.table import DynamicTable, VectorData
+from ndx_franklab_novela import (
+    AssociatedFiles,
+    CameraDevice,
+    DataAcqDevice,
+    Probe,
+    Shank,
+    ShanksElectrode,
+)
+from pynwb import NWBFile
 from pynwb.ecephys import ElectrodeGroup
+from pynwb.file import ProcessingModule, Subject
 
 
 def load_metadata(

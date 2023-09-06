@@ -1,11 +1,12 @@
 from typing import Tuple
-from hdmf.data_utils import GenericDataChunkIterator
-from hdmf.backends.hdf5 import H5DataIO
+from warnings import warn
+
 import numpy as np
-from scipy.stats import linregress
+from hdmf.backends.hdf5 import H5DataIO
+from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
-from warnings import warn
+
 from spikegadgets_to_nwb import convert_rec_header
 
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO

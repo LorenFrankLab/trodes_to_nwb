@@ -1,11 +1,12 @@
-from spikegadgets_to_nwb.data_scanner import get_file_info
-from spikegadgets_to_nwb.convert import create_nwbs, _create_nwb
-
 import os
-import pandas as pd
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
 from pynwb import NWBHDF5IO
+
+from spikegadgets_to_nwb.convert import _create_nwb
+from spikegadgets_to_nwb.data_scanner import get_file_info
 
 path = os.path.dirname(os.path.abspath(__file__))
 

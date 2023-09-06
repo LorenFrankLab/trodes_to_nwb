@@ -1,10 +1,11 @@
-import pandas as pd
-import numpy as np
-from pynwb import NWBFile, TimeSeries
 from typing import List
-from spikegadgets_to_nwb.convert_rec_header import read_header
-from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
+
+import numpy as np
+import pandas as pd
+from pynwb import NWBFile, TimeSeries
+
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
+from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
