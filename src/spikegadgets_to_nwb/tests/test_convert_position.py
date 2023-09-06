@@ -179,3 +179,113 @@ def test_correct_timestamps_for_camera_to_mcu_lag():
 
     # Assert that the corrected timestamps are as expected
     np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
+
+
+from spikegadgets_to_nwb.data_scanner import get_file_info
+
+import os
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from pynwb import NWBHDF5IO
+
+from spikegadgets_to_nwb import convert_yaml, convert_rec_header
+from spikegadgets_to_nwb.convert_position import add_position
+
+path = os.path.dirname(os.path.abspath(__file__))
+
+
+def test_add_position():
+    try:
+        # running on github
+        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
+    except (TypeError, FileNotFoundError):
+        # running locally
+        data_path = Path(path + "/test_data")
+    probe_metadata = [Path(path + "/test_data/tetrode_12.5.yml")]
+
+    # make session_df
+    path_df = get_file_info(data_path)
+    session_df = path_df[(path_df.animal == "sample")]
+
+    # get metadata
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+    probe_metadata = [
+        path + "/test_data/tetrode_12.5.yml",
+    ]
+    metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
+    rec_file = session_df[
+        (session_df.epoch == 1) & (session_df.file_extension == ".rec")
+    ].full_path.to_list()[0]
+    rec_header = convert_rec_header.read_header(rec_file)
+
+    # make nwb file
+    nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
+
+    # run add_position and prerequisite functions
+    convert_yaml.add_cameras(nwbfile, metadata)
+    add_position(nwbfile, metadata, session_df, rec_header, video_directory="")
+
+    # Check that the objects were properly added
+    assert "position" in nwbfile.processing["behavior"].data_interfaces
+    assert "video_files" in nwbfile.processing
+    assert "non_repeat_timestamp_labels" in nwbfile.processing
+    assert "position_frame_index" in nwbfile.processing
+
+    # save the created file
+    filename = data_path / "test_add_position.nwb"
+    with NWBHDF5IO(filename, "w") as io:
+        io.write(nwbfile)
+
+    # Read the created file and its original counterpart
+    with NWBHDF5IO(filename, "r", load_namespaces=True) as io:
+        read_nwbfile = io.read()
+
+        rec_to_nwb_file = data_path / "minirec20230622_.nwb"
+        with NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
+            old_nwbfile = io2.read()
+
+            # check the data series was added
+            for series in [
+                "led_0_series_1",
+                "led_0_series_2",
+                "led_1_series_1",
+                "led_1_series_2",
+            ]:
+                # check series in new nwbfile
+                assert (
+                    series
+                    in nwbfile.processing["behavior"]["position"].spatial_series.keys()
+                )
+                # find the corresponding data in the old file
+                validated = False
+                for old_series in old_nwbfile.processing["behavior"][
+                    "position"
+                ].spatial_series.keys():
+                    # check that led number matches
+                    if not series.split("_")[1] == old_series.split("_")[1]:
+                        continue
+                    # check if timestamps end the same
+                    timestamps = nwbfile.processing["behavior"]["position"][
+                        series
+                    ].timestamps[:]
+                    old_timestamps = old_nwbfile.processing["behavior"]["position"][
+                        old_series
+                    ].timestamps[:]
+                    if np.allclose(
+                        timestamps[-30:],
+                        old_timestamps[-30:],
+                        rtol=0,
+                        atol=np.mean(np.diff(old_timestamps[-30:])),
+                    ):
+                        pos = nwbfile.processing["behavior"]["position"][series].data[:]
+                        old_pos = old_nwbfile.processing["behavior"]["position"][
+                            old_series
+                        ].data[:]
+                        # check that the data is the same
+                        assert np.allclose(pos[-30:], old_pos[-30:], rtol=0, atol=1e-6)
+                        validated = True
+                        break
+                assert validated, f"Could not find matching series for {series}"
+    # cleanup
+    os.remove(filename)

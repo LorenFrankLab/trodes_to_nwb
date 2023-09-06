@@ -436,6 +436,12 @@ def add_position(
     position = Position(name="position")
     ptp_enabled = detect_ptp_from_header(rec_header)
 
+    # Make a processing module for behavior and add to the nwbfile
+    if not "behavior" in nwb_file.processing:
+        nwb_file.create_processing_module(
+            name="behavior", description="Contains all behavior-related data"
+        )
+
     # make processing module for video files
     nwb_file.create_processing_module(
         name="video_files", description="Contains all associated video files data"

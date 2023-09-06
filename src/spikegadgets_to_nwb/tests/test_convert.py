@@ -218,3 +218,40 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
             (current_dio.unit == "-1") and (old_dio.unit == "unspecified")
         )  # old rec_to_nwb conversions have a different default for unspecified units
         assert current_dio.description == old_dio.description
+
+    # Compare position data
+    for series in nwbfile.processing["behavior"]["position"].spatial_series.keys():
+        # check series in new nwbfile
+        assert (
+            series in nwbfile.processing["behavior"]["position"].spatial_series.keys()
+        )
+        # find the corresponding data in the old file
+        validated = False
+        for old_series in old_nwbfile.processing["behavior"][
+            "position"
+        ].spatial_series.keys():
+            # check that led number matches
+            if not series.split("_")[1] == old_series.split("_")[1]:
+                continue
+            # check if timestamps end the same
+            timestamps = nwbfile.processing["behavior"]["position"][series].timestamps[
+                :
+            ]
+            old_timestamps = old_nwbfile.processing["behavior"]["position"][
+                old_series
+            ].timestamps[:]
+            if np.allclose(
+                timestamps[-30:],
+                old_timestamps[-30:],
+                rtol=0,
+                atol=np.mean(np.diff(old_timestamps[-30:])),
+            ):
+                pos = nwbfile.processing["behavior"]["position"][series].data[:]
+                old_pos = old_nwbfile.processing["behavior"]["position"][
+                    old_series
+                ].data[:]
+                # check that the data is the same
+                assert np.allclose(pos[-30:], old_pos[-30:], rtol=0, atol=1e-6)
+                validated = True
+                break
+        assert validated, f"Could not find matching series for {series}"
