@@ -428,6 +428,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
             i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
         ]
         raw_uint32 = raw_uint8.flatten().view("uint32")
+        diff = np.diff(raw_uint32)
+        if len(set(diff)) != 1:
+            raise UserWarning(
+                f"Trodes timestamps are not evenly spaced. {np.sum(diff>1)} instances of dropped packets."
+            )
         return raw_uint32
 
     def get_sys_clock(self, i_start, i_stop):
