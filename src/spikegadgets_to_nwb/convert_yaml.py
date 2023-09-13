@@ -231,6 +231,11 @@ def add_electrode_groups(
                     rel_x=float(electrode_meta["rel_x"]),
                     rel_y=float(electrode_meta["rel_y"]),
                     rel_z=float(electrode_meta["rel_z"]),
+                    x=0.0,
+                    y=0.0,
+                    z=0.0,
+                    imp=0.0,
+                    filtering="None",
                 )
                 # track additional electrode data
                 electrode_df_list.append(
