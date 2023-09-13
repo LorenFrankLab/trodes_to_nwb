@@ -141,7 +141,7 @@ def test_electrode_creation():
             electrode_id += 1
 
     # Check if the electrode table was extended correctly
-    assert len(nwbfile.electrodes.columns) == 13
+    assert len(nwbfile.electrodes.columns) == 18
     # Check that electrode table hwChan is correct
     assert list(nwbfile.electrodes.to_dataframe()["hwChan"][:4]) == [
         "29",
@@ -218,7 +218,7 @@ def test_electrode_creation_reconfigured():
             electrode_id += 1
 
     # Check if the electrode table was extended correctly
-    assert len(nwbfile.electrodes.columns) == 13
+    assert len(nwbfile.electrodes.columns) == 18
     # Check that electrode table hwChan is correct
     assert list(nwbfile.electrodes.to_dataframe()["hwChan"][:4]) == [
         "29",
