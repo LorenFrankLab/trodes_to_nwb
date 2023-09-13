@@ -497,7 +497,7 @@ def add_position(
                     )
         else:
             position.create_spatial_series(
-                name=f"led_{led_number}_series_{epoch}",
+                name=f"series_{epoch}",
                 description=", ".join(["xloc", "yloc"]),
                 data=np.asarray([]),
                 conversion=meters_per_pixel,
