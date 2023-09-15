@@ -1,3 +1,5 @@
+import logging
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -26,6 +28,38 @@ from spikegadgets_to_nwb.convert_yaml import (
     load_metadata,
 )
 from spikegadgets_to_nwb.data_scanner import get_file_info
+
+
+def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
+    """Sets up a logger for each function that outputs
+    to the console and to a file
+
+    Parameters
+    ----------
+    name_logfile : str
+        Name of the logfile
+    path_logfile : str
+        Path to the logfile
+
+    Returns
+    -------
+    logger : logging.Logger
+        Logger object
+    """
+    logger = logging.getLogger(name_logfile)
+    formatter = logging.Formatter(
+        "%(asctime)s %(message)s", datefmt="%d-%b-%y %H:%M:%S"
+    )
+    fileHandler = logging.FileHandler(path_logfile, mode="w")
+    fileHandler.setFormatter(formatter)
+    streamHandler = logging.StreamHandler()
+    streamHandler.setFormatter(formatter)
+
+    logger.setLevel(logging.INFO)
+    logger.addHandler(fileHandler)
+    logger.addHandler(streamHandler)
+
+    return logger
 
 
 def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
@@ -68,11 +102,30 @@ def _create_nwb(
     probe_metadata_paths: list[Path] | None = None,
     output_dir: str = "/home/stelmo/nwb/raw",
 ):
-    print(f"Creating NWB file for session: {session}")
+    # create loggers
+    logger = setup_logger(
+        "convert", f"{output_dir}/{session[1]}{session[0]}_convert.log"
+    )
+    for module in [
+        "convert_yaml",
+        "convert_rec_header",
+        "convert_ephys",
+        "convert_position",
+        "convert_analog",
+        "convert_dios",
+        "convert_intervals",
+        "data_scanner",
+    ]:
+        setup_logger(
+            f"convert.{module}",
+            f"{output_dir}/{session[1]}{session[0]}_convert.{module}.log",
+        )
 
+    logger.info(f"Creating NWB file for session: {session}")
     rec_filepaths = _get_file_paths(session_df, ".rec")
-    print(f"\trec_filepaths: {rec_filepaths}")
+    logger.info(f"\trec_filepaths: {rec_filepaths}")
 
+    logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
     rec_dci = RecFileDataChunkIterator(rec_filepaths)
 
@@ -83,15 +136,20 @@ def _create_nwb(
 
     metadata_filepaths = _get_file_paths(session_df, ".yml")
     if len(metadata_filepaths) != 1:
-        raise ValueError("There must be exactly one metadata file per session")
+        try:
+            raise ValueError("There must be exactly one metadata file per session")
+        except ValueError as e:
+            logger.exception("ERROR:")
+            raise e
     else:
         metadata_filepaths = metadata_filepaths[0]
-    print(f"\tmetadata_filepath: {metadata_filepaths}")
+    logger.info(f"\tmetadata_filepath: {metadata_filepaths}")
 
     metadata, probe_metadata = load_metadata(
         metadata_filepaths, probe_metadata_paths=probe_metadata_paths
     )
 
+    logger.info("CREATING HARDWARE MAPS")
     # test that yaml and headder are compatible hardware maps
     validate_yaml_header_electrode_map(
         metadata, reconfig_header.find("SpikeConfiguration")
@@ -103,6 +161,7 @@ def _create_nwb(
     ref_electrode_map = make_ref_electrode_map(
         metadata, reconfig_header.find("SpikeConfiguration")
     )
+    logger.info("CREATING METADATA ENTRIES")
     # make the nwbfile with the basic entries
     nwb_file = initialize_nwb(metadata, first_epoch_config=rec_header)
     add_subject(nwb_file, metadata)
@@ -119,6 +178,7 @@ def _create_nwb(
     #     nwb_file, metadata, video_directory, raw_data_path, convert_timestamps
     # ) #TODO: deal with timestamps and uncomment
 
+    logger.info("ADDING EPHYS AND REC DATA")
     ### add rec file data ###
     map_row_ephys_data_to_row_electrodes_table = list(
         range(len(nwb_file.electrodes))
@@ -132,6 +192,7 @@ def _create_nwb(
     add_dios(nwb_file, rec_filepaths, metadata)
     add_analog_data(nwb_file, rec_filepaths)
     add_sample_count(nwb_file, rec_dci)
+    logger.info("ADDING POSITION")
     ### add position ###
     add_position(
         nwb_file, metadata, session_df, rec_header, video_directory=""
@@ -147,6 +208,6 @@ def _create_nwb(
     )
 
     # write file
-    print(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
+    logger.info(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
     with NWBHDF5IO(f"{output_dir}/{session[1]}{session[0]}.nwb", "w") as io:
         io.write(nwb_file)
