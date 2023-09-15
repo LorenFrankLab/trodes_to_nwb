@@ -1,11 +1,12 @@
 import os
+import logging
 from datetime import datetime
 
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
 
-from spikegadgets_to_nwb import convert_rec_header, convert_yaml
+from spikegadgets_to_nwb import convert_rec_header, convert_yaml, convert
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -285,6 +286,8 @@ def test_add_tasks():
 
 
 def test_add_associated_files(capsys):
+    # Create a logger
+    logger = convert.setup_logger("convert.convert_yaml", "testing.log")
     # Set up test data
     metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -317,11 +320,15 @@ def test_add_associated_files(capsys):
     metadata["associated_files"][0]["name"] = "bad_path.txt"
     metadata["associated_files"].pop(1)
     convert_yaml.add_associated_files(nwbfile, metadata)
-    captured = capsys.readouterr()
     printed_warning = False
-    for line in captured.out.split("\n"):
-        if "ERROR: associated file bad_path.txt does not exist" in line:
-            printed_warning = True
+    for handler in logger.handlers:
+        if isinstance(handler, logging.FileHandler):
+            log_file_path = handler.baseFilename
+            with open(log_file_path, "r") as log_file:
+                for line in log_file.readlines():
+                    if "ERROR: associated file bad_path.txt does not exist" in line:
+                        printed_warning = True
+                    break
     assert printed_warning
 
     def test_add_associated_video_files():

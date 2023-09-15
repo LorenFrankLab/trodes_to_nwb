@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -241,5 +242,7 @@ def detect_ptp_from_header(header: ElementTree.ElementTree) -> bool:
                     break
             if ptp_enabled:
                 break
-    print("PTP enabled: " + str(ptp_enabled))
+    logging.getLogger("convert.convert_position").info(
+        "PTP enabled: " + str(ptp_enabled)
+    )
     return ptp_enabled

@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 import pandas as pd
 
@@ -33,6 +34,7 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
     full_path : str
 
     """
+    logger = logging.getLogger("convert.data_scanner")
     try:
         if path.suffix == ".yml":
             date, animal_name, _ = path.stem.split("_")
@@ -44,7 +46,7 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
                 # check if date is an integer
                 date = int(date)
             except ValueError:
-                print(f"Invalid file name: {path.stem}. Skipping...")
+                logger.info(f"Invalid file name: {path.stem}. Skipping...")
                 return None, None, None, None, None, None, None
         else:
             date, animal_name, epoch, tag = path.stem.split("_")
@@ -57,14 +59,14 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
                 epoch = int(epoch)
                 tag_index = int(tag_index)
             except ValueError:
-                print(f"Invalid file name: {path.stem}. Skipping...")
+                logger.info(f"Invalid file name: {path.stem}. Skipping...")
 
         full_path = str(path.absolute())
         extension = path.suffix
 
         return date, animal_name, epoch, tag, tag_index, extension, full_path
     except ValueError:
-        print(f"Invalid file name: {path.stem}. Skipping...")
+        logger.info(f"Invalid file name: {path.stem}. Skipping...")
         return None, None, None, None, None, None, None
 
 

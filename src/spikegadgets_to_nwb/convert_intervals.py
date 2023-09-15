@@ -1,4 +1,5 @@
 from typing import List
+import logging
 
 import numpy as np
 import pandas as pd
@@ -33,6 +34,7 @@ def add_epochs(
     neo_io: List[SpikeGadgetsRawIO]
         neo_io iterators for each rec file. Contains time information
     """
+    logger = logging.getLogger("convert.convert_intervals")
     session_info = file_info[(file_info.date == date) & (file_info.animal == animal)]
     for epoch in set(session_info.epoch):
         rec_file_list = session_info[
@@ -40,7 +42,7 @@ def add_epochs(
         ]
         start_time = None
         end_time = None
-        print(list(rec_file_list.full_path))
+        logger.info(list(rec_file_list.full_path))
         for io in neo_io:
             if io.filename in list(rec_file_list.full_path):
                 file_start_time = (
@@ -77,7 +79,12 @@ def add_sample_count(
         rec file iterator with all the rec files for the session already in it
     """
     if "sample_count" in nwbfile.processing:
-        raise ValueError("sample_count already exists in nwbfile.processing")
+        try:
+            raise ValueError("sample_count already exists in nwbfile.processing")
+        except ValueError as e:
+            logger = logging.getLogger("convert.convert_intervals")
+            logger.error(e)
+            raise
 
     # make the objects to add to the nwb file
     nwbfile.create_processing_module(

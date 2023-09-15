@@ -1,4 +1,5 @@
 import os
+import logging
 import re
 from pathlib import Path
 from xml.etree import ElementTree
@@ -134,11 +135,12 @@ def find_large_frame_jumps(
     frame_count: np.ndarray, min_frame_jump: int = 15
 ) -> np.ndarray:
     """Want to avoid regressing over large frame count skips"""
+    logger = logging.getLogger("convert.convert_position")
     frame_count = np.asarray(frame_count)
 
     is_large_frame_jump = np.insert(np.diff(frame_count) > min_frame_jump, 0, False)
 
-    print(f"big frame jumps: {np.nonzero(is_large_frame_jump)[0]}")
+    logger.info(f"big frame jumps: {np.nonzero(is_large_frame_jump)[0]}")
 
     return is_large_frame_jump
 
@@ -152,9 +154,11 @@ def detect_trodes_time_repeats_or_frame_jumps(
 ) -> tuple[np.ndarray, np.ndarray]:
     """If a trodes time index repeats, then the Trodes clock has frozen
     due to headstage disconnects."""
+    logger = logging.getLogger("convert.convert_position")
+
     trodes_time = np.asarray(trodes_time)
     is_repeat_timestamp = detect_repeat_timestamps(trodes_time)
-    print(f"repeat timestamps ind: {np.nonzero(is_repeat_timestamp)[0]}")
+    logger.info(f"repeat timestamps ind: {np.nonzero(is_repeat_timestamp)[0]}")
 
     is_large_frame_jump = find_large_frame_jumps(frame_count)
     is_repeat_timestamp = np.logical_or(is_repeat_timestamp, is_large_frame_jump)
@@ -208,13 +212,14 @@ def estimate_camera_time_from_mcu_time(
 def estimate_camera_to_mcu_lag(
     camera_systime: np.ndarray, dio_systime: np.ndarray, n_breaks: int = 0
 ) -> float:
+    logger = logging.getLogger("convert.convert_position")
     if n_breaks == 0:
         dio_systime = dio_systime[: len(camera_systime)]
         camera_to_mcu_lag = np.median(camera_systime - dio_systime)
     else:
         camera_to_mcu_lag = camera_systime[0] - dio_systime[0]
 
-    print(
+    logger.info(
         "estimated trodes to camera lag: "
         f"{camera_to_mcu_lag / NANOSECONDS_PER_SECOND:0.3f} s"
     )
@@ -259,6 +264,8 @@ def get_position_timestamps(
     dios=None,
     ptp_enabled: bool = True,
 ):
+    logger = logging.getLogger("convert.convert_position")
+
     # Get video timestamps
     video_timestamps = (
         pd.DataFrame(read_trodes_datafile(position_timestamps_filepath)["data"])
@@ -281,7 +288,7 @@ def get_position_timestamps(
     ) = detect_trodes_time_repeats_or_frame_jumps(
         video_timestamps.index, video_timestamps.HWframeCount
     )
-    print(f"\tnon_repeat_timestamp_labels = {non_repeat_timestamp_labels_id}")
+    logger.info(f"\tnon_repeat_timestamp_labels = {non_repeat_timestamp_labels_id}")
     video_timestamps["non_repeat_timestamp_labels"] = non_repeat_timestamp_labels
     video_timestamps = video_timestamps.loc[
         video_timestamps.non_repeat_timestamp_labels > 0
@@ -330,7 +337,7 @@ def get_position_timestamps(
         )
         original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[pause_mid_ind:]
-        print(
+        logger.info(
             "Camera frame rate estimated from MCU timestamps:"
             f" {1 / np.median(np.diff(video_timestamps.index)):0.1f} frames/s"
         )
@@ -347,7 +354,7 @@ def get_position_timestamps(
 
         # Estimate the frame rate from the DIO camera ticks as a sanity check.
         frame_rate_from_dio = get_framerate(dio_systime[dio_systime > pause_mid_time])
-        print(
+        logger.info(
             "Camera frame rate estimated from DIO camera ticks:"
             f" {frame_rate_from_dio:0.1f} frames/s"
         )
@@ -372,7 +379,7 @@ def get_position_timestamps(
         video_timestamps = video_timestamps.iloc[is_valid_camera_time]
 
         frame_rate_from_camera_systime = get_framerate(camera_systime)
-        print(
+        logger.info(
             "Camera frame rate estimated from MCU timestamps:"
             f" {frame_rate_from_camera_systime:0.1f} frames/s"
         )
@@ -407,6 +414,8 @@ def add_position(
     rec_header: ElementTree.ElementTree,
     video_directory: str,
 ):
+    logger = logging.getLogger("convert.convert_position")
+
     LED_POS_NAMES = [
         [
             "xloc",
@@ -467,9 +476,9 @@ def add_position(
         except IndexError:
             position_tracking_filepath = None
 
-        print(epoch)
-        print(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
-        print(f"\tposition_tracking_filepath: {position_tracking_filepath}")
+        logger.info(epoch)
+        logger.info(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
+        logger.info(f"\tposition_tracking_filepath: {position_tracking_filepath}")
 
         position_df, original_video_timestamps = get_position_timestamps(
             position_timestamps_filepath,

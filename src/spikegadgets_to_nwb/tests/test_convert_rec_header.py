@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 import pytest
 from ndx_franklab_novela import HeaderDevice
 
-from spikegadgets_to_nwb import convert_rec_header, convert_yaml
+from spikegadgets_to_nwb import convert_rec_header, convert_yaml, convert
 
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -89,6 +89,7 @@ def test_add_header_device():
 
 
 def test_detect_ptp():
+    convert.setup_logger("convert.convert_rec_header", "testing.log")
     assert convert_rec_header.detect_ptp_from_header(default_test_xml_tree())
 
 
