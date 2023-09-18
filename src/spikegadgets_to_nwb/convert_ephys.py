@@ -27,12 +27,16 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         conversion: float = 1.0,
         stream_index: int = 3,  # TODO use the stream name instead of the index
         is_analog: bool = False,
+        interpolate_dropped_packets: bool = False,
         **kwargs,
     ):
         self.conversion = conversion
         self.is_analog = is_analog
         self.neo_io = [
-            SpikeGadgetsRawIO(filename=file) for file in rec_file_path
+            SpikeGadgetsRawIO(
+                filename=file, interpolate_dropped_packets=interpolate_dropped_packets
+            )
+            for file in rec_file_path
         ]  # get all streams for all files
         [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
@@ -49,15 +53,6 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         self.block_index = 0
         self.seg_index = 0
         self.stream_index = stream_index  # TODO confirm that the stream index is trodes
-
-        self.n_time = [
-            neo_io.get_signal_size(
-                block_index=self.block_index,
-                seg_index=self.seg_index,
-                stream_index=self.stream_index,
-            )
-            for neo_io in self.neo_io
-        ]
 
         # check that all files have the same number of channels.
         assert (
@@ -88,16 +83,16 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         if self.neo_io[0].sysClock_byte:  # use this if have sysClock
             self.timestamps = []
             [
-                self.timestamps.extend(neo_io.get_regressed_systime(0, n_time))
-                for neo_io, n_time in zip(self.neo_io, self.n_time)
+                self.timestamps.extend(neo_io.get_regressed_systime(0, None))
+                for neo_io in self.neo_io
             ]
 
         else:  # use this to convert Trodes timestamps into systime based on sampling rate
             [
                 self.timestamps.extend(
-                    neo_io.get_systime_from_trodes_timestamps(0, n_time)
+                    neo_io.get_systime_from_trodes_timestamps(0, None)
                 )
-                for neo_io, n_time in zip(self.neo_io, self.n_time)
+                for neo_io in self.neo_io
             ]
 
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
@@ -105,6 +100,15 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             warn(
                 "Timestamps are not sequential. This may cause problems with some software or data analysis."
             )
+
+        self.n_time = [
+            neo_io.get_signal_size(
+                block_index=self.block_index,
+                seg_index=self.seg_index,
+                stream_index=self.stream_index,
+            )
+            for neo_io in self.neo_io
+        ]
 
         super().__init__(**kwargs)
 
@@ -219,6 +223,7 @@ def add_raw_ephys(
         recfile,
         nwb_hw_channel_order=nwb_hw_chan_order,
         conversion=conversion,
+        interpolate_dropped_packets=True,
     )  # can set buffer_gb if needed
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended

@@ -127,7 +127,7 @@ def _create_nwb(
 
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
-    rec_dci = RecFileDataChunkIterator(rec_filepaths)
+    rec_dci = RecFileDataChunkIterator(rec_filepaths, interpolate_dropped_packets=True)
 
     rec_header = read_header(rec_filepaths[0])
     reconfig_header = rec_header
