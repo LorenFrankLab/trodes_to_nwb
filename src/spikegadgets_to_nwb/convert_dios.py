@@ -21,7 +21,12 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
     dio_metadata = metadata["behavioral_events"]
     channel_name_map = {}
     for dio_event in dio_metadata:
+        if dio_event["description"] in channel_name_map:
+            raise ValueError(
+                f"Duplicate channel name {dio_event['description']} in metadata YAML"
+            )
         channel_name_map[dio_event["description"]] = dio_event["name"]
+
     return channel_name_map
 
 
