@@ -592,7 +592,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
             i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        trodestime = self.insert_dropped_trodestime(trodestime)
         systime = self.get_sys_clock(i_start, i_stop)
         # Convert
         systime_seconds = np.asarray(systime).astype(np.float64)
@@ -607,31 +606,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if i_stop is None:
             i_stop = self._raw_memmap.shape[0]
         # get values
-        trodestime = self.insert_dropped_trodestime(
-            self.get_analogsignal_timestamps(i_start, i_stop)
-        )
+        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         return (trodestime - int(self.timestamp_at_creation)) * (
             1.0 / self._sampling_rate
         ) + int(self.system_time_at_creation) / MILLISECONDS_PER_SECOND
-
-    def insert_dropped_trodestime(self, timestamps):
-        """Inserts timestamps for dropped packets in the trodestime timestamps.
-        Parameters
-        ----------
-        timestamps : np.ndarray
-            The timestamps to insert dropped timestamps into.
-        Returns
-        -------
-        np.ndarray
-            The timestamps with dropped timestamps inserted.
-        """
-        if self.interpolate_dropped_packets:
-            timestamps = np.insert(
-                timestamps,
-                self.interpolate_index,
-                timestamps[self.interpolate_index] + 1,
-            )
-        return timestamps
 
     def _interpolate_raw_memmap(
         self,
