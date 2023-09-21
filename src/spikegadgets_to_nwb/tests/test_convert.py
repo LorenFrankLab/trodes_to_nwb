@@ -150,9 +150,13 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
     ) or truncated_size
     ephys_size = nwbfile.acquisition["e-series"].data.shape[0]
     # check all values of one of the streams
+    old_data = old_nwbfile.acquisition["e-series"].data[0, :]
+    ind = np.where(np.abs(old_data[:ephys_size]) > 0)[
+        0
+    ]  # Ignore the artifact zero valued points from rec_to_nwb_conversion
     assert (
-        (nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype("int16")
-        == old_nwbfile.acquisition["e-series"].data[:ephys_size, 0]
+        (nwbfile.acquisition["e-series"].data[ind, 0] * conversion).astype("int16")
+        == old_data[ind]
     ).all()
     # check that timestamps are less than one sample different
     assert np.isclose(
@@ -171,16 +175,14 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         "analog"
     ].description.split("   ")[:-1]
     # TODO check that all the same channels are present
-
     if (
         old_nwbfile.processing["analog"]["analog"]["analog"].data.size > 0
     ):  # analog data not included in all old files. Shouldn't fail because we include it now
-        # compare analog data
-        index_order = [old_id_order.index(id) for id in id_order]
-        assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
-        )
+        # compare analog data on channels present in rec conversion
+        if "timestamps" in old_id_order:
+            old_id_order.remove("timestamps")
+        index_order = [id_order.index(id) for id in old_id_order]
+
         assert (
             nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
             == old_nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
@@ -188,24 +190,23 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         analog_size = nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
         # compare matching for first timepoint
         assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data[0, :]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data[0, :][
-                index_order
-            ]
+            nwbfile.processing["analog"]["analog"]["analog"].data[0, :][index_order]
+            == old_nwbfile.processing["analog"]["analog"]["analog"].data[0, :]
         ).all()
         # compare one channel across all timepoints
         assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data[:, 0]
+            nwbfile.processing["analog"]["analog"]["analog"].data[:, index_order[0]]
             == old_nwbfile.processing["analog"]["analog"]["analog"].data[
-                :analog_size, index_order[0]
+                :analog_size, 0
             ]
         ).all()
 
     # compare dio data
-    for old_dio in old_nwbfile.processing["behavior"][
+    for dio_name in old_nwbfile.processing["behavior"][
         "behavioral_events"
-    ].time_series.values():
-        current_dio = nwbfile.processing["behavior"]["behavioral_events"][old_dio.name]
+    ].time_series.keys():
+        old_dio = old_nwbfile.processing["behavior"]["behavioral_events"][dio_name]
+        current_dio = nwbfile.processing["behavior"]["behavioral_events"][dio_name]
         # check that timeseries match
         dio_size = current_dio.data.shape[0]
         np.testing.assert_array_equal(current_dio.data[:], old_dio.data[:dio_size])
@@ -216,7 +217,7 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
             atol=1.0 / 30000,
         )
         assert (current_dio.unit == old_dio.unit) or (
-            (current_dio.unit == "-1") and (old_dio.unit == "unspecified")
+            (current_dio.unit == "-1") and (old_dio.unit == "'unspecified'")
         )  # old rec_to_nwb conversions have a different default for unspecified units
         assert current_dio.description == old_dio.description
 
