@@ -150,7 +150,7 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
     ) or truncated_size
     ephys_size = nwbfile.acquisition["e-series"].data.shape[0]
     # check all values of one of the streams
-    old_data = old_nwbfile.acquisition["e-series"].data[0, :]
+    old_data = old_nwbfile.acquisition["e-series"].data[:, 0]
     ind = np.where(np.abs(old_data[:ephys_size]) > 0)[
         0
     ]  # Ignore the artifact zero valued points from rec_to_nwb_conversion
