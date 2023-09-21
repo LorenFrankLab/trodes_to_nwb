@@ -97,7 +97,7 @@ def test_read_trodes_datafile_missing_fields(tmp_path):
 
 
 def test_find_large_frame_jumps():
-    convert.setup_logger("convert.convert_position", "testing.log")
+    convert.setup_logger("convert", "testing.log")
     frame_count = np.array([5, 10, 30, 40, 70])
     jumps = find_large_frame_jumps(frame_count, min_frame_jump=15)
     assert np.array_equal(jumps, [False, False, True, False, True])
@@ -110,7 +110,7 @@ def test_detect_repeat_timestamps():
 
 
 def test_detect_trodes_time_repeats_or_frame_jumps():
-    convert.setup_logger("convert.convert_position", "testing.log")
+    convert.setup_logger("convert", "testing.log")
     trodes_time = np.array([1, 2, 2, 3, 4, 5])
     frame_count = np.array([0, 10, 20, 30, 40, 1000])
     (
@@ -132,7 +132,7 @@ def test_estimate_camera_time_from_mcu_time():
 
 
 def test_estimate_camera_to_mcu_lag():
-    convert.setup_logger("convert.convert_position", "testing.log")
+    convert.setup_logger("convert", "testing.log")
     camera_systime = np.array([1000, 2000, 3000])
     dio_systime = np.array([900, 1800, 2700])
     lag = estimate_camera_to_mcu_lag(camera_systime, dio_systime)

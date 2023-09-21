@@ -34,7 +34,7 @@ def add_epochs(
     neo_io: List[SpikeGadgetsRawIO]
         neo_io iterators for each rec file. Contains time information
     """
-    logger = logging.getLogger("convert.convert_intervals")
+    logger = logging.getLogger("convert")
     session_info = file_info[(file_info.date == date) & (file_info.animal == animal)]
     for epoch in set(session_info.epoch):
         rec_file_list = session_info[
@@ -82,7 +82,7 @@ def add_sample_count(
         try:
             raise ValueError("sample_count already exists in nwbfile.processing")
         except ValueError as e:
-            logger = logging.getLogger("convert.convert_intervals")
+            logger = logging.getLogger("convert")
             logger.error(e)
             raise
 

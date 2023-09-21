@@ -135,7 +135,7 @@ def find_large_frame_jumps(
     frame_count: np.ndarray, min_frame_jump: int = 15
 ) -> np.ndarray:
     """Want to avoid regressing over large frame count skips"""
-    logger = logging.getLogger("convert.convert_position")
+    logger = logging.getLogger("convert")
     frame_count = np.asarray(frame_count)
 
     is_large_frame_jump = np.insert(np.diff(frame_count) > min_frame_jump, 0, False)
@@ -154,7 +154,7 @@ def detect_trodes_time_repeats_or_frame_jumps(
 ) -> tuple[np.ndarray, np.ndarray]:
     """If a trodes time index repeats, then the Trodes clock has frozen
     due to headstage disconnects."""
-    logger = logging.getLogger("convert.convert_position")
+    logger = logging.getLogger("convert")
 
     trodes_time = np.asarray(trodes_time)
     is_repeat_timestamp = detect_repeat_timestamps(trodes_time)
@@ -212,7 +212,7 @@ def estimate_camera_time_from_mcu_time(
 def estimate_camera_to_mcu_lag(
     camera_systime: np.ndarray, dio_systime: np.ndarray, n_breaks: int = 0
 ) -> float:
-    logger = logging.getLogger("convert.convert_position")
+    logger = logging.getLogger("convert")
     if n_breaks == 0:
         dio_systime = dio_systime[: len(camera_systime)]
         camera_to_mcu_lag = np.median(camera_systime - dio_systime)
@@ -264,7 +264,7 @@ def get_position_timestamps(
     dios=None,
     ptp_enabled: bool = True,
 ):
-    logger = logging.getLogger("convert.convert_position")
+    logger = logging.getLogger("convert")
 
     # Get video timestamps
     video_timestamps = (
@@ -414,7 +414,7 @@ def add_position(
     rec_header: ElementTree.ElementTree,
     video_directory: str,
 ):
-    logger = logging.getLogger("convert.convert_position")
+    logger = logging.getLogger("convert")
 
     LED_POS_NAMES = [
         [

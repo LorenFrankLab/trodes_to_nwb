@@ -34,7 +34,7 @@ def _process_path(path: Path) -> tuple[str, str, str, str, str, str, str]:
     full_path : str
 
     """
-    logger = logging.getLogger("convert.data_scanner")
+    logger = logging.getLogger("convert")
     try:
         if path.suffix == ".yml":
             date, animal_name, _ = path.stem.split("_")

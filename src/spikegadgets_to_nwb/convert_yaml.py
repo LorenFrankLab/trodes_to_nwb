@@ -388,7 +388,7 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
     if "associated_files" not in metadata:
         return
 
-    logger = logging.getLogger("convert.convert_yaml")
+    logger = logging.getLogger("convert")
     associated_files = []
     for file in metadata["associated_files"]:
         # read file content

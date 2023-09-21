@@ -242,7 +242,5 @@ def detect_ptp_from_header(header: ElementTree.ElementTree) -> bool:
                     break
             if ptp_enabled:
                 break
-    logging.getLogger("convert.convert_position").info(
-        "PTP enabled: " + str(ptp_enabled)
-    )
+    logging.getLogger("convert").info("PTP enabled: " + str(ptp_enabled))
     return ptp_enabled

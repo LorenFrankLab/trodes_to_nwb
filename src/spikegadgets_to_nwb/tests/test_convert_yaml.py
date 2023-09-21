@@ -287,7 +287,7 @@ def test_add_tasks():
 
 def test_add_associated_files(capsys):
     # Create a logger
-    logger = convert.setup_logger("convert.convert_yaml", "testing.log")
+    logger = convert.setup_logger("convert", "testing.log")
     # Set up test data
     metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])

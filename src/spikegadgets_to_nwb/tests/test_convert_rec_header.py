@@ -89,7 +89,7 @@ def test_add_header_device():
 
 
 def test_detect_ptp():
-    convert.setup_logger("convert.convert_rec_header", "testing.log")
+    convert.setup_logger("convert", "testing.log")
     assert convert_rec_header.detect_ptp_from_header(default_test_xml_tree())
 
 

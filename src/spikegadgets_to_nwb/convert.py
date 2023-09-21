@@ -112,23 +112,7 @@ def _create_nwb(
     video_directory: str = "",
 ):
     # create loggers
-    logger = setup_logger(
-        "convert", f"{output_dir}/{session[1]}{session[0]}_convert.log"
-    )
-    for module in [
-        "convert_yaml",
-        "convert_rec_header",
-        "convert_ephys",
-        "convert_position",
-        "convert_analog",
-        "convert_dios",
-        "convert_intervals",
-        "data_scanner",
-    ]:
-        setup_logger(
-            f"convert.{module}",
-            f"{output_dir}/{session[1]}{session[0]}_convert.{module}.log",
-        )
+    logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
 
     logger.info(f"Creating NWB file for session: {session}")
     rec_filepaths = _get_file_paths(session_df, ".rec")

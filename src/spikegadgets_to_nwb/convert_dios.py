@@ -26,7 +26,6 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
                 f"Duplicate channel name {dio_event['description']} in metadata YAML"
             )
         channel_name_map[dio_event["description"]] = dio_event["name"]
-
     return channel_name_map
 
 
