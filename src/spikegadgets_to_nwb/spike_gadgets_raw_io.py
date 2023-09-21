@@ -614,12 +614,28 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def _interpolate_raw_memmap(
         self,
     ):
-        """Interpolates single dropped packets in the analog data."""
-        if self.interpolate_dropped_packets:
-            # duplicates dropped packets in the raw memmap
-            self._raw_memmap = np.insert(
-                self._raw_memmap,
-                self.interpolate_index,
-                self._raw_memmap[self.interpolate_index],
-                axis=0,
-            )
+        # """Interpolates single dropped packets in the analog data."""
+        self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
+
+
+class InsertedMemmap:
+    """
+    class to return views into an interpolated memmap
+    Avoids loading data into memory during np.insert
+    """
+
+    def __init__(self, _raw_memmap, inserted_index=[]) -> None:
+        self._raw_memmap = _raw_memmap
+        self.mapped_index = np.arange(self._raw_memmap.shape[0])
+        self.mapped_index = np.insert(
+            self.mapped_index, inserted_index, self.mapped_index[inserted_index]
+        )
+        self.shape = (self.mapped_index.size, self._raw_memmap.shape[1])
+
+    def __getitem__(self, index):
+        # request a slice in both time and channel
+        if isinstance(index, tuple):
+            index_chan = index[1]
+            return self._raw_memmap[self.mapped_index[index[0]], index_chan]
+        # request a slice in time
+        return self._raw_memmap[self.mapped_index[index]]
