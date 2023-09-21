@@ -19,7 +19,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
     extensions = ["rec"]
     rawmode = "one-file"
 
-    def __init__(self, filename="", selected_streams=None):
+    def __init__(
+        self, filename="", selected_streams=None, interpolate_dropped_packets=False
+    ):
         """
         Class for reading spikegadgets files.
         Only continuous signals are supported at the moment.
@@ -34,10 +36,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
                 useful for spikeextractor when one stream only is needed.
                 For instance streams = ['ECU', 'trodes']
                 'trodes' is name for ephy channel (ntrodes)
+            interpolate_dropped_packets: bool
+                If True, interpolates single dropped packets in the analog data.
         """
         BaseRawIO.__init__(self)
         self.filename = filename
         self.selected_streams = selected_streams
+        self.interpolate_dropped_packets = interpolate_dropped_packets
 
     def _source_name(self):
         return self.filename
@@ -351,6 +356,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self.header["spike_channels"] = spike_channels
         self.header["event_channels"] = event_channels
 
+        # initialize interpolate index as none so can check if it has been set in a trodes timestamps call
+        self.interpolate_index = None
+
         self._generate_minimal_annotations()
         # info from GlobalConfiguration in xml are copied to block and seg annotations
         bl_ann = self.raw_annotations["blocks"][0]
@@ -367,6 +375,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return t_stop
 
     def _get_signal_size(self, block_index, seg_index, stream_index):
+        if self.interpolate_dropped_packets and self.interpolate_index is None:
+            raise ValueError("interpolate_index must be set before calling this")
         size = self._raw_memmap.shape[0]
         return size
 
@@ -431,11 +441,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
             i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
         ]
         raw_uint32 = raw_uint8.flatten().view("uint32")
-        diff = np.diff(raw_uint32)
-        if len(set(diff)) != 1:
-            raise UserWarning(
-                f"Trodes timestamps are not evenly spaced. {np.sum(diff>1)} instances of dropped packets."
-            )
+        if self.interpolate_dropped_packets and self.interpolate_index is None:
+            self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
+                0
+            ]  # find locations of single dropped packets
+            self._interpolate_raw_memmap()  # interpolates in the memmap
+            return self.get_analogsignal_timestamps(
+                i_start, i_stop
+            )  # call again to get the interpolated timestamps
         return raw_uint32
 
     def get_sys_clock(self, i_start, i_stop):
@@ -573,11 +586,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return dio_change_times, change_dir_trim
 
-    def get_regressed_systime(self, i_start, i_stop):
+    def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
         # get values
-        systime = self.get_sys_clock(i_start, i_stop)
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
+        trodestime = self.insert_dropped_trodestime(trodestime)
+        systime = self.get_sys_clock(i_start, i_stop)
         # Convert
         systime_seconds = np.asarray(systime).astype(np.float64)
         trodestime_index = np.asarray(trodestime).astype(np.float64)
@@ -586,10 +602,46 @@ class SpikeGadgetsRawIO(BaseRawIO):
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
-    def get_systime_from_trodes_timestamps(self, i_start, i_stop):
+    def get_systime_from_trodes_timestamps(self, i_start, i_stop=None):
         MILLISECONDS_PER_SECOND = 1e3
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
         # get values
-        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
+        trodestime = self.insert_dropped_trodestime(
+            self.get_analogsignal_timestamps(i_start, i_stop)
+        )
         return (trodestime - int(self.timestamp_at_creation)) * (
             1.0 / self._sampling_rate
         ) + int(self.system_time_at_creation) / MILLISECONDS_PER_SECOND
+
+    def insert_dropped_trodestime(self, timestamps):
+        """Inserts timestamps for dropped packets in the trodestime timestamps.
+        Parameters
+        ----------
+        timestamps : np.ndarray
+            The timestamps to insert dropped timestamps into.
+        Returns
+        -------
+        np.ndarray
+            The timestamps with dropped timestamps inserted.
+        """
+        if self.interpolate_dropped_packets:
+            timestamps = np.insert(
+                timestamps,
+                self.interpolate_index,
+                timestamps[self.interpolate_index] + 1,
+            )
+        return timestamps
+
+    def _interpolate_raw_memmap(
+        self,
+    ):
+        """Interpolates single dropped packets in the analog data."""
+        if self.interpolate_dropped_packets:
+            # duplicates dropped packets in the raw memmap
+            self._raw_memmap = np.insert(
+                self._raw_memmap,
+                self.interpolate_index,
+                self._raw_memmap[self.interpolate_index],
+                axis=0,
+            )
