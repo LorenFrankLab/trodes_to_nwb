@@ -85,6 +85,7 @@ def create_nwbs(
     header_reconfig_path: Path | None = None,
     probe_metadata_paths: list[Path] | None = None,
     output_dir: str = "/home/stelmo/nwb/raw",
+    video_directory: str = "",
 ):
     if not isinstance(path, Path):
         path = Path(path)
@@ -92,7 +93,14 @@ def create_nwbs(
     file_info = get_file_info(path)
 
     for session, session_df in file_info.groupby(["date", "animal"]):
-        _create_nwb(session, session_df, header_reconfig_path, probe_metadata_paths)
+        _create_nwb(
+            session,
+            session_df,
+            header_reconfig_path,
+            probe_metadata_paths,
+            output_dir,
+            video_directory,
+        )
 
 
 def _create_nwb(
@@ -101,6 +109,7 @@ def _create_nwb(
     header_reconfig_path: Path | None = None,
     probe_metadata_paths: list[Path] | None = None,
     output_dir: str = "/home/stelmo/nwb/raw",
+    video_directory: str = "",
 ):
     # create loggers
     logger = setup_logger(
@@ -191,8 +200,8 @@ def _create_nwb(
     logger.info("ADDING POSITION")
     ### add position ###
     add_position(
-        nwb_file, metadata, session_df, rec_header, video_directory=""
-    )  # TODO: video_directory needs passed from create function
+        nwb_file, metadata, session_df, rec_header, video_directory=video_directory
+    )
 
     # add epochs
     add_epochs(
