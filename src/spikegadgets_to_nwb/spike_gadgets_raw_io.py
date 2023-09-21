@@ -141,13 +141,15 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self.multiplexed_channel_xml = {}  # dictionary from id to channel xml
         if "Multiplexed" in device_bytes:
             self._multiplexed_byte_start = device_bytes["Multiplexed"]
+        elif "headstageSensor" in device_bytes:
+            self._multiplexed_byte_start = device_bytes["headstageSensor"]
 
         # walk through xml devices
         for device in hconf:
             device_name = device.attrib["name"]
             for channel in device:
                 if (
-                    device.attrib["name"] == "Multiplexed"
+                    device.attrib["name"] in ["Multiplexed", "headstageSensor"]
                     and channel.attrib["dataType"] == "analog"
                 ):
                     # the multiplexed analog device has interleaved data from multiple sources
@@ -417,8 +419,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         if stream_id == "ECU_analog":
             # automatically include the interleaved analog signals:
-            analog_multiplexed_data = self.get_analogsignal_multiplexed()
-            analog_multiplexed_data = analog_multiplexed_data[i_start:i_stop, :]
+            analog_multiplexed_data = self.get_analogsignal_multiplexed()[
+                i_start:i_stop, :
+            ]
             raw_unit16 = np.concatenate((raw_unit16, analog_multiplexed_data), axis=1)
 
         return raw_unit16
@@ -444,7 +447,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_uint64 = raw_uint8.flatten().view(dtype=np.int64)
         return raw_uint64
 
-    @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=2)
     def get_analogsignal_multiplexed(self, channel_names=None) -> dict[str, np.ndarray]:
         if channel_names is None:
             # read all multiplexed channels
@@ -460,29 +463,36 @@ class SpikeGadgetsRawIO(BaseRawIO):
         analog_multiplexed_data = np.empty(
             (num_packet, len(channel_names)), dtype=np.int16
         )
-        for i, packet in enumerate(self._raw_memmap):
-            for j, ch_name in enumerate(channel_names):
-                ch_xml = self.multiplexed_channel_xml[ch_name]
-                interleaved_data_id_byte = int(ch_xml.attrib["interleavedDataIDByte"])
-                interleaved_data_id_bit = int(ch_xml.attrib["interleavedDataIDBit"])
-                relative_start_byte = int(ch_xml.attrib["startByte"])
-                start_byte = self._multiplexed_byte_start + relative_start_byte
-                interleaved_data_id_byte_value = packet[
-                    self._multiplexed_byte_start + interleaved_data_id_byte
-                ]
-                interleaved_data_id_bit_value = np.flip(
-                    np.unpackbits(interleaved_data_id_byte_value)
-                )[interleaved_data_id_bit]
-                if (
-                    i == 0 or interleaved_data_id_bit_value == 1
-                ):  # initialize the stream or record new value
-                    data = packet[start_byte : start_byte + 2].view("int16")[
-                        0
-                    ]  # int16 = two bytes
-                else:  # copy last value
-                    data = analog_multiplexed_data[i - 1, j]
-                analog_multiplexed_data[i, j] = data
 
+        # precompute the static data offsets
+        data_offsets = np.empty((len(channel_names), 3), dtype=int)
+        for j, ch_name in enumerate(channel_names):
+            ch_xml = self.multiplexed_channel_xml[ch_name]
+            data_offsets[j, 0] = int(
+                self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
+            )
+            data_offsets[j, 1] = int(ch_xml.attrib["interleavedDataIDByte"])
+            data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
+        interleaved_data_id_byte_values = self._raw_memmap[:, data_offsets[:, 1]]
+        interleaved_data_id_bit_values = (
+            interleaved_data_id_byte_values >> data_offsets[:, 2]
+        ) & 1
+        # calculate which packets encode for which channel
+        initialize_stream_mask = np.logical_or(
+            (np.arange(num_packet) == 0)[:, None], interleaved_data_id_bit_values == 1
+        )
+        # read the data into int16
+        data = (
+            self._raw_memmap[:, data_offsets[:, 0]]
+            + self._raw_memmap[:, data_offsets[:, 0] + 1] * 256
+        )
+        # initialize the first row
+        analog_multiplexed_data[0] = data[0]
+        # for packets that do not have an update for a channel, use the previous value
+        for i in range(1, num_packet):
+            analog_multiplexed_data[i] = np.where(
+                initialize_stream_mask[i], data[i], analog_multiplexed_data[i - 1]
+            )
         return analog_multiplexed_data
 
     def get_digitalsignal(self, stream_id, channel_id):
