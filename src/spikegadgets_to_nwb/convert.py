@@ -174,10 +174,6 @@ def _create_nwb(
     )
     add_header_device(nwb_file, rec_header)
 
-    # add_associated_video_files(
-    #     nwb_file, metadata, video_directory, raw_data_path, convert_timestamps
-    # ) #TODO: deal with timestamps and uncomment
-
     logger.info("ADDING EPHYS AND REC DATA")
     ### add rec file data ###
     map_row_ephys_data_to_row_electrodes_table = list(
