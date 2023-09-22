@@ -461,7 +461,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return raw_uint64
 
     @functools.lru_cache(maxsize=2)
-    def get_analogsignal_multiplexed(self, channel_names=None) -> dict[str, np.ndarray]:
+    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -620,22 +621,70 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
 class InsertedMemmap:
     """
-    class to return views into an interpolated memmap
+    class to return slices into an interpolated memmap
     Avoids loading data into memory during np.insert
     """
 
     def __init__(self, _raw_memmap, inserted_index=[]) -> None:
+        print("interpolate memmap")
         self._raw_memmap = _raw_memmap
         self.mapped_index = np.arange(self._raw_memmap.shape[0])
         self.mapped_index = np.insert(
             self.mapped_index, inserted_index, self.mapped_index[inserted_index]
         )
+        self.inserted_locations = inserted_index + np.arange(len(inserted_index))
         self.shape = (self.mapped_index.size, self._raw_memmap.shape[1])
 
     def __getitem__(self, index):
         # request a slice in both time and channel
         if isinstance(index, tuple):
             index_chan = index[1]
-            return self._raw_memmap[self.mapped_index[index[0]], index_chan]
+            return self._raw_memmap[self.access_coordinates(index[0]), index_chan]
         # request a slice in time
-        return self._raw_memmap[self.mapped_index[index]]
+        return self._raw_memmap[self.access_coordinates(index)]
+
+    def access_coordinates(self, index):
+        if isinstance(index, int):
+            return self.mapped_index[index]
+        # if slice object
+        elif isinstance(index, slice):
+            # see if slice contains inserted values
+            if (
+                (
+                    (not index.start is None)
+                    and (not index.stop is None)
+                    and np.any(
+                        (self.inserted_locations >= index.start)
+                        & (self.inserted_locations < index.stop)
+                    )
+                )
+                | (
+                    (index.start is None)
+                    and (not index.stop is None)
+                    and np.any(self.inserted_locations < index.stop)
+                )
+                | (
+                    index.stop is None
+                    and (not index.start is None)
+                    and np.any(self.inserted_locations > index.start)
+                )
+                | (
+                    index.start is None
+                    and index.stop is None
+                    and len(self.inserted_locations) > 0
+                )
+            ):
+                # if so, need to use advanced indexing. return list of indeces
+                return self.mapped_index[index]
+            # if not, return slice object with coordinates adjusted
+            else:
+                return slice(
+                    index.start
+                    + np.searchsorted(self.inserted_locations, index.start, "right"),
+                    index.stop
+                    + np.searchsorted(self.inserted_locations, index.stop, "right"),
+                    index.step,
+                )
+        # if list of indeces
+        else:
+            return self.mapped_index[index]
