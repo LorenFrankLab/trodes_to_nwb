@@ -131,7 +131,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # what global index each file starts at
         file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
         # the time indexes we want
-        time_index = np.arange(self._get_maxshape()[0])[selection_list[0]]
+        time_index = np.arange(selection_list[0].start, selection_list[0].stop)[
+            :: selection_list[0].step
+        ]
         data = []
         i = time_index[0]
         while i < min(time_index[-1], self._get_maxshape()[0]):
