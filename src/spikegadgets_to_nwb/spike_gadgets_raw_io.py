@@ -436,6 +436,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return raw_unit16
 
+    @functools.lru_cache(maxsize=None)
     def get_analogsignal_timestamps(self, i_start, i_stop):
         raw_uint8 = self._raw_memmap[
             i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
@@ -446,9 +447,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
-            return self.get_analogsignal_timestamps(
-                i_start, i_stop
-            )  # call again to get the interpolated timestamps
+            return np.insert(
+                raw_uint32,
+                self.interpolate_index + 1,
+                raw_uint32[self.interpolate_index] + 1,
+            )[i_start:i_stop]
         return raw_uint32
 
     def get_sys_clock(self, i_start, i_stop):

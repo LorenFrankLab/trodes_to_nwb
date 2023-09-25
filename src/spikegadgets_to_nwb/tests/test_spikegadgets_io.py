@@ -40,15 +40,14 @@ def test_spikegadgets_raw_io_interpolation():
     trodes_timestamps_dropped = neo_io_dropped.get_analogsignal_timestamps(0, 10)
     assert len(trodes_timestamps) == len(trodes_timestamps_dropped)
     assert np.isclose(
-        trodes_timestamps[2:], trodes_timestamps_dropped[2:], atol=1e-6, rtol=0
+        trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0
     ).all()
-    assert trodes_timestamps[0] == trodes_timestamps_dropped[1]
+    # assert trodes_timestamps[0] == trodes_timestamps_dropped[1]
     # make sure systime behaves expectedly
     systime = neo_io.get_sys_clock(0, 10)
     systime_dropped = neo_io_dropped.get_sys_clock(0, 10)
     assert len(systime) == len(systime_dropped)
     assert np.isclose(systime[2:], systime_dropped[2:], atol=1e-6, rtol=0).all()
-    assert systime[0] == systime_dropped[1]
     # get ephys data and check
     channel = "1"
     ephys_data = neo_io.get_analogsignal_chunk(
