@@ -120,7 +120,10 @@ def _create_nwb(
 
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
-    rec_dci = RecFileDataChunkIterator(rec_filepaths, interpolate_dropped_packets=True)
+    rec_dci = RecFileDataChunkIterator(rec_filepaths, interpolate_dropped_packets=False)
+    rec_dci_timestamps = (
+        rec_dci.timestamps
+    )  # pass these when creating other non-interpolated rec iterators to save time
 
     rec_header = read_header(rec_filepaths[0])
     reconfig_header = rec_header
@@ -179,7 +182,7 @@ def _create_nwb(
         metadata,
     )
     add_dios(nwb_file, rec_filepaths, metadata)
-    add_analog_data(nwb_file, rec_filepaths)
+    add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
     add_sample_count(nwb_file, rec_dci)
     logger.info("ADDING POSITION")
     ### add position ###
@@ -200,3 +203,5 @@ def _create_nwb(
     logger.info(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
     with NWBHDF5IO(f"{output_dir}/{session[1]}{session[0]}.nwb", "w") as io:
         io.write(nwb_file)
+
+    logger.info("DONE")

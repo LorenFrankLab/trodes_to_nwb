@@ -10,7 +10,9 @@ from spikegadgets_to_nwb import convert_rec_header
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
 
 
-def add_analog_data(nwbfile: NWBFile, rec_file_path: list[str], **kwargs) -> None:
+def add_analog_data(
+    nwbfile: NWBFile, rec_file_path: list[str], timestamps: np.ndarray = None, **kwargs
+) -> None:
     """Adds analog streams to the nwb file.
 
     Parameters
@@ -42,6 +44,7 @@ def add_analog_data(nwbfile: NWBFile, rec_file_path: list[str], **kwargs) -> Non
         nwb_hw_channel_order=analog_channel_ids,
         stream_index=2,
         is_analog=True,
+        timestamps=timestamps,
     )
 
     # add headstage channel IDs to the list of analog channel IDs

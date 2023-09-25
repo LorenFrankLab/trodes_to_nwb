@@ -28,6 +28,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         stream_index: int = 3,  # TODO use the stream name instead of the index
         is_analog: bool = False,
         interpolate_dropped_packets: bool = False,
+        timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         **kwargs,
     ):
         self.conversion = conversion
@@ -80,7 +81,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
         # NOTE: this will read all the timestamps from the rec file, which can be slow
-        if self.neo_io[0].sysClock_byte:  # use this if have sysClock
+        if timestamps is not None:
+            self.timestamps = timestamps
+
+        elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
             self.timestamps = []
             [
                 self.timestamps.extend(neo_io.get_regressed_systime(0, None))
