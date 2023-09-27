@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from pynwb import NWBHDF5IO
 
-from spikegadgets_to_nwb.convert import _create_nwb
+from spikegadgets_to_nwb.convert import _create_nwb, get_included_probe_metadata_paths
 from spikegadgets_to_nwb.data_scanner import get_file_info
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +45,12 @@ def test_get_file_info():
     )  # yamlfiles only added in local testing
     for file in path_df.full_path:
         assert Path(file).exists()
+
+
+def test_get_included_probe_metadat_paths():
+    probes = get_included_probe_metadata_paths()
+    assert len(probes) == 3
+    assert [probe.exists() for probe in probes]
 
 
 def test_convert():

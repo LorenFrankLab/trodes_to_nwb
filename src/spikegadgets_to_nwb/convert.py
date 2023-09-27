@@ -62,6 +62,22 @@ def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
     return logger
 
 
+def get_included_probe_metadata_paths() -> list[Path]:
+    """Get the included probe metadata paths
+    Returns
+    -------
+    probe_metadata_paths : list[Path]
+        List of probe metadata paths
+    """
+    path = os.path.dirname(os.path.abspath(__file__))
+    probe_metadata_paths = []
+    probe_folder = Path(path + "/probe_metadata")
+    for file in os.listdir(probe_folder):
+        if file.endswith(".yml"):
+            probe_metadata_paths.append(probe_folder / file)
+    return probe_metadata_paths
+
+
 def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
     """Get the file paths for a given file extension
 
@@ -89,6 +105,10 @@ def create_nwbs(
 ):
     if not isinstance(path, Path):
         path = Path(path)
+
+    # provide the included probe metadata files if none are provided
+    if probe_metadata_paths is None:
+        probe_metadata_paths = get_included_probe_metadata_paths()
 
     file_info = get_file_info(path)
 
