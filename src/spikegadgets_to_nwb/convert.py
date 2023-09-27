@@ -102,6 +102,7 @@ def create_nwbs(
     probe_metadata_paths: list[Path] | None = None,
     output_dir: str = "/home/stelmo/nwb/raw",
     video_directory: str = "",
+    convert_video: bool = False,
 ):
     if not isinstance(path, Path):
         path = Path(path)
@@ -120,6 +121,7 @@ def create_nwbs(
             probe_metadata_paths,
             output_dir,
             video_directory,
+            convert_video,
         )
 
 
@@ -130,6 +132,7 @@ def _create_nwb(
     probe_metadata_paths: list[Path] | None = None,
     output_dir: str = "/home/stelmo/nwb/raw",
     video_directory: str = "",
+    convert_video: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
@@ -207,7 +210,12 @@ def _create_nwb(
     logger.info("ADDING POSITION")
     ### add position ###
     add_position(
-        nwb_file, metadata, session_df, rec_header, video_directory=video_directory
+        nwb_file,
+        metadata,
+        session_df,
+        rec_header,
+        video_directory=video_directory,
+        convert_video=convert_video,
     )
 
     # add epochs

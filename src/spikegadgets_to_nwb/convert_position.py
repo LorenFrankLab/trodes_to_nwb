@@ -11,6 +11,7 @@ from pynwb.behavior import BehavioralEvents, Position
 from pynwb.image import ImageSeries
 from scipy.ndimage import label
 from scipy.stats import linregress
+import subprocess
 
 from spikegadgets_to_nwb.convert_rec_header import detect_ptp_from_header
 
@@ -413,6 +414,7 @@ def add_position(
     session_df: pd.DataFrame,
     rec_header: ElementTree.ElementTree,
     video_directory: str,
+    convert_video: bool = False,
 ):
     logger = logging.getLogger("convert")
 
@@ -555,6 +557,13 @@ def add_position(
         if video_metadata is None:
             raise KeyError(f"Missing video metadata for epoch {epoch}")
 
+        if convert_video:
+            video_file_name = convert_h264_to_mp4(
+                os.path.join(video_directory, video_metadata["name"])
+            )
+        else:
+            video_file_name = os.path.join(video_directory, video_metadata["name"])
+
         video.add_timeseries(
             ImageSeries(
                 device=nwb_file.devices[
@@ -562,7 +571,7 @@ def add_position(
                 ],
                 name=video_metadata["name"],
                 timestamps=np.asarray(position_df.index),
-                external_file=[os.path.join(video_directory, video_metadata["name"])],
+                external_file=[video_file_name],
                 format="external",
                 starting_frame=[0],
                 description="video of animal behavior from epoch",
@@ -570,3 +579,23 @@ def add_position(
         )
     nwb_file.processing["behavior"].add(position)
     nwb_file.processing["video_files"].add(video)
+
+
+def convert_h264_to_mp4(file: str):
+    """Converts h264 file to mp4 file using ffmpeg"""
+    new_file_name = file.replace(".h264", ".mp4")
+    logger = logging.getLogger("convert")
+    if os.path.exists(new_file_name):
+        return new_file_name
+    try:
+        # Construct the ffmpeg command
+        subprocess.run(f"ffmpeg -i {file} {new_file_name}", shell=True)
+        logger.info(
+            f"Video conversion completed. {file} has been converted to {new_file_name}"
+        )
+        return new_file_name
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Video conversion FAILED. {file} has NOT been converted to {new_file_name}"
+        )
+        raise e
