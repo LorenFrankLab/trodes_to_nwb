@@ -15,6 +15,7 @@ dependencies:
 - pip
 - pyyaml
 - ffmpeg
+- dask
 - pip:
     - ndx-franklab-novela
     - neo

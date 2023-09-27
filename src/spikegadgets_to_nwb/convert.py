@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+from dask.distributed import Client
 
 import pandas as pd
 from pynwb import NWBHDF5IO
@@ -103,6 +104,7 @@ def create_nwbs(
     output_dir: str = "/home/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    n_workers: int = 1,
 ):
     if not isinstance(path, Path):
         path = Path(path)
@@ -113,16 +115,47 @@ def create_nwbs(
 
     file_info = get_file_info(path)
 
-    for session, session_df in file_info.groupby(["date", "animal"]):
-        _create_nwb(
-            session,
-            session_df,
-            header_reconfig_path,
-            probe_metadata_paths,
-            output_dir,
-            video_directory,
-            convert_video,
-        )
+    if n_workers > 1:
+
+        def pass_func(args):
+            session, session_df = args
+            try:
+                _create_nwb(
+                    session,
+                    session_df,
+                    header_reconfig_path,
+                    probe_metadata_paths,
+                    output_dir,
+                    video_directory,
+                    convert_video,
+                )
+                return True
+            except Exception as e:
+                print(session, e)
+                return e
+
+        # initialize the workers
+        client = Client(threads_per_worker=20, n_workers=n_workers)
+        # run conversion for each animal and date
+        argument_list = list(file_info.groupby(["date", "animal"]))
+        futures = client.map(pass_func, argument_list)
+        # print out error results
+        for args, future in zip(argument_list, futures):
+            result = future.result()
+            if result is not True:
+                print(args, result)
+
+    else:
+        for session, session_df in file_info.groupby(["date", "animal"]):
+            _create_nwb(
+                session,
+                session_df,
+                header_reconfig_path,
+                probe_metadata_paths,
+                output_dir,
+                video_directory,
+                convert_video,
+            )
 
 
 def _create_nwb(
