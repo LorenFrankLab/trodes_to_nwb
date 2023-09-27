@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
+from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO, InsertedMemmap
 
 import numpy as np
 
@@ -35,14 +35,20 @@ def test_spikegadgets_raw_io_interpolation():
     # manually edit the memap to remove the second packet
     neo_io_dropped._raw_memmap = np.delete(neo_io._raw_memmap, 1, axis=0)
 
-    # get the trodes timestamps from each to compare
+    # get the trodes timestamps from each to compare. This also generates the interpolation
     trodes_timestamps = neo_io.get_analogsignal_timestamps(0, 10)
     trodes_timestamps_dropped = neo_io_dropped.get_analogsignal_timestamps(0, 10)
+
+    # check that the interpolated memmap returns the same shape value
+    assert isinstance(neo_io_dropped._raw_memmap, InsertedMemmap)
+    assert neo_io_dropped._raw_memmap.inserted_locations == [0]
+    assert neo_io._raw_memmap.shape[0] == neo_io_dropped._raw_memmap.shape[0]
+
+    # check the returned timestamps
     assert len(trodes_timestamps) == len(trodes_timestamps_dropped)
     assert np.isclose(
         trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0
     ).all()
-    # assert trodes_timestamps[0] == trodes_timestamps_dropped[1]
     # make sure systime behaves expectedly
     systime = neo_io.get_sys_clock(0, 10)
     systime_dropped = neo_io_dropped.get_sys_clock(0, 10)
@@ -69,3 +75,11 @@ def test_spikegadgets_raw_io_interpolation():
     assert len(ephys_data) == len(ephys_data_dropped)
     assert np.isclose(ephys_data[2:], ephys_data_dropped[2:], atol=1e-6, rtol=0).all()
     assert ephys_data[0] == ephys_data_dropped[1]
+
+    # check that all timestamps are properly accessible
+    chunk = 10000
+    i = 0
+    while i < neo_io_dropped._get_signal_size(1, 1, 3):
+        t = neo_io_dropped.get_analogsignal_timestamps(i, i + chunk)
+        assert t.size == chunk or t.size == neo_io_dropped._get_signal_size(1, 1, 3) - i
+        i += chunk
