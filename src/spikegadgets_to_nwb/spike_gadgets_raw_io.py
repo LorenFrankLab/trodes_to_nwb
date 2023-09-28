@@ -517,8 +517,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # for now, allow only reading the entire dataset
         i_start = 0
-        i_stop = self._raw_memmap.shape[0]
-        raw_packets = self._raw_memmap[i_start:i_stop]
+        i_stop = None
 
         channel_index = -1
         for i, chan_id in enumerate(self._mask_channels_ids[stream_id]):
@@ -558,12 +557,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # this copies the data from the memmap into memory
         byte_mask = self._mask_channels_bytes[stream_id][channel_index]
-        raw_packets_masked = raw_packets[:, byte_mask]
+        raw_packets_masked = self._raw_memmap[i_start:i_stop, byte_mask]
 
         bit_mask = self._mask_channels_bits[stream_id][channel_index]
-        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[
-            :, bit_mask
-        ].flatten()
+        continuous_dio = np.ravel(
+            np.unpackbits(raw_packets_masked, axis=1)[:, bit_mask]
+        )
         change_dir = np.diff(continuous_dio).astype(
             np.int8
         )  # possible values: [-1, 0, 1]
@@ -590,6 +589,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return dio_change_times, change_dir_trim
 
+    @functools.lru_cache(maxsize=None)
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
         if i_stop is None:
