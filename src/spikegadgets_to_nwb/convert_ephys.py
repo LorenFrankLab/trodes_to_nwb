@@ -2,6 +2,7 @@ from typing import Tuple
 from warnings import warn
 
 import numpy as np
+import logging
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile
@@ -31,6 +32,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         **kwargs,
     ):
+        logger = logging.getLogger("convert")
         self.conversion = conversion
         self.is_analog = is_analog
         self.neo_io = [
@@ -39,9 +41,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
             for file in rec_file_path
         ]  # get all streams for all files
+        logger.info("Parsing headers")
         [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
-
+        logger.info("Parsing header COMPLETE")
         # for now, make sure that there is only one block, one segment, and four streams:
         # Controller_DIO_digital
         # ECU_digital
@@ -85,20 +88,19 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.timestamps = timestamps
 
         elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = []
-            [
-                self.timestamps.extend(neo_io.get_regressed_systime(0, None))
-                for neo_io in self.neo_io
-            ]
+            self.timestamps = np.concatenate(
+                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
+            )
 
         else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            [
-                self.timestamps.extend(
+            self.timestamps = np.concatenate(
+                [
                     neo_io.get_systime_from_trodes_timestamps(0, None)
-                )
-                for neo_io in self.neo_io
-            ]
+                    for neo_io in self.neo_io
+                ]
+            )
 
+        logger.info("Reading timestamps COMPLETE")
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
