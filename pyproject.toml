@@ -27,7 +27,7 @@ dependencies = [
     "ndx_franklab_novela",
     "pyyaml",
     "neo",
-    "dask",
+    "dask[complete]",
     "ffmpeg",
 ]
 dynamic = ["version"]
