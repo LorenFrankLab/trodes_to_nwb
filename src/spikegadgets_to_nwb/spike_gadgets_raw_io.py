@@ -683,9 +683,9 @@ class InsertedMemmap:
             else:
                 return slice(
                     index.start
-                    + np.searchsorted(self.inserted_locations, index.start, "right"),
+                    - np.searchsorted(self.inserted_locations, index.start, "right"),
                     index.stop
-                    + np.searchsorted(self.inserted_locations, index.stop, "right"),
+                    - np.searchsorted(self.inserted_locations, index.stop, "right"),
                     index.step,
                 )
         # if list of indeces
