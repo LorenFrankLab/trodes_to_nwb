@@ -3,6 +3,7 @@
 
 import functools
 from xml.etree import ElementTree
+import logging
 
 import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
@@ -422,7 +423,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         shape = raw_unit8_mask.shape
         shape = (shape[0], shape[1] // 2)
         # reshape the and retype by view
-        raw_unit16 = raw_unit8_mask.flatten().view("int16").reshape(shape)
+        raw_unit16 = raw_unit8_mask.reshape(-1).view("int16").reshape(shape)
 
         if re_order is not None:
             raw_unit16 = raw_unit16[:, re_order]
@@ -441,7 +442,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_uint8 = self._raw_memmap[
             i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
         ]
-        raw_uint32 = raw_uint8.flatten().view("uint32")
+        raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
                 0
@@ -460,7 +461,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_uint8 = self._raw_memmap[
             i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
         ]
-        raw_uint64 = raw_uint8.flatten().view(dtype=np.int64)
+        raw_uint64 = raw_uint8.view(dtype=np.int64).reshape(-1)
         return raw_uint64
 
     @functools.lru_cache(maxsize=2)
@@ -560,8 +561,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         raw_packets_masked = self._raw_memmap[i_start:i_stop, byte_mask]
 
         bit_mask = self._mask_channels_bits[stream_id][channel_index]
-        continuous_dio = np.ravel(
-            np.unpackbits(raw_packets_masked, axis=1)[:, bit_mask]
+        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[:, bit_mask].reshape(
+            -1
         )
         change_dir = np.diff(continuous_dio).astype(
             np.int8
@@ -597,11 +598,20 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         systime = self.get_sys_clock(i_start, i_stop)
+        # assert trodestime.shape[0] = self._raw_memmap.shape[0]
+        # assert systime.shape[0] = self._raw_memmap.shape[0]
         # Convert
-        systime_seconds = np.asarray(systime).astype(np.float64)
-        trodestime_index = np.asarray(trodestime).astype(np.float64)
+        logger.info("convert to float64")
+        systime_seconds = np.asarray(systime, dtype=np.float64).reshape(-1)
+        trodestime_index = np.asarray(trodestime, dtype=np.float64).reshape(-1)
+        # logger.info("convert to float64 v2")
+        # systime_seconds = systime.astype(np.float64)
+        # trodestime_index = trodestime.astype(np.float64)
 
+        print("trodestime_index", trodestime_index.shape)
+        logger.info("regress")
         slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
+        logger.info("adjust timestamps")
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
