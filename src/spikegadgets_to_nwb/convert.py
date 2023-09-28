@@ -226,7 +226,7 @@ def _create_nwb(
     )
     add_header_device(nwb_file, rec_header)
 
-    logger.info("ADDING EPHYS AND REC DATA")
+    logger.info("ADDING EPHYS DATA")
     ### add rec file data ###
     map_row_ephys_data_to_row_electrodes_table = list(
         range(len(nwb_file.electrodes))
@@ -237,8 +237,11 @@ def _create_nwb(
         map_row_ephys_data_to_row_electrodes_table,
         metadata,
     )
+    logger.info("ADDING DIO DATA")
     add_dios(nwb_file, rec_filepaths, metadata)
+    logger.info("ADDING ANALOG DATA")
     add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
+    logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
     logger.info("ADDING POSITION")
     ### add position ###
@@ -252,6 +255,7 @@ def _create_nwb(
     )
 
     # add epochs
+    logger.info("ADDING EPOCHS")
     add_epochs(
         nwbfile=nwb_file,
         file_info=session_df,

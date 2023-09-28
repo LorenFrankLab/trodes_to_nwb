@@ -619,6 +619,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self,
     ):
         # """Interpolates single dropped packets in the analog data."""
+        print("Interpolate memmap: ", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
 
 
@@ -629,7 +630,6 @@ class InsertedMemmap:
     """
 
     def __init__(self, _raw_memmap, inserted_index=[]) -> None:
-        print("interpolate memmap")
         self._raw_memmap = _raw_memmap
         self.mapped_index = np.arange(self._raw_memmap.shape[0])
         self.mapped_index = np.insert(
