@@ -598,20 +598,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         systime = self.get_sys_clock(i_start, i_stop)
-        # assert trodestime.shape[0] = self._raw_memmap.shape[0]
-        # assert systime.shape[0] = self._raw_memmap.shape[0]
         # Convert
-        logger.info("convert to float64")
         systime_seconds = np.asarray(systime, dtype=np.float64).reshape(-1)
         trodestime_index = np.asarray(trodestime, dtype=np.float64).reshape(-1)
-        # logger.info("convert to float64 v2")
-        # systime_seconds = systime.astype(np.float64)
-        # trodestime_index = trodestime.astype(np.float64)
-
-        print("trodestime_index", trodestime_index.shape)
-        logger.info("regress")
+        # regress
         slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
-        logger.info("adjust timestamps")
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
