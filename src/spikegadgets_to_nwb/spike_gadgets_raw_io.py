@@ -692,3 +692,143 @@ class InsertedMemmap:
         # if list of indeces
         else:
             return self.mapped_index[index]
+
+
+class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
+    extensions = ["rec"]
+    rawmode = "one-file"
+
+    def __init__(
+        self,
+        full_io: SpikeGadgetsRawIO,
+        start_index: int,
+        stop_index: int,
+        previous_multiplex_state: np.ndarray = None,
+    ):
+        """Initialize a partial SpikeGadgetsRawIO object.
+
+        Parameters
+        ----------
+        full_io : SpikeGadgetsRawIO
+            The SpikeGadgetsRawIO for the complete rec file
+        start_index : int
+            Where this partial file starts in the complete file
+        stop_index : int
+            Where this partial file stops in the complete file
+        previous_multiplex_state : np.ndarray, optional
+            The last multiplex state in the previous partial file.
+            If None, will default to behavior of SpikeGadgetsRawIO.
+            Use None if first partial iterator for the rec file or if not accessing multiplex data.
+            By default None
+        """
+        # initialization from the base class
+        BaseRawIO.__init__(self)
+        self.filename = full_io.filename
+        self.selected_streams = full_io.selected_streams
+        self.interpolate_dropped_packets = full_io.interpolate_dropped_packets
+
+        # define some key information
+        self.interpolate_index = None
+        self.previous_multiplex_state = previous_multiplex_state
+
+        # copy conserved information from parsed_header from full_io
+        self.header = full_io.header
+        self.system_time_at_creation = full_io.system_time_at_creation
+        self.timestamp_at_creation = full_io.timestamp_at_creation
+        self._sampling_rate = full_io._sampling_rate
+        self.sysClock_byte = full_io.sysClock_byte
+        self._timestamp_byte = full_io._timestamp_byte
+        self._mask_channels_ids = full_io._mask_channels_ids
+        self._mask_channels_bytes = full_io._mask_channels_bytes
+        self._mask_channels_bits = full_io._mask_channels_bits
+        self.multiplexed_channel_xml = full_io.multiplexed_channel_xml
+        self._multiplexed_byte_start = full_io._multiplexed_byte_start
+        self._mask_streams = full_io._mask_streams
+        self.selected_streams = full_io.selected_streams
+        self._generate_minimal_annotations()
+
+        # crop key information to range of interest
+        header_size = None
+        with open(self.filename, mode="rb") as f:
+            while True:
+                line = f.readline()
+                if b"</Configuration>" in line:
+                    header_size = f.tell()
+                    break
+
+            if header_size is None:
+                ValueError(
+                    "SpikeGadgets: the xml header does not contain '</Configuration>'"
+                )
+
+        raw_memmap = np.memmap(self.filename, mode="r", offset=header_size, dtype="<u1")
+        packet_size = full_io._raw_memmap.shape[1]
+        num_packet = raw_memmap.size // packet_size
+        raw_memmap = raw_memmap[: num_packet * packet_size]
+        self._raw_memmap = raw_memmap.reshape(-1, packet_size)
+        self._raw_memmap = self._raw_memmap[start_index:stop_index]
+
+    @functools.lru_cache(maxsize=2)
+    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+        """
+        Overide of the superclass to use the last state of the previous file segment
+        to define the first state of the current file segment.
+        """
+        print("compute multiplex cache", self.filename)
+        if channel_names is None:
+            # read all multiplexed channels
+            channel_names = list(self.multiplexed_channel_xml.keys())
+        else:
+            for ch_name in channel_names:
+                if ch_name not in self.multiplexed_channel_xml:
+                    raise ValueError(f"Channel name '{ch_name}' not found in file.")
+
+        # because of the encoding scheme, it is easiest to read all the data in sequence
+        # one packet at a time
+        num_packet = self._raw_memmap.shape[0]
+        analog_multiplexed_data = np.empty(
+            (num_packet, len(channel_names)), dtype=np.int16
+        )
+
+        # precompute the static data offsets
+        data_offsets = np.empty((len(channel_names), 3), dtype=int)
+        for j, ch_name in enumerate(channel_names):
+            ch_xml = self.multiplexed_channel_xml[ch_name]
+            data_offsets[j, 0] = int(
+                self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
+            )
+            data_offsets[j, 1] = int(ch_xml.attrib["interleavedDataIDByte"])
+            data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
+        interleaved_data_id_byte_values = self._raw_memmap[:, data_offsets[:, 1]]
+        interleaved_data_id_bit_values = (
+            interleaved_data_id_byte_values >> data_offsets[:, 2]
+        ) & 1
+        # calculate which packets encode for which channel
+        initialize_stream_mask = np.logical_or(
+            (np.arange(num_packet) == 0)[:, None], interleaved_data_id_bit_values == 1
+        )
+        # read the data into int16
+        data = (
+            self._raw_memmap[:, data_offsets[:, 0]]
+            + self._raw_memmap[:, data_offsets[:, 0] + 1] * 256
+        )
+        # initialize the first row
+        # if no previous state, assume first segment. Default to superclass behavior
+        analog_multiplexed_data[0] = data[0]
+        if not self.previous_multiplex_state is None:
+            # if previous state, use it to initialize elements of first row not updated in that packet
+            ind = np.where(initialize_stream_mask[0])[0]
+            analog_multiplexed_data[0][ind] = self.previous_multiplex_state[ind]
+        # for packets that do not have an update for a channel, use the previous value
+        for i in range(1, num_packet):
+            analog_multiplexed_data[i] = np.where(
+                initialize_stream_mask[i], data[i], analog_multiplexed_data[i - 1]
+            )
+        return analog_multiplexed_data
+
+    def get_digitalsignal(self, stream_id, channel_id):
+        dio_change_times, change_dir_trim = super().get_digitalsignal(
+            stream_id, channel_id
+        )
+        # clip the setting of the first state
+        return dio_change_times[1:], change_dir_trim[1:]
