@@ -30,12 +30,10 @@ def test_add_epochs():
         file_info = get_file_info(Path(path))
         rec_to_nwb_file = path + "/test_data/minirec20230622_.nwb"
     # get all streams for all files
-    neo_io = [
-        SpikeGadgetsRawIO(filename=file)
-        for file in file_info[file_info.file_extension == ".rec"].full_path
-    ]
-    [neo_io.parse_header() for neo_io in neo_io]
-    add_epochs(nwbfile, file_info, 20230622, "sample", neo_io)
+    rec_dci = RecFileDataChunkIterator(
+        file_info[file_info.file_extension == ".rec"].full_path.to_list()
+    )
+    add_epochs(nwbfile, file_info, 20230622, "sample", rec_dci.neo_io)
     epochs_df = nwbfile.epochs.to_dataframe()
     # load old nwb versio
     io = NWBHDF5IO(rec_to_nwb_file, "r")
