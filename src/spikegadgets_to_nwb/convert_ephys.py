@@ -16,7 +16,7 @@ MICROVOLTS_PER_VOLT = 1e6
 VOLTS_PER_MICROVOLT = 1e-6
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
-MAXIMUM_ITERATOR_SIZE = int(30000 * 5)  # * 60 * 60  # 1 hour of data at 30 kHz
+MAXIMUM_ITERATOR_SIZE = int(30000 * 60 * 30)  # 30 min of data at 30 kHz
 
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
@@ -111,9 +111,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                             -1
                         ].get_analogsignal_multiplexed()[-1]
                     j += MAXIMUM_ITERATOR_SIZE
-            self.neo_io.pop(iterator_loc)
-            self.neo_io[iterator_loc:iterator_loc] = sub_iterators
-
+                self.neo_io.pop(iterator_loc)
+                self.neo_io[iterator_loc:iterator_loc] = sub_iterators
+        print("# iterators:", len(self.neo_io))
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         if timestamps is not None:
             self.timestamps = timestamps
