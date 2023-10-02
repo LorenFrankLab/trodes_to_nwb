@@ -29,6 +29,8 @@ def test_add_epochs():
         # running locally
         file_info = get_file_info(Path(path))
         rec_to_nwb_file = path + "/test_data/minirec20230622_.nwb"
+    file_info = file_info[file_info.animal == "sample"]
+    # assert file_info[file_info.file_extension == ".rec"].full_path.to_list() == []
     # get all streams for all files
     rec_dci = RecFileDataChunkIterator(
         file_info[file_info.file_extension == ".rec"].full_path.to_list()
