@@ -590,17 +590,15 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return dio_change_times, change_dir_trim
 
-    @functools.lru_cache(maxsize=None)
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
         if i_stop is None:
             i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        systime = self.get_sys_clock(i_start, i_stop)
+        systime_seconds = self.get_sys_clock(i_start, i_stop)
         # Convert
-        systime_seconds = np.asarray(systime, dtype=np.float64).reshape(-1)
-        trodestime_index = np.asarray(trodestime, dtype=np.float64).reshape(-1)
+        trodestime_index = np.asarray(trodestime, dtype=np.float64)
         # regress
         slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
         adjusted_timestamps = intercept + slope * trodestime_index
