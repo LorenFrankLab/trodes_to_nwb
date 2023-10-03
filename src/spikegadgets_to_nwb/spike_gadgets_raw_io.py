@@ -436,22 +436,45 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return raw_unit16
 
-    @functools.lru_cache(maxsize=None)
     def get_analogsignal_timestamps(self, i_start, i_stop):
-        raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
-        ]
-        raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+        if not self.interpolate_dropped_packets:
+            # no interpolation
+            raw_uint8 = self._raw_memmap[
+                i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
+            return raw_uint32
+
         if self.interpolate_dropped_packets and self.interpolate_index is None:
+            # first call in a interpolation iterator, needs to find the dropped packets
+            # has to run through the entire file to find missing packets
+            raw_uint8 = self._raw_memmap[
+                :, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
             self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
-            return np.insert(
-                raw_uint32,
-                self.interpolate_index + 1,
-                raw_uint32[self.interpolate_index] + 1,
-            )[i_start:i_stop]
+
+        # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
+        raw_uint8 = self._raw_memmap[
+            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+        ]
+        raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+        # add +1 to the inserted locations
+        inserted_locations = np.array(self._raw_memmap.inserted_locations) - i_start + 1
+        inserted_locations = inserted_locations[
+            (inserted_locations >= 0) & (inserted_locations < i_stop - i_start)
+        ]
+        if not len(inserted_locations) == 0:
+            raw_uint32[inserted_locations] += 1
         return raw_uint32
 
     def get_sys_clock(self, i_start, i_stop):

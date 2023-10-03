@@ -38,6 +38,9 @@ def test_spikegadgets_raw_io_interpolation():
     # get the trodes timestamps from each to compare. This also generates the interpolation
     trodes_timestamps = neo_io.get_analogsignal_timestamps(0, 10)
     trodes_timestamps_dropped = neo_io_dropped.get_analogsignal_timestamps(0, 10)
+    trodes_timestamps_dropped_secondary = neo_io_dropped.get_analogsignal_timestamps(
+        0, 10
+    )
 
     # check that the interpolated memmap returns the same shape value
     assert isinstance(neo_io_dropped._raw_memmap, InsertedMemmap)
@@ -48,6 +51,12 @@ def test_spikegadgets_raw_io_interpolation():
     assert len(trodes_timestamps) == len(trodes_timestamps_dropped)
     assert np.isclose(
         trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0
+    ).all()
+    assert np.isclose(
+        trodes_timestamps_dropped,
+        trodes_timestamps_dropped_secondary,
+        atol=1e-6,
+        rtol=0,
     ).all()
     # make sure systime behaves expectedly
     systime = neo_io.get_sys_clock(0, 10)
