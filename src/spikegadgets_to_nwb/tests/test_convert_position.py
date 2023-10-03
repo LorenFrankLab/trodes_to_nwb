@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO
 
-from spikegadgets_to_nwb import convert_rec_header, convert_yaml, convert
+from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     correct_timestamps_for_camera_to_mcu_lag,

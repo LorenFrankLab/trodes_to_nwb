@@ -1,8 +1,8 @@
+import logging
 from typing import Tuple
 from warnings import warn
 
 import numpy as np
-import logging
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile
