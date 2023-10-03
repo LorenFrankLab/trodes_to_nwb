@@ -98,12 +98,12 @@ def test_add_raw_ephys_single_rec():
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
             # check that timestamps are less than one sample different
-            assert np.isclose(
+            assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
                 old_nwbfile.acquisition["e-series"].timestamps[:],
                 rtol=0,
                 atol=1.0 / 30000,
-            ).all()
+            )
     os.remove(filename)
 
 
@@ -186,12 +186,12 @@ def test_add_raw_ephys_single_rec_probe_configuration():
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
             # check that timestamps are less than one sample different
-            assert np.isclose(
+            assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
                 old_nwbfile.acquisition["e-series"].timestamps[:],
                 rtol=0,
                 atol=1.0 / 30000,
-            ).all()
+            )
 
     os.remove(filename)
 
@@ -287,11 +287,11 @@ def test_add_raw_ephys_two_epoch():
                 == old_nwbfile.acquisition["e-series"].data[:, 0]
             ).all()
             # check that timestamps are less than one sample different
-            assert np.isclose(
+            assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
                 old_nwbfile.acquisition["e-series"].timestamps[:],
                 rtol=0,
                 atol=1.0 / 30000,
-            ).all()
+            )
 
     os.remove(filename)

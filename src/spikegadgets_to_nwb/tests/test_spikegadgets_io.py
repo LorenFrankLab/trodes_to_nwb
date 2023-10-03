@@ -49,20 +49,18 @@ def test_spikegadgets_raw_io_interpolation():
 
     # check the returned timestamps
     assert len(trodes_timestamps) == len(trodes_timestamps_dropped)
-    assert np.isclose(
-        trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0
-    ).all()
-    assert np.isclose(
+    assert np.allclose(trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0)
+    assert np.allclose(
         trodes_timestamps_dropped,
         trodes_timestamps_dropped_secondary,
         atol=1e-6,
         rtol=0,
-    ).all()
+    )
     # make sure systime behaves expectedly
     systime = neo_io.get_sys_clock(0, 10)
     systime_dropped = neo_io_dropped.get_sys_clock(0, 10)
     assert len(systime) == len(systime_dropped)
-    assert np.isclose(systime[2:], systime_dropped[2:], atol=1e-6, rtol=0).all()
+    assert np.allclose(systime[2:], systime_dropped[2:], atol=1e-6, rtol=0)
     # get ephys data and check
     channel = "1"
     ephys_data = neo_io.get_analogsignal_chunk(
@@ -82,7 +80,7 @@ def test_spikegadgets_raw_io_interpolation():
         stream_index=3,
     )
     assert len(ephys_data) == len(ephys_data_dropped)
-    assert np.isclose(ephys_data[2:], ephys_data_dropped[2:], atol=1e-6, rtol=0).all()
+    assert np.allclose(ephys_data[2:], ephys_data_dropped[2:], atol=1e-6, rtol=0)
     assert ephys_data[0] == ephys_data_dropped[1]
 
     # check that all timestamps are properly accessible

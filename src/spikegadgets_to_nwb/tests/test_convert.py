@@ -165,12 +165,12 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         == old_data[ind]
     ).all()
     # check that timestamps are less than one sample different
-    assert np.isclose(
+    assert np.allclose(
         nwbfile.acquisition["e-series"].timestamps[:],
         old_nwbfile.acquisition["e-series"].timestamps[:ephys_size],
         rtol=0,
         atol=1.0 / 30000,
-    ).all()
+    )
 
     # check analog data
     # get index mapping of channels
