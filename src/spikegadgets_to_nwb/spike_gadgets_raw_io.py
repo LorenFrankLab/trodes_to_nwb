@@ -3,7 +3,6 @@
 
 import functools
 from xml.etree import ElementTree
-import logging
 
 import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook

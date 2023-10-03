@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
 
-from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO, InsertedMemmap
-
 import numpy as np
+
+from spikegadgets_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
 
 path = os.path.dirname(os.path.abspath(__file__))
 

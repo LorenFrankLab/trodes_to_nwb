@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 import pytest
 from ndx_franklab_novela import HeaderDevice
 
-from spikegadgets_to_nwb import convert_rec_header, convert_yaml, convert
+from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
 
 path = os.path.dirname(os.path.abspath(__file__))
 
