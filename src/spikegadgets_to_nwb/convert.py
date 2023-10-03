@@ -13,6 +13,7 @@ from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
 from spikegadgets_to_nwb.convert_position import add_position
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
+    detect_ptp_from_header,
     make_hw_channel_map,
     make_ref_electrode_map,
     read_header,
@@ -245,14 +246,31 @@ def _create_nwb(
     add_sample_count(nwb_file, rec_dci)
     logger.info("ADDING POSITION")
     ### add position ###
-    add_position(
-        nwb_file,
-        metadata,
-        session_df,
-        rec_header,
-        video_directory=video_directory,
-        convert_video=convert_video,
-    )
+    ptp_enabled = detect_ptp_from_header(rec_header)
+    if ptp_enabled:
+        add_position(
+            nwb_file,
+            metadata,
+            session_df,
+            rec_header,
+            ptp_enabled=ptp_enabled,
+            video_directory=video_directory,
+            convert_video=convert_video,
+            mcu_neural_timestamps=None,
+            dios=None,
+        )
+    else:
+        add_position(
+            nwb_file,
+            metadata,
+            session_df,
+            rec_header,
+            ptp_enabled=ptp_enabled,
+            video_directory=video_directory,
+            convert_video=convert_video,
+            mcu_neural_timestamps=rec_dci_timestamps,
+            dios=rec_dci.dios,
+        )
 
     # add epochs
     logger.info("ADDING EPOCHS")

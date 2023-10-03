@@ -13,8 +13,6 @@ from pynwb.image import ImageSeries
 from scipy.ndimage import label
 from scipy.stats import linregress
 
-from spikegadgets_to_nwb.convert_rec_header import detect_ptp_from_header
-
 NANOSECONDS_PER_SECOND = 1e9
 
 
@@ -537,9 +535,11 @@ def add_position(
     nwb_file: NWBFile,
     metadata: dict,
     session_df: pd.DataFrame,
-    rec_header: ElementTree.ElementTree,
     video_directory: str,
+    ptp_enabled: bool = True,
     convert_video: bool = False,
+    mcu_neural_timestamps: np.ndarray = None,
+    dios: np.ndarray = None,
 ):
     """
     Add position data to an NWBFile.
@@ -558,6 +558,10 @@ def add_position(
         The directory containing the video files.
     convert_video : bool, optional
         Whether to convert the video files to NWB format, by default False.
+    mcu_neural_timestamps : np.ndarray, optional
+        The MCU timestamps, by default None.
+    dios : np.ndarray, optional
+        The digital I/O timestamps, by default None.
     """
     logger = logging.getLogger("convert")
 
@@ -588,7 +592,6 @@ def add_position(
     epoch_to_camera_ids = pd.concat(df).set_index("epoch").sort_index()
 
     position = Position(name="position")
-    ptp_enabled = detect_ptp_from_header(rec_header)
 
     # Make a processing module for behavior and add to the nwbfile
     if not "behavior" in nwb_file.processing:
@@ -629,6 +632,8 @@ def add_position(
             position_timestamps_filepath,
             position_tracking_filepath,
             ptp_enabled=ptp_enabled,
+            mcu_neural_timestamps=mcu_neural_timestamps,
+            dios=dios,
         )
 
         # TODO: Doesn't handle multiple cameras currently
