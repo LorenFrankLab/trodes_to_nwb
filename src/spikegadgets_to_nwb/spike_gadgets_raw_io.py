@@ -458,6 +458,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def get_sys_clock(self, i_start, i_stop):
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
             i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
         ]
@@ -592,8 +594,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
-        if i_stop is None:
-            i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         systime_seconds = self.get_sys_clock(i_start, i_stop)
@@ -606,8 +606,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     def get_systime_from_trodes_timestamps(self, i_start, i_stop=None):
         MILLISECONDS_PER_SECOND = 1e3
-        if i_stop is None:
-            i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         return (trodestime - int(self.timestamp_at_creation)) * (
