@@ -72,15 +72,18 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
 
     for channel_name in channel_name_map:
         # merge streams from multiple files
-        all_timestamps = np.array([], dtype=np.float64)
-        all_state_changes = np.array([], dtype=np.uint8)
+        all_timestamps = []
+        all_state_changes = []
         for io in neo_io:
             timestamps, state_changes = io.get_digitalsignal(
                 stream_name, prefix + channel_name
             )
-            all_timestamps = np.concatenate((all_timestamps, timestamps))
-            all_state_changes = np.concatenate((all_state_changes, state_changes))
-
+            all_timestamps.append(timestamps)
+            all_state_changes.append(state_changes)
+        all_timestamps = np.concatenate(all_timestamps)
+        all_state_changes = np.concatenate(all_state_changes)
+        assert isinstance(all_timestamps[0], np.float64)
+        assert isinstance(all_timestamps, np.ndarray)
         ts = TimeSeries(
             name=channel_name_map[channel_name],
             description=channel_name,
