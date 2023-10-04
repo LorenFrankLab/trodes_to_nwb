@@ -107,9 +107,16 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                         )
                     )
                     if self.n_multiplexed_channel > 0:
+                        partial_size = sub_iterators[-1]._raw_memmap.shape[0]
                         previous_multiplex_state = sub_iterators[
                             -1
-                        ].get_analogsignal_multiplexed()[-1]
+                        ].get_analogsignal_multiplexed_partial(
+                            i_start=partial_size - 10,
+                            i_stop=partial_size,
+                            padding=30000,
+                        )[
+                            -1
+                        ]
                     j += MAXIMUM_ITERATOR_SIZE
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators

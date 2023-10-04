@@ -537,6 +537,93 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
         return analog_multiplexed_data
 
+    def get_analogsignal_multiplexed_partial(
+        self,
+        i_start: int,
+        i_stop: int,
+        channel_names: list = None,
+        padding: int = 30000,
+    ) -> np.ndarray:
+        """Alternative method to access part of the multiplexed data.
+        Not memory efficient for many calls because it reads a buffer chunk before the requested data.
+        Better than get_analogsignal_multiplexed when need one call to specific time region
+
+        Parameters
+        ----------
+        i_start : int
+            index start
+        i_stop : int
+            index stop
+        channel_names : list[str], optional
+            channels to get, by default None will get all multiplex channels
+        padding : int, optional
+            how many packets before the desired series to load to ensure every channel receives update before requested,
+            by default 30000
+
+        Returns
+        -------
+        np.ndarray
+            multiplex data
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
+        print("compute multiplex cache", self.filename)
+        if channel_names is None:
+            # read all multiplexed channels
+            channel_names = list(self.multiplexed_channel_xml.keys())
+        else:
+            for ch_name in channel_names:
+                if ch_name not in self.multiplexed_channel_xml:
+                    raise ValueError(f"Channel name '{ch_name}' not found in file.")
+        # determine which packets to get from data
+        padding = min(padding, i_start)
+        i_start = i_start - padding
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
+
+        # Make object to hold data
+        num_packet = i_stop - i_start
+        analog_multiplexed_data = np.empty(
+            (num_packet, len(channel_names)), dtype=np.int16
+        )
+
+        # precompute the static data offsets
+        data_offsets = np.empty((len(channel_names), 3), dtype=int)
+        for j, ch_name in enumerate(channel_names):
+            ch_xml = self.multiplexed_channel_xml[ch_name]
+            data_offsets[j, 0] = int(
+                self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
+            )
+            data_offsets[j, 1] = int(ch_xml.attrib["interleavedDataIDByte"])
+            data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
+        interleaved_data_id_byte_values = self._raw_memmap[
+            i_start:i_stop, data_offsets[:, 1]
+        ]
+        interleaved_data_id_bit_values = (
+            interleaved_data_id_byte_values >> data_offsets[:, 2]
+        ) & 1
+        # calculate which packets encode for which channel
+        initialize_stream_mask = np.logical_or(
+            (np.arange(num_packet) == 0)[:, None], interleaved_data_id_bit_values == 1
+        )
+        # read the data into int16
+        data = (
+            self._raw_memmap[i_start:i_stop, data_offsets[:, 0]]
+            + self._raw_memmap[i_start:i_stop, data_offsets[:, 0] + 1] * 256
+        )
+        # initialize the first row
+        analog_multiplexed_data[0] = data[0]
+        # for packets that do not have an update for a channel, use the previous value
+        # this method assumes that every channel has an update within the buffer
+        for i in range(1, num_packet):
+            analog_multiplexed_data[i] = np.where(
+                initialize_stream_mask[i], data[i], analog_multiplexed_data[i - 1]
+            )
+        return analog_multiplexed_data[padding:]
+
     def get_digitalsignal(self, stream_id, channel_id):
         # stream_id = self.header["signal_streams"][stream_index]["id"]
 
