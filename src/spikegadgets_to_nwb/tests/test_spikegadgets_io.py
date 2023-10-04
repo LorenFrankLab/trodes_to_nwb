@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
 
-from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO, InsertedMemmap
-
 import numpy as np
+
+from spikegadgets_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
 
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,6 +38,9 @@ def test_spikegadgets_raw_io_interpolation():
     # get the trodes timestamps from each to compare. This also generates the interpolation
     trodes_timestamps = neo_io.get_analogsignal_timestamps(0, 10)
     trodes_timestamps_dropped = neo_io_dropped.get_analogsignal_timestamps(0, 10)
+    trodes_timestamps_dropped_secondary = neo_io_dropped.get_analogsignal_timestamps(
+        0, 10
+    )
 
     # check that the interpolated memmap returns the same shape value
     assert isinstance(neo_io_dropped._raw_memmap, InsertedMemmap)
@@ -46,14 +49,18 @@ def test_spikegadgets_raw_io_interpolation():
 
     # check the returned timestamps
     assert len(trodes_timestamps) == len(trodes_timestamps_dropped)
-    assert np.isclose(
-        trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0
-    ).all()
+    assert np.allclose(trodes_timestamps, trodes_timestamps_dropped, atol=1e-6, rtol=0)
+    assert np.allclose(
+        trodes_timestamps_dropped,
+        trodes_timestamps_dropped_secondary,
+        atol=1e-6,
+        rtol=0,
+    )
     # make sure systime behaves expectedly
     systime = neo_io.get_sys_clock(0, 10)
     systime_dropped = neo_io_dropped.get_sys_clock(0, 10)
     assert len(systime) == len(systime_dropped)
-    assert np.isclose(systime[2:], systime_dropped[2:], atol=1e-6, rtol=0).all()
+    assert np.allclose(systime[2:], systime_dropped[2:], atol=1e-6, rtol=0)
     # get ephys data and check
     channel = "1"
     ephys_data = neo_io.get_analogsignal_chunk(
@@ -73,7 +80,7 @@ def test_spikegadgets_raw_io_interpolation():
         stream_index=3,
     )
     assert len(ephys_data) == len(ephys_data_dropped)
-    assert np.isclose(ephys_data[2:], ephys_data_dropped[2:], atol=1e-6, rtol=0).all()
+    assert np.allclose(ephys_data[2:], ephys_data_dropped[2:], atol=1e-6, rtol=0)
     assert ephys_data[0] == ephys_data_dropped[1]
 
     # check that all timestamps are properly accessible

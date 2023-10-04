@@ -1,11 +1,9 @@
-import os
 import logging
 import uuid
 from copy import deepcopy
 from datetime import datetime
 from xml.etree import ElementTree
 
-import numpy as np
 import pandas as pd
 import pytz
 import yaml

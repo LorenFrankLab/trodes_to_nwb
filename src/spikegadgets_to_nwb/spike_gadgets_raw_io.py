@@ -3,7 +3,6 @@
 
 import functools
 from xml.etree import ElementTree
-import logging
 
 import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
@@ -437,27 +436,52 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return raw_unit16
 
-    @functools.lru_cache(maxsize=None)
     def get_analogsignal_timestamps(self, i_start, i_stop):
-        raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
-        ]
-        raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+        if not self.interpolate_dropped_packets:
+            # no interpolation
+            raw_uint8 = self._raw_memmap[
+                i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
+            return raw_uint32
+
         if self.interpolate_dropped_packets and self.interpolate_index is None:
+            # first call in a interpolation iterator, needs to find the dropped packets
+            # has to run through the entire file to find missing packets
+            raw_uint8 = self._raw_memmap[
+                :, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
             self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
-            return np.insert(
-                raw_uint32,
-                self.interpolate_index + 1,
-                raw_uint32[self.interpolate_index] + 1,
-            )[i_start:i_stop]
+
+        # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
+        raw_uint8 = self._raw_memmap[
+            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+        ]
+        raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+        # add +1 to the inserted locations
+        inserted_locations = np.array(self._raw_memmap.inserted_locations) - i_start + 1
+        inserted_locations = inserted_locations[
+            (inserted_locations >= 0) & (inserted_locations < i_stop - i_start)
+        ]
+        if not len(inserted_locations) == 0:
+            raw_uint32[inserted_locations] += 1
         return raw_uint32
 
     def get_sys_clock(self, i_start, i_stop):
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
             i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
         ]
@@ -590,17 +614,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return dio_change_times, change_dir_trim
 
-    @functools.lru_cache(maxsize=None)
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
-        if i_stop is None:
-            i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        systime = self.get_sys_clock(i_start, i_stop)
+        systime_seconds = self.get_sys_clock(i_start, i_stop)
         # Convert
-        systime_seconds = np.asarray(systime, dtype=np.float64).reshape(-1)
-        trodestime_index = np.asarray(trodestime, dtype=np.float64).reshape(-1)
+        trodestime_index = np.asarray(trodestime, dtype=np.float64)
         # regress
         slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
         adjusted_timestamps = intercept + slope * trodestime_index
@@ -608,8 +628,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     def get_systime_from_trodes_timestamps(self, i_start, i_stop=None):
         MILLISECONDS_PER_SECOND = 1e3
-        if i_stop is None:
-            i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         return (trodestime - int(self.timestamp_at_creation)) * (

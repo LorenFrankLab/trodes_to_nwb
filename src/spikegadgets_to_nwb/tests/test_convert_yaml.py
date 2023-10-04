@@ -1,12 +1,12 @@
-import os
 import logging
+import os
 from datetime import datetime
 
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
 
-from spikegadgets_to_nwb import convert_rec_header, convert_yaml, convert
+from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 
 path = os.path.dirname(os.path.abspath(__file__))

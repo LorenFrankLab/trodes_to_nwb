@@ -1,9 +1,9 @@
 import logging
 import os
 from pathlib import Path
-from dask.distributed import Client
 
 import pandas as pd
+from dask.distributed import Client
 from pynwb import NWBHDF5IO
 
 from spikegadgets_to_nwb.convert_analog import add_analog_data
