@@ -604,13 +604,6 @@ def add_position(
     video = BehavioralEvents(name="video")
 
     for epoch in session_df.epoch.unique():
-        position_timestamps_filepath = session_df.loc[
-            np.logical_and(
-                session_df.epoch == epoch,
-                session_df.file_extension == ".cameraHWSync",
-            )
-        ].full_path.to_list()[0]
-
         try:
             position_tracking_filepath = session_df.loc[
                 np.logical_and(
@@ -618,6 +611,22 @@ def add_position(
                     session_df.file_extension == ".videoPositionTracking",
                 )
             ].full_path.to_list()[0]
+            # find the matching hw timestamps filepath
+            video_index = position_tracking_filepath.split(".")[-2]
+            video_hw_df = session_df.loc[
+                np.logical_and(
+                    session_df.epoch == epoch,
+                    session_df.file_extension == ".cameraHWSync",
+                )
+            ]
+            position_timestamps_filepath = video_hw_df[
+                [
+                    full_path.split(".")[-3] == video_index
+                    for full_path in video_hw_df.full_path
+                ]
+            ].full_path.to_list()[0]
+            position_timestamps_filepath
+
         except IndexError:
             position_tracking_filepath = None
 
