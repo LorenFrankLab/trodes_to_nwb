@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
@@ -355,8 +356,15 @@ def test_add_associated_video_files():
     path_df = get_file_info(data_path)
     session_df = path_df[(path_df.animal == "sample")]
 
+    # make temp video directory
+    video_directory = path + "temp_video_directory/"
+    if not os.path.exists(video_directory):
+        os.makedirs(video_directory)
+
     # Call the function to be tested
-    add_associated_video_files(nwbfile, metadata, session_df, video_directory="")
+    add_associated_video_files(
+        nwbfile, metadata, session_df, video_directory=video_directory
+    )
     assert "video_files" in nwbfile.processing
     assert "video" in nwbfile.processing["video_files"].data_interfaces
     assert len(nwbfile.processing["video_files"]["video"].time_series) == 2
@@ -371,3 +379,6 @@ def test_add_associated_video_files():
         assert video.timestamps_unit == "seconds"
         assert video.timestamps is not None
         assert isinstance(video.device, CameraDevice)
+        assert os.path.exists(video_directory + video.external_file[0])
+    # cleanup
+    shutil.rmtree(video_directory)

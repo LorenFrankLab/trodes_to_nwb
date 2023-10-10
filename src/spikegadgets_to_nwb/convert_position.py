@@ -717,7 +717,7 @@ def add_position(
     nwb_file.processing["behavior"].add(position)
 
 
-def convert_h264_to_mp4(file: str) -> str:
+def convert_h264_to_mp4(file: str, video_directory: str) -> str:
     """
     Converts h264 file to mp4 file using ffmpeg.
 
@@ -725,6 +725,8 @@ def convert_h264_to_mp4(file: str) -> str:
     ----------
     file : str
         The path to the input h264 file.
+    video_directory : str
+        Where to save the output mp4 file.
 
     Returns
     -------
@@ -738,6 +740,7 @@ def convert_h264_to_mp4(file: str) -> str:
 
     """
     new_file_name = file.replace(".h264", ".mp4")
+    new_file_name = video_directory + new_file_name.split("/")[-1]
     logger = logging.getLogger("convert")
     if os.path.exists(new_file_name):
         return new_file_name
@@ -751,6 +754,24 @@ def convert_h264_to_mp4(file: str) -> str:
     except subprocess.CalledProcessError as e:
         logger.error(
             f"Video conversion FAILED. {file} has NOT been converted to {new_file_name}"
+        )
+        raise e
+
+
+def copy_video_to_directory(file: str, video_directory: str) -> str:
+    """Copies video file to video directory without conversion"""
+    new_file_name = video_directory + file.split("/")[-1]
+    logger = logging.getLogger("convert")
+    if os.path.exists(new_file_name):
+        return new_file_name
+    try:
+        # Construct the ffmpeg command
+        subprocess.run(f"cp {file} {new_file_name}", shell=True)
+        logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
+        return new_file_name
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Video copy FAILED. {file} has NOT been copied to {new_file_name}"
         )
         raise e
 
@@ -773,7 +794,7 @@ def add_associated_video_files(
         epoch = video_metadata["task_epochs"][0]
         # get the video file path
         video_path = None
-        for file in session_df.full_path:
+        for file in session_df[session_df.file_extension == ".h264"].full_path:
             if video_metadata["name"].rsplit(".", 1)[0] in file:
                 video_path = file
                 break
@@ -800,11 +821,10 @@ def add_associated_video_files(
         # get the timestamps
         video_timestamps = get_video_timestamps(video_timestamps_filepath)
 
-        # TODO: copy to video directory if not convert
         if convert_video:
-            video_file_name = convert_h264_to_mp4(video_path)
+            video_file_name = convert_h264_to_mp4(video_path, video_directory)
         else:
-            video_file_name = os.path.join(video_directory, video_metadata["name"])
+            video_file_name = copy_video_to_directory(video_path, video_directory)
 
         video.add_timeseries(
             ImageSeries(
@@ -813,7 +833,7 @@ def add_associated_video_files(
                 ],
                 name=video_metadata["name"],
                 timestamps=video_timestamps,
-                external_file=[video_file_name],
+                external_file=[video_file_name.split("/")[-1]],
                 format="external",
                 starting_frame=[0],
                 description="video of animal behavior from epoch",
