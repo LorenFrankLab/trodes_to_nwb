@@ -1,6 +1,8 @@
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
+import pandas as pd
 
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import Probe, Shank, ShanksElectrode
@@ -8,6 +10,10 @@ from pynwb.file import ProcessingModule, Subject
 
 from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
+from spikegadgets_to_nwb.data_scanner import get_file_info
+from spikegadgets_to_nwb.convert_position import add_associated_video_files
+
+from ndx_franklab_novela import CameraDevice
 
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -331,9 +337,37 @@ def test_add_associated_files(capsys):
                     break
     assert printed_warning
 
-    def test_add_associated_video_files():
-        # Set up test data
-        metadata_path = path + "/test_data/20230622_sample_metadata.yml"
-        metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-        nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
-        return
+
+def test_add_associated_video_files():
+    # Set up test data
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+    convert_yaml.add_cameras(nwbfile, metadata)
+    try:
+        # running on github
+        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
+    except (TypeError, FileNotFoundError):
+        # running locally
+        data_path = Path(path + "/test_data")
+
+    # make session_df
+    path_df = get_file_info(data_path)
+    session_df = path_df[(path_df.animal == "sample")]
+
+    # Call the function to be tested
+    add_associated_video_files(nwbfile, metadata, session_df, video_directory="")
+    assert "video_files" in nwbfile.processing
+    assert "video" in nwbfile.processing["video_files"].data_interfaces
+    assert len(nwbfile.processing["video_files"]["video"].time_series) == 2
+
+    for video, video_meta in zip(
+        nwbfile.processing["video_files"]["video"].time_series,
+        metadata["associated_video_files"],
+    ):
+        video = nwbfile.processing["video_files"]["video"][video]
+        assert video.name == video_meta["name"]
+        assert video.format == "external"
+        assert video.timestamps_unit == "seconds"
+        assert video.timestamps is not None
+        assert isinstance(video.device, CameraDevice)
