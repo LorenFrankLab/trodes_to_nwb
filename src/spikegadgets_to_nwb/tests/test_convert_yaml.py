@@ -294,7 +294,7 @@ def test_add_associated_files(capsys):
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # Change path of files to be relative to this directory
     for assoc_meta in metadata["associated_files"]:
-        assoc_meta["path"] = path + "/test_data/"
+        assoc_meta["path"] = path + "/test_data/" + assoc_meta["name"]
     # call the function to test
     convert_yaml.add_associated_files(nwbfile, metadata)
     assert "associated_files" in nwbfile.processing
@@ -316,7 +316,7 @@ def test_add_associated_files(capsys):
 
     # Test printed errormessage for missing file
     # Change path of files to be relative to this directory
-    metadata["associated_files"][0]["path"] = ""
+    metadata["associated_files"][0]["path"] = "bad_path.txt"
     metadata["associated_files"][0]["name"] = "bad_path.txt"
     metadata["associated_files"].pop(1)
     convert_yaml.add_associated_files(nwbfile, metadata)
