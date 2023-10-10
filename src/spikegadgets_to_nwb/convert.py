@@ -256,8 +256,6 @@ def _create_nwb(
         metadata,
         session_df,
         rec_header,
-        video_directory=video_directory,
-        convert_video=convert_video,
     )
 
     # add epochs

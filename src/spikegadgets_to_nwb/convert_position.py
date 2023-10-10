@@ -561,8 +561,6 @@ def add_position(
     metadata: dict,
     session_df: pd.DataFrame,
     rec_header: ElementTree.ElementTree,
-    video_directory: str,
-    convert_video: bool = False,
 ):
     """
     Add position data to an NWBFile.
