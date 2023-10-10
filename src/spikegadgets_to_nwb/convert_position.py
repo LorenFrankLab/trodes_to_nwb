@@ -383,6 +383,29 @@ def find_camera_dio_channel(dios):
     raise NotImplementedError
 
 
+def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
+    """
+    Get video timestamps.
+
+    Parameters
+    ----------
+    video_timestamps_filepath : Path
+        Path to the video timestamps file.
+
+    Returns
+    -------
+    np.ndarray
+        An array of video timestamps.
+    """
+    # Get video timestamps
+    video_timestamps = (
+        pd.DataFrame(read_trodes_datafile(video_timestamps_filepath)["data"])
+        .set_index("PosTimestamp")
+        .rename(columns={"frameCount": "HWframeCount"})
+    )
+    return np.asarray(video_timestamps.HWTimestamp)
+
+
 def get_position_timestamps(
     position_timestamps_filepath: Path,
     position_tracking_filepath=None | Path,
@@ -625,7 +648,6 @@ def add_position(
                     for full_path in video_hw_df.full_path
                 ]
             ].full_path.to_list()[0]
-            position_timestamps_filepath
 
         except IndexError:
             position_tracking_filepath = None
@@ -705,30 +727,55 @@ def add_position(
         for vid_ in metadata["associated_video_files"]:
             if vid_["task_epochs"][0] == epoch:
                 video_metadata = vid_
-                break
+                # get the video file path
+                video_path = None
+                print(video_metadata["name"].rsplit(".", 1)[0])
+                for file in session_df.full_path:
+                    print(file)
+                    if video_metadata["name"].rsplit(".", 1)[0] in file:
+                        video_path = file
+                        break
+
+                # get timestamps for this video
+                video_index = video_path.split(".")[-2]
+                video_hw_df = session_df.loc[
+                    np.logical_and(
+                        session_df.epoch == epoch,
+                        session_df.file_extension == ".cameraHWSync",
+                    )
+                ]
+                video_timestamps_filepath = video_hw_df[
+                    [
+                        full_path.split(".")[-3] == video_index
+                        for full_path in video_hw_df.full_path
+                    ]
+                ].full_path.to_list()[0]
+                video_timestamps = get_video_timestamps(video_timestamps_filepath)
+
+                # TODO: copy to video directory if not convert
+                if convert_video:
+                    video_file_name = convert_h264_to_mp4(video_path)
+                else:
+                    video_file_name = os.path.join(
+                        video_directory, video_metadata["name"]
+                    )
+
+                video.add_timeseries(
+                    ImageSeries(
+                        device=nwb_file.devices[
+                            "camera_device " + str(video_metadata["camera_id"])
+                        ],
+                        name=video_metadata["name"],
+                        timestamps=video_timestamps,
+                        external_file=[video_file_name],
+                        format="external",
+                        starting_frame=[0],
+                        description="video of animal behavior from epoch",
+                    )
+                )
         if video_metadata is None:
             raise KeyError(f"Missing video metadata for epoch {epoch}")
 
-        if convert_video:
-            video_file_name = convert_h264_to_mp4(
-                os.path.join(video_directory, video_metadata["name"])
-            )
-        else:
-            video_file_name = os.path.join(video_directory, video_metadata["name"])
-
-        video.add_timeseries(
-            ImageSeries(
-                device=nwb_file.devices[
-                    "camera_device " + str(video_metadata["camera_id"])
-                ],
-                name=video_metadata["name"],
-                timestamps=np.asarray(position_df.index),
-                external_file=[video_file_name],
-                format="external",
-                starting_frame=[0],
-                description="video of animal behavior from epoch",
-            )
-        )
     nwb_file.processing["behavior"].add(position)
     nwb_file.processing["video_files"].add(video)
 
