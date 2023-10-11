@@ -403,7 +403,7 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
         .set_index("PosTimestamp")
         .rename(columns={"frameCount": "HWframeCount"})
     )
-    return np.asarray(video_timestamps.HWTimestamp)
+    return np.asarray(video_timestamps.HWTimestamp) / NANOSECONDS_PER_SECOND
 
 
 def get_position_timestamps(
