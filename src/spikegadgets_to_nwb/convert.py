@@ -10,7 +10,10 @@ from spikegadgets_to_nwb.convert_analog import add_analog_data
 from spikegadgets_to_nwb.convert_dios import add_dios
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
-from spikegadgets_to_nwb.convert_position import add_position
+from spikegadgets_to_nwb.convert_position import (
+    add_position,
+    add_associated_video_files,
+)
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
     detect_ptp_from_header,
@@ -226,6 +229,9 @@ def _create_nwb(
         nwb_file, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
     add_header_device(nwb_file, rec_header)
+    add_associated_video_files(
+        nwb_file, metadata, session_df, video_directory, convert_video
+    )
 
     logger.info("ADDING EPHYS DATA")
     ### add rec file data ###

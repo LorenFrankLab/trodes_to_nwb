@@ -381,6 +381,29 @@ def find_camera_dio_channel(dios):
     raise NotImplementedError
 
 
+def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
+    """
+    Get video timestamps.
+
+    Parameters
+    ----------
+    video_timestamps_filepath : Path
+        Path to the video timestamps file.
+
+    Returns
+    -------
+    np.ndarray
+        An array of video timestamps.
+    """
+    # Get video timestamps
+    video_timestamps = (
+        pd.DataFrame(read_trodes_datafile(video_timestamps_filepath)["data"])
+        .set_index("PosTimestamp")
+        .rename(columns={"frameCount": "HWframeCount"})
+    )
+    return np.asarray(video_timestamps.HWTimestamp) / NANOSECONDS_PER_SECOND
+
+
 def get_position_timestamps(
     position_timestamps_filepath: Path,
     position_tracking_filepath=None | Path,
@@ -599,21 +622,7 @@ def add_position(
             name="behavior", description="Contains all behavior-related data"
         )
 
-    # make processing module for video files
-    nwb_file.create_processing_module(
-        name="video_files", description="Contains all associated video files data"
-    )
-    # make a behavioral Event object to hold videos
-    video = BehavioralEvents(name="video")
-
     for epoch in session_df.epoch.unique():
-        position_timestamps_filepath = session_df.loc[
-            np.logical_and(
-                session_df.epoch == epoch,
-                session_df.file_extension == ".cameraHWSync",
-            )
-        ].full_path.to_list()[0]
-
         try:
             position_tracking_filepath = session_df.loc[
                 np.logical_and(
@@ -621,6 +630,21 @@ def add_position(
                     session_df.file_extension == ".videoPositionTracking",
                 )
             ].full_path.to_list()[0]
+            # find the matching hw timestamps filepath
+            video_index = position_tracking_filepath.split(".")[-2]
+            video_hw_df = session_df.loc[
+                np.logical_and(
+                    session_df.epoch == epoch,
+                    session_df.file_extension == ".cameraHWSync",
+                )
+            ]
+            position_timestamps_filepath = video_hw_df[
+                [
+                    full_path.split(".")[-3] == video_index
+                    for full_path in video_hw_df.full_path
+                ]
+            ].full_path.to_list()[0]
+
         except IndexError:
             position_tracking_filepath = None
 
@@ -695,41 +719,10 @@ def add_position(
             )
         )
 
-        # add the video file data
-        # find the video metadata for this epoch
-        video_metadata = None
-        for vid_ in metadata["associated_video_files"]:
-            if vid_["task_epochs"][0] == epoch:
-                video_metadata = vid_
-                break
-        if video_metadata is None:
-            raise KeyError(f"Missing video metadata for epoch {epoch}")
-
-        if convert_video:
-            video_file_name = convert_h264_to_mp4(
-                os.path.join(video_directory, video_metadata["name"])
-            )
-        else:
-            video_file_name = os.path.join(video_directory, video_metadata["name"])
-
-        video.add_timeseries(
-            ImageSeries(
-                device=nwb_file.devices[
-                    "camera_device " + str(video_metadata["camera_id"])
-                ],
-                name=video_metadata["name"],
-                timestamps=np.asarray(position_df.index),
-                external_file=[video_file_name],
-                format="external",
-                starting_frame=[0],
-                description="video of animal behavior from epoch",
-            )
-        )
     nwb_file.processing["behavior"].add(position)
-    nwb_file.processing["video_files"].add(video)
 
 
-def convert_h264_to_mp4(file: str) -> str:
+def convert_h264_to_mp4(file: str, video_directory: str) -> str:
     """
     Converts h264 file to mp4 file using ffmpeg.
 
@@ -737,6 +730,8 @@ def convert_h264_to_mp4(file: str) -> str:
     ----------
     file : str
         The path to the input h264 file.
+    video_directory : str
+        Where to save the output mp4 file.
 
     Returns
     -------
@@ -750,6 +745,7 @@ def convert_h264_to_mp4(file: str) -> str:
 
     """
     new_file_name = file.replace(".h264", ".mp4")
+    new_file_name = video_directory + new_file_name.split("/")[-1]
     logger = logging.getLogger("convert")
     if os.path.exists(new_file_name):
         return new_file_name
@@ -765,3 +761,91 @@ def convert_h264_to_mp4(file: str) -> str:
             f"Video conversion FAILED. {file} has NOT been converted to {new_file_name}"
         )
         raise e
+
+
+def copy_video_to_directory(file: str, video_directory: str) -> str:
+    """Copies video file to video directory without conversion"""
+    new_file_name = video_directory + file.split("/")[-1]
+    logger = logging.getLogger("convert")
+    if os.path.exists(new_file_name):
+        return new_file_name
+    try:
+        # Construct the ffmpeg command
+        subprocess.run(f"cp {file} {new_file_name}", shell=True)
+        logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
+        return new_file_name
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Video copy FAILED. {file} has NOT been copied to {new_file_name}"
+        )
+        raise e
+
+
+def add_associated_video_files(
+    nwb_file: NWBFile,
+    metadata: dict,
+    session_df: pd.DataFrame,
+    video_directory: str,
+    convert_video: bool = False,
+):
+    # make processing module for video files
+    nwb_file.create_processing_module(
+        name="video_files", description="Contains all associated video files data"
+    )
+    # make a behavioral Event object to hold videos
+    video = BehavioralEvents(name="video")
+    # add the video file data
+    for video_metadata in metadata["associated_video_files"]:
+        epoch = video_metadata["task_epochs"][0]
+        # get the video file path
+        video_path = None
+        for file in session_df[session_df.file_extension == ".h264"].full_path:
+            if video_metadata["name"].rsplit(".", 1)[0] in file:
+                video_path = file
+                break
+        if video_path is None:
+            raise FileNotFoundError(
+                f"Could not find video file {video_metadata['name']} in session_df"
+            )
+
+        # get timestamps for this video
+        # find the matching hw timestamps filepath
+        video_index = video_path.split(".")[-2]
+        video_hw_df = session_df.loc[
+            np.logical_and(
+                session_df.epoch == epoch,
+                session_df.file_extension == ".cameraHWSync",
+            )
+        ]
+        video_timestamps_filepath = video_hw_df[
+            [
+                full_path.split(".")[-3] == video_index
+                for full_path in video_hw_df.full_path
+            ]
+        ].full_path.to_list()[0]
+        # get the timestamps
+        video_timestamps = get_video_timestamps(video_timestamps_filepath)
+
+        if convert_video:
+            video_file_name = convert_h264_to_mp4(video_path, video_directory)
+        else:
+            video_file_name = copy_video_to_directory(video_path, video_directory)
+
+        video.add_timeseries(
+            ImageSeries(
+                device=nwb_file.devices[
+                    "camera_device " + str(video_metadata["camera_id"])
+                ],
+                name=video_metadata["name"],
+                timestamps=video_timestamps,
+                external_file=[video_file_name.split("/")[-1]],
+                format="external",
+                starting_frame=[0],
+                description="video of animal behavior from epoch",
+            )
+        )
+    if video_metadata is None:
+        raise KeyError(f"Missing video metadata for epoch {epoch}")
+
+    nwb_file.processing["video_files"].add(video)
+    return
