@@ -108,7 +108,34 @@ def create_nwbs(
     video_directory: str = "",
     convert_video: bool = False,
     n_workers: int = 1,
+    query_expression: str | None = None,
 ):
+    """
+    Convert SpikeGadgets data to NWB format.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the SpikeGadgets data file.
+    header_reconfig_path : Path, optional
+        Path to the header reconfiguration file, by default None.
+    probe_metadata_paths : list[Path], optional
+        List of paths to the probe metadata files, by default None.
+    output_dir : str, optional
+        Output directory for the NWB files, by default "/home/stelmo/nwb/raw".
+    video_directory : str, optional
+        Directory containing the video files, by default "".
+    convert_video : bool, optional
+        Whether to convert the video files, by default False.
+    n_workers : int, optional
+        Number of workers to use for parallel processing, by default 1.
+    query_expression : str, optional
+        Pandas query expression to filter the data, by default None.
+        e.g. "animal == 'sample' and epoch == 1"
+        See https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html.
+
+    """
+
     if not isinstance(path, Path):
         path = Path(path)
 
@@ -117,6 +144,9 @@ def create_nwbs(
         probe_metadata_paths = get_included_probe_metadata_paths()
 
     file_info = get_file_info(path)
+
+    if query_expression is not None:
+        file_info = file_info.query(query_expression)
 
     if n_workers > 1:
 
