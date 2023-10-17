@@ -842,7 +842,9 @@ def add_associated_video_files(
             )
         ]
         if not len(video_hw_df):
-            raise ValueError(f"No cameraHWSync found for epoch {epoch}, video {video_index} in session_df")
+            raise ValueError(
+                f"No cameraHWSync found for epoch {epoch}, video {video_index} in session_df"
+            )
         video_timestamps_filepath = video_hw_df[
             [
                 full_path.split(".")[-3] == video_index
