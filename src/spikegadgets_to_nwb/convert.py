@@ -13,6 +13,7 @@ from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     add_associated_video_files,
+    find_camera_dio_channel,
 )
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
@@ -260,12 +261,9 @@ def _create_nwb(
             session_df,
             rec_header,
             ptp_enabled=ptp_enabled,
-            video_directory=video_directory,
-            convert_video=convert_video,
-            mcu_neural_timestamps=None,
-            dios=None,
         )
     else:
+        dio_camera_timestamps = find_camera_dio_channel(nwb_file)
         add_position(
             nwb_file,
             metadata,
@@ -274,8 +272,11 @@ def _create_nwb(
             ptp_enabled=ptp_enabled,
             video_directory=video_directory,
             convert_video=convert_video,
-            mcu_neural_timestamps=rec_dci_timestamps,
-            dios=rec_dci.dios,
+            rec_dci_timestamps=rec_dci_timestamps,
+            dio_camera_timestamps=dio_camera_timestamps,
+            sample_count=nwb_file.processing["sample_count"]
+            .data_interfaces["sample_count"]
+            .data,
         )
 
     # add epochs

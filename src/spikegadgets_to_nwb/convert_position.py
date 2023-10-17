@@ -377,8 +377,30 @@ def correct_timestamps_for_camera_to_mcu_lag(
     return corrected_camera_systime
 
 
-def find_camera_dio_channel(dios):
-    raise NotImplementedError
+def find_camera_dio_channel(nwb_file):
+    dio_camera_name = [
+        key
+        for key in nwb_file.processing["behavior"]
+        .data_interfaces["behavioral_events"]
+        .time_series
+        if "camera ticks" in key
+    ]
+    if len(dio_camera_name) > 1:
+        raise ValueError(
+            "Multiple camera dio channels found by name. Not implemented for multiple cameras without PTP yet."
+        )
+
+    if len(dio_camera_name) == 0:
+        raise ValueError(
+            "No camera dio channel found by name. Check metadata YAML. Name must contain 'camera ticks'"
+        )
+
+    return (
+        nwb_file.processing["behavior"]
+        .data_interfaces["behavioral_events"]
+        .time_series[dio_camera_name[0]]
+        .timestamps
+    )
 
 
 def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
@@ -407,8 +429,9 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
 def get_position_timestamps(
     position_timestamps_filepath: Path,
     position_tracking_filepath=None | Path,
-    mcu_neural_timestamps=None | np.ndarray,
-    dios=None,
+    rec_dci_timestamps=None | np.ndarray,
+    dio_camera_timestamps=None | np.ndarray,
+    sample_count=None | np.ndarray,
     ptp_enabled: bool = True,
 ):
     logger = logging.getLogger("convert")
@@ -490,47 +513,45 @@ def get_position_timestamps(
         )
         return video_timestamps, original_video_timestamps
     else:
-        dio_camera_ticks = find_camera_dio_channel(dios)
-        is_valid_tick = np.isin(dio_camera_ticks, mcu_neural_timestamps.index)
-        dio_systime = np.asarray(
-            mcu_neural_timestamps.loc[dio_camera_ticks[is_valid_tick]]
-        )
-        # The DIOs and camera frames are initially unaligned. There is a
-        # half second pause at the start to allow for alignment.
-        pause_mid_time = find_acquisition_timing_pause(dio_systime)
+        dio_systime = rec_dci_timestamps[
+            np.searchsorted(rec_dci_timestamps, dio_camera_timestamps)
+        ]
+        try:
+            pause_mid_time = find_acquisition_timing_pause(dio_systime)
+            frame_rate_from_dio = get_framerate(
+                dio_systime[dio_systime > pause_mid_time]
+            )
+            logger.info(
+                "Camera frame rate estimated from DIO camera ticks:"
+                f" {frame_rate_from_dio:0.1f} frames/s"
+            )
+        except IndexError:
+            pause_mid_time = None
 
-        # Estimate the frame rate from the DIO camera ticks as a sanity check.
-        frame_rate_from_dio = get_framerate(dio_systime[dio_systime > pause_mid_time])
-        logger.info(
-            "Camera frame rate estimated from DIO camera ticks:"
-            f" {frame_rate_from_dio:0.1f} frames/s"
-        )
         frame_count = np.asarray(video_timestamps.HWframeCount)
 
-        camera_systime, is_valid_camera_time = estimate_camera_time_from_mcu_time(
-            video_timestamps, mcu_neural_timestamps
-        )
-        (
-            dio_systime,
-            frame_count,
-            is_valid_camera_time,
-            camera_systime,
-        ) = remove_acquisition_timing_pause_non_ptp(
-            dio_systime,
-            frame_count,
-            camera_systime,
-            is_valid_camera_time,
-            pause_mid_time,
-        )
+        is_valid_camera_time = np.isin(video_timestamps.index, sample_count)
+
+        camera_systime = rec_dci_timestamps[
+            np.isin(sample_count, video_timestamps.index[is_valid_camera_time])
+        ]
+        if pause_mid_time is not None:
+            (
+                dio_systime,
+                frame_count,
+                is_valid_camera_time,
+                camera_systime,
+            ) = remove_acquisition_timing_pause_non_ptp(
+                dio_systime,
+                frame_count,
+                camera_systime,
+                is_valid_camera_time,
+                pause_mid_time,
+            )
+
         original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[is_valid_camera_time]
-
         frame_rate_from_camera_systime = get_framerate(camera_systime)
-        logger.info(
-            "Camera frame rate estimated from MCU timestamps:"
-            f" {frame_rate_from_camera_systime:0.1f} frames/s"
-        )
-
         camera_to_mcu_lag = estimate_camera_to_mcu_lag(
             camera_systime, dio_systime, len(non_repeat_timestamp_labels_id)
         )
@@ -545,9 +566,7 @@ def get_position_timestamps(
                 )
             )
         corrected_camera_systime = np.concatenate(corrected_camera_systime)
-        video_timestamps.iloc[
-            is_valid_camera_time
-        ].index = corrected_camera_systime.index
+
         return (
             video_timestamps.set_index(pd.Index(corrected_camera_systime, name="time")),
             original_video_timestamps,
@@ -558,11 +577,10 @@ def add_position(
     nwb_file: NWBFile,
     metadata: dict,
     session_df: pd.DataFrame,
-    video_directory: str,
     ptp_enabled: bool = True,
-    convert_video: bool = False,
-    mcu_neural_timestamps: np.ndarray = None,
-    dios: np.ndarray = None,
+    rec_dci_timestamps: np.ndarray | None = None,
+    dio_camera_timestamps: np.ndarray | None = None,
+    sample_count: np.ndarray | None = None,
 ):
     """
     Add position data to an NWBFile.
@@ -581,10 +599,12 @@ def add_position(
         The directory containing the video files.
     convert_video : bool, optional
         Whether to convert the video files to NWB format, by default False.
-    mcu_neural_timestamps : np.ndarray, optional
-        The MCU timestamps, by default None.
-    dios : np.ndarray, optional
-        The digital I/O timestamps, by default None.
+    rec_dci_timestamps : np.ndarray, optional
+        The recording timestamps, by default None. Only used if ptp not enabled.
+    dio_camera_timestamps : np.ndarray, optional
+        The dio camera timestamps, by default None. Only used if ptp not enabled.
+    sample_count : np.ndarray, optional
+        The trodes sample count, by default None. Only used if ptp not enabled.
     """
     logger = logging.getLogger("convert")
 
@@ -656,8 +676,9 @@ def add_position(
             position_timestamps_filepath,
             position_tracking_filepath,
             ptp_enabled=ptp_enabled,
-            mcu_neural_timestamps=mcu_neural_timestamps,
-            dios=dios,
+            rec_dci_timestamps=rec_dci_timestamps,
+            dio_camera_timestamps=dio_camera_timestamps,
+            sample_count=sample_count,
         )
 
         # TODO: Doesn't handle multiple cameras currently
