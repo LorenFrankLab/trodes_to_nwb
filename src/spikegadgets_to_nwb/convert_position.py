@@ -596,8 +596,6 @@ def add_position(
         Metadata about the experiment.
     session_df : pd.DataFrame
         A DataFrame containing information about the session.
-    rec_header : ElementTree.ElementTree
-        The recording header.
     video_directory : str
         The directory containing the video files.
     convert_video : bool, optional

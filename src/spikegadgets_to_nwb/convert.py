@@ -259,8 +259,6 @@ def _create_nwb(
             nwb_file,
             metadata,
             session_df,
-            rec_header,
-            ptp_enabled=ptp_enabled,
         )
     else:
         dio_camera_timestamps = find_camera_dio_channel(nwb_file)
@@ -268,7 +266,6 @@ def _create_nwb(
             nwb_file,
             metadata,
             session_df,
-            rec_header,
             ptp_enabled=ptp_enabled,
             video_directory=video_directory,
             convert_video=convert_video,
