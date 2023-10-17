@@ -423,7 +423,10 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
         .set_index("PosTimestamp")
         .rename(columns={"frameCount": "HWframeCount"})
     )
-    return np.asarray(video_timestamps.HWTimestamp) / NANOSECONDS_PER_SECOND
+    return (
+        np.asarray(video_timestamps.HWTimestamp, dtype=np.float64)
+        / NANOSECONDS_PER_SECOND
+    )
 
 
 def get_position_timestamps(
@@ -838,6 +841,8 @@ def add_associated_video_files(
                 session_df.file_extension == ".cameraHWSync",
             )
         ]
+        if not len(video_hw_df):
+            raise ValueError(f"No cameraHWSync found for epoch {epoch}, video {video_index} in session_df")
         video_timestamps_filepath = video_hw_df[
             [
                 full_path.split(".")[-3] == video_index
