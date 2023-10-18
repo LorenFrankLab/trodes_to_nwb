@@ -600,10 +600,8 @@ def add_position(
         Metadata about the experiment.
     session_df : pd.DataFrame
         A DataFrame containing information about the session.
-    video_directory : str
-        The directory containing the video files.
-    convert_video : bool, optional
-        Whether to convert the video files to NWB format, by default False.
+    ptp_enabled : bool, optional
+        Whether PTP was enabled, by default True.
     rec_dci_timestamps : np.ndarray, optional
         The recording timestamps, by default None. Only used if ptp not enabled.
     dio_camera_timestamps : np.ndarray, optional
