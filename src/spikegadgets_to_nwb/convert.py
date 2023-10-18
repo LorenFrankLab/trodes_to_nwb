@@ -267,8 +267,6 @@ def _create_nwb(
             metadata,
             session_df,
             ptp_enabled=ptp_enabled,
-            video_directory=video_directory,
-            convert_video=convert_video,
             rec_dci_timestamps=rec_dci_timestamps,
             dio_camera_timestamps=dio_camera_timestamps,
             sample_count=nwb_file.processing["sample_count"]
