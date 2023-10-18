@@ -125,7 +125,7 @@ def get_framerate(timestamps: np.ndarray) -> float:
     Parameters
     ----------
     timestamps : np.ndarray
-        An array of timestamps for each frame in the video.
+        An array of timestamps for each frame in the video, units = nanoseconds.
 
     Returns
     -------
@@ -148,7 +148,7 @@ def find_acquisition_timing_pause(
     Parameters
     ----------
     timestamps : np.ndarray
-        An array of timestamps for each frame in the video.
+        An array of timestamps for each frame in the video. Expects units=nanoseconds.
     min_duration : float, optional
         The minimum duration of the pause in seconds, by default 0.4.
     max_duration : float, optional
@@ -159,7 +159,7 @@ def find_acquisition_timing_pause(
     Returns
     -------
     pause_mid_time : float
-        The midpoint time of the timing pause.
+        The midpoint time of the timing pause in nanoseconds.
 
     """
     timestamps = np.asarray(timestamps)
@@ -357,7 +357,7 @@ def remove_acquisition_timing_pause_non_ptp(
         - camera_systime : np.ndarray
             Camera system time after removing the pause.
     """
-    dio_systime = dio_systime[dio_systime > pause_mid_time]
+    dio_systime = dio_systime[is_valid_camera_time][dio_systime > pause_mid_time]
     frame_count = frame_count[is_valid_camera_time][camera_systime > pause_mid_time]
     is_valid_camera_time[is_valid_camera_time] = camera_systime > pause_mid_time
     camera_systime = camera_systime[camera_systime > pause_mid_time]
@@ -372,7 +372,7 @@ def correct_timestamps_for_camera_to_mcu_lag(
     corrected_camera_systime = (
         regression_result.intercept + frame_count * regression_result.slope
     )
-    corrected_camera_systime /= NANOSECONDS_PER_SECOND
+    # corrected_camera_systime /= NANOSECONDS_PER_SECOND
 
     return corrected_camera_systime
 
@@ -518,9 +518,9 @@ def get_position_timestamps(
     else:
         dio_systime = rec_dci_timestamps[
             np.searchsorted(rec_dci_timestamps, dio_camera_timestamps)
-        ]
+        ] 
         try:
-            pause_mid_time = find_acquisition_timing_pause(dio_systime)
+            pause_mid_time = find_acquisition_timing_pause(dio_systime * NANOSECONDS_PER_SECOND)
             frame_rate_from_dio = get_framerate(
                 dio_systime[dio_systime > pause_mid_time]
             )
@@ -551,7 +551,9 @@ def get_position_timestamps(
                 is_valid_camera_time,
                 pause_mid_time,
             )
-
+        else:
+            frame_count = frame_count[is_valid_camera_time]
+        print(frame_count.shape, camera_systime.shape)
         original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[is_valid_camera_time]
         frame_rate_from_camera_systime = get_framerate(camera_systime)
@@ -561,6 +563,8 @@ def get_position_timestamps(
         corrected_camera_systime = []
         for id in non_repeat_timestamp_labels_id:
             is_chunk = video_timestamps.non_repeat_timestamp_labels == id
+            camera_systime[is_chunk]
+            frame_count[is_chunk]
             corrected_camera_systime.append(
                 correct_timestamps_for_camera_to_mcu_lag(
                     frame_count[is_chunk],
