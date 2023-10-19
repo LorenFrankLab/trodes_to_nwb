@@ -518,9 +518,11 @@ def get_position_timestamps(
     else:
         dio_systime = rec_dci_timestamps[
             np.searchsorted(rec_dci_timestamps, dio_camera_timestamps)
-        ] 
+        ]
         try:
-            pause_mid_time = find_acquisition_timing_pause(dio_systime * NANOSECONDS_PER_SECOND)
+            pause_mid_time = find_acquisition_timing_pause(
+                dio_systime * NANOSECONDS_PER_SECOND
+            )
             frame_rate_from_dio = get_framerate(
                 dio_systime[dio_systime > pause_mid_time]
             )
