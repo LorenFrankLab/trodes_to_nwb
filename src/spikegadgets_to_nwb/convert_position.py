@@ -516,15 +516,12 @@ def get_position_timestamps(
         )
         return video_timestamps
     else:
-        dio_systime = rec_dci_timestamps[
-            np.searchsorted(rec_dci_timestamps, dio_camera_timestamps)
-        ]
         try:
             pause_mid_time = find_acquisition_timing_pause(
-                dio_systime * NANOSECONDS_PER_SECOND
+                dio_camera_timestamps * NANOSECONDS_PER_SECOND
             )
             frame_rate_from_dio = get_framerate(
-                dio_systime[dio_systime > pause_mid_time]
+                dio_camera_timestamps[dio_camera_timestamps > pause_mid_time]
             )
             logger.info(
                 "Camera frame rate estimated from DIO camera ticks:"
@@ -542,12 +539,12 @@ def get_position_timestamps(
         ]
         if pause_mid_time is not None:
             (
-                dio_systime,
+                dio_camera_timestamps,
                 frame_count,
                 is_valid_camera_time,
                 camera_systime,
             ) = remove_acquisition_timing_pause_non_ptp(
-                dio_systime,
+                dio_camera_timestamps,
                 frame_count,
                 camera_systime,
                 is_valid_camera_time,
@@ -555,12 +552,14 @@ def get_position_timestamps(
             )
         else:
             frame_count = frame_count[is_valid_camera_time]
-        print(frame_count.shape, camera_systime.shape)
-        original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[is_valid_camera_time]
         frame_rate_from_camera_systime = get_framerate(camera_systime)
+        logger.info(
+            "Camera frame rate estimated from camera sys time:"
+            f" {frame_rate_from_camera_systime:0.1f} frames/s"
+        )
         camera_to_mcu_lag = estimate_camera_to_mcu_lag(
-            camera_systime, dio_systime, len(non_repeat_timestamp_labels_id)
+            camera_systime, dio_camera_timestamps, len(non_repeat_timestamp_labels_id)
         )
         corrected_camera_systime = []
         for id in non_repeat_timestamp_labels_id:
