@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO
 
-from spikegadgets_to_nwb import convert_rec_header, convert_yaml, convert
+from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     correct_timestamps_for_camera_to_mcu_lag,
@@ -222,11 +222,10 @@ def test_add_position():
 
     # run add_position and prerequisite functions
     convert_yaml.add_cameras(nwbfile, metadata)
-    add_position(nwbfile, metadata, session_df, rec_header, video_directory="")
+    add_position(nwbfile, metadata, session_df, rec_header)
 
     # Check that the objects were properly added
     assert "position" in nwbfile.processing["behavior"].data_interfaces
-    assert "video_files" in nwbfile.processing
     assert "non_repeat_timestamp_labels" in nwbfile.processing
     assert "position_frame_index" in nwbfile.processing
 

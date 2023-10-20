@@ -1,6 +1,7 @@
-import os
 import logging
+import os
 import re
+import subprocess
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -18,9 +19,31 @@ NANOSECONDS_PER_SECOND = 1e9
 
 
 def parse_dtype(fieldstr: str) -> np.dtype:
-    """Parses last fields parameter (<time uint32><...>) as a single string
-    Assumes it is formatted as <name number * type> or <name type>
-    Returns: np.dtype
+    """
+    Parses the last fields parameter (<time uint32><...>) as a single string.
+    Assumes it is formatted as <name number * type> or <name type>. Returns a numpy dtype object.
+
+    Parameters
+    ----------
+    fieldstr : str
+        The string to parse.
+
+    Returns
+    -------
+    np.dtype
+        The numpy dtype object.
+
+    Raises
+    ------
+    AttributeError
+        If the field type is not valid.
+
+    Examples
+    --------
+    >>> fieldstr = '<time uint32><x float32><y float32><z float32>'
+    >>> parse_dtype(fieldstr)
+    dtype([('time', '<u4'), ('x', '<f4'), ('y', '<f4'), ('z', '<f4')])
+
     """
     # Returns np.dtype from field string
     sep = " ".join(
@@ -53,15 +76,23 @@ def parse_dtype(fieldstr: str) -> np.dtype:
 
 
 def read_trodes_datafile(filename: Path) -> dict:
-    """Read trodes binary.
+    """
+    Read trodes binary.
 
     Parameters
     ----------
-    filename : str
+    filename : Path
+        Path to the trodes binary file.
 
     Returns
     -------
-    data_file : dict
+    dict
+        A dictionary containing the settings and data from the trodes binary file.
+
+    Raises
+    ------
+    Exception
+        If the settings format is not supported.
 
     """
     with open(filename, "rb") as file:
@@ -90,7 +121,19 @@ def read_trodes_datafile(filename: Path) -> dict:
 
 
 def get_framerate(timestamps: np.ndarray) -> float:
-    """Frames per second"""
+    """
+    Calculates the framerate of a video based on the timestamps of each frame.
+
+    Parameters
+    ----------
+    timestamps : np.ndarray
+        An array of timestamps for each frame in the video.
+
+    Returns
+    -------
+    frame_rate: float
+        The framerate of the video in frames per second.
+    """
     timestamps = np.asarray(timestamps)
     return NANOSECONDS_PER_SECOND / np.median(np.diff(timestamps))
 
@@ -101,19 +144,24 @@ def find_acquisition_timing_pause(
     max_duration: float = 1.0,
     n_search: int = 100,
 ) -> float:
-    """Landmark timing 'gap' (0.5 s pause in video stream) parameters
+    """
+    Find the midpoint time of a timing pause in the video stream.
 
     Parameters
     ----------
-    timestamps : int64
-    min_duration : minimum duratino of gap (in seconds)
-    max_duration : maximum duratino of gap (in seconds)
-    n_search : search only the first `n_search` entries
+    timestamps : np.ndarray
+        An array of timestamps for each frame in the video.
+    min_duration : float, optional
+        The minimum duration of the pause in seconds, by default 0.4.
+    max_duration : float, optional
+        The maximum duration of the pause in seconds, by default 1.0.
+    n_search : int, optional
+        The number of frames to search for the pause, by default 100.
 
     Returns
     -------
-    pause_mid_time
-        Midpoint time of timing pause
+    pause_mid_time : float
+        The midpoint time of the timing pause.
 
     """
     timestamps = np.asarray(timestamps)
@@ -134,7 +182,22 @@ def find_acquisition_timing_pause(
 def find_large_frame_jumps(
     frame_count: np.ndarray, min_frame_jump: int = 15
 ) -> np.ndarray:
-    """Want to avoid regressing over large frame count skips"""
+    """
+    Find large frame jumps in the video.
+
+    Parameters
+    ----------
+    frame_count : np.ndarray
+        An array of frame counts for each frame in the video.
+    min_frame_jump : int, optional
+        The minimum number of frames to consider a jump as large, by default 15.
+
+    Returns
+    -------
+    np.ndarray
+        A boolean array indicating whether each frame has a large jump.
+
+    """
     logger = logging.getLogger("convert")
     frame_count = np.asarray(frame_count)
 
@@ -146,14 +209,48 @@ def find_large_frame_jumps(
 
 
 def detect_repeat_timestamps(timestamps: np.ndarray) -> np.ndarray:
+    """
+    Detects repeated timestamps in an array of timestamps.
+
+    Parameters
+    ----------
+    timestamps : np.ndarray
+        Array of timestamps.
+
+    Returns
+    -------
+    np.ndarray
+        Boolean array indicating whether each timestamp is repeated.
+    """
     return np.insert(timestamps[:-1] >= timestamps[1:], 0, False)
+
+
+import numpy as np
 
 
 def detect_trodes_time_repeats_or_frame_jumps(
     trodes_time: np.ndarray, frame_count: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """If a trodes time index repeats, then the Trodes clock has frozen
-    due to headstage disconnects."""
+    """
+    Detects if a Trodes time index repeats, indicating that the Trodes clock has frozen
+    due to headstage disconnects. Also detects large frame jumps.
+
+    Parameters
+    ----------
+    trodes_time : np.ndarray
+        Array of Trodes time indices.
+    frame_count : np.ndarray
+        Array of frame counts.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        A tuple containing two arrays:
+        - non_repeat_timestamp_labels : np.ndarray
+            Array of labels for non-repeating timestamps.
+        - non_repeat_timestamp_labels_id : np.ndarray
+            Array of unique IDs for non-repeating timestamps.
+    """
     logger = logging.getLogger("convert")
 
     trodes_time = np.asarray(trodes_time)
@@ -231,8 +328,37 @@ def remove_acquisition_timing_pause_non_ptp(
     frame_count: np.ndarray,
     camera_systime: np.ndarray,
     is_valid_camera_time: np.ndarray,
-    pause_mid_time: np.ndarray,
+    pause_mid_time: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Remove acquisition timing pause non-PTP.
+
+    Parameters
+    ----------
+    dio_systime : np.ndarray
+        Digital I/O system time.
+    frame_count : np.ndarray
+        Frame count.
+    camera_systime : np.ndarray
+        Camera system time.
+    is_valid_camera_time : np.ndarray
+        Boolean array indicating whether the camera time is valid.
+    pause_mid_time : float
+        Midpoint time of the pause.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+        A tuple containing the following arrays:
+        - dio_systime : np.ndarray
+            Digital I/O system time after removing the pause.
+        - frame_count : np.ndarray
+            Frame count after removing the pause.
+        - is_valid_camera_time : np.ndarray
+            Boolean array indicating whether the camera time is valid after removing the pause.
+        - camera_systime : np.ndarray
+            Camera system time after removing the pause.
+    """
     dio_systime = dio_systime[dio_systime > pause_mid_time]
     frame_count = frame_count[is_valid_camera_time][camera_systime > pause_mid_time]
     is_valid_camera_time[is_valid_camera_time] = camera_systime > pause_mid_time
@@ -255,6 +381,32 @@ def correct_timestamps_for_camera_to_mcu_lag(
 
 def find_camera_dio_channel(dios):
     raise NotImplementedError
+
+
+def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
+    """
+    Get video timestamps.
+
+    Parameters
+    ----------
+    video_timestamps_filepath : Path
+        Path to the video timestamps file.
+
+    Returns
+    -------
+    np.ndarray
+        An array of video timestamps.
+    """
+    # Get video timestamps
+    video_timestamps = (
+        pd.DataFrame(read_trodes_datafile(video_timestamps_filepath)["data"])
+        .set_index("PosTimestamp")
+        .rename(columns={"frameCount": "HWframeCount"})
+    )
+    return (
+        np.asarray(video_timestamps.HWTimestamp, dtype=np.float64)
+        / NANOSECONDS_PER_SECOND
+    )
 
 
 def get_position_timestamps(
@@ -412,8 +564,25 @@ def add_position(
     metadata: dict,
     session_df: pd.DataFrame,
     rec_header: ElementTree.ElementTree,
-    video_directory: str,
 ):
+    """
+    Add position data to an NWBFile.
+
+    Parameters
+    ----------
+    nwb_file : NWBFile
+        The NWBFile to add the position data to.
+    metadata : dict
+        Metadata about the experiment.
+    session_df : pd.DataFrame
+        A DataFrame containing information about the session.
+    rec_header : ElementTree.ElementTree
+        The recording header.
+    video_directory : str
+        The directory containing the video files.
+    convert_video : bool, optional
+        Whether to convert the video files to NWB format, by default False.
+    """
     logger = logging.getLogger("convert")
 
     LED_POS_NAMES = [
@@ -451,21 +620,7 @@ def add_position(
             name="behavior", description="Contains all behavior-related data"
         )
 
-    # make processing module for video files
-    nwb_file.create_processing_module(
-        name="video_files", description="Contains all associated video files data"
-    )
-    # make a behavioral Event object to hold videos
-    video = BehavioralEvents(name="video")
-
     for epoch in session_df.epoch.unique():
-        position_timestamps_filepath = session_df.loc[
-            np.logical_and(
-                session_df.epoch == epoch,
-                session_df.file_extension == ".cameraHWSync",
-            )
-        ].full_path.to_list()[0]
-
         try:
             position_tracking_filepath = session_df.loc[
                 np.logical_and(
@@ -473,6 +628,21 @@ def add_position(
                     session_df.file_extension == ".videoPositionTracking",
                 )
             ].full_path.to_list()[0]
+            # find the matching hw timestamps filepath
+            video_index = position_tracking_filepath.split(".")[-2]
+            video_hw_df = session_df.loc[
+                np.logical_and(
+                    session_df.epoch == epoch,
+                    session_df.file_extension == ".cameraHWSync",
+                )
+            ]
+            position_timestamps_filepath = video_hw_df[
+                [
+                    full_path.split(".")[-3] == video_index
+                    for full_path in video_hw_df.full_path
+                ]
+            ].full_path.to_list()[0]
+
         except IndexError:
             position_tracking_filepath = None
 
@@ -545,15 +715,121 @@ def add_position(
             )
         )
 
-        # add the video file data
-        # find the video metadata for this epoch
-        video_metadata = None
-        for vid_ in metadata["associated_video_files"]:
-            if vid_["task_epochs"][0] == epoch:
-                video_metadata = vid_
+    nwb_file.processing["behavior"].add(position)
+
+
+def convert_h264_to_mp4(file: str, video_directory: str) -> str:
+    """
+    Converts h264 file to mp4 file using ffmpeg.
+
+    Parameters
+    ----------
+    file : str
+        The path to the input h264 file.
+    video_directory : str
+        Where to save the output mp4 file.
+
+    Returns
+    -------
+    str
+        The path to the output mp4 file.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the ffmpeg command fails.
+
+    """
+    new_file_name = file.replace(".h264", ".mp4")
+    new_file_name = video_directory + new_file_name.split("/")[-1]
+    logger = logging.getLogger("convert")
+    if os.path.exists(new_file_name):
+        return new_file_name
+    try:
+        # Construct the ffmpeg command
+        subprocess.run(f"ffmpeg -i {file} {new_file_name}", shell=True)
+        logger.info(
+            f"Video conversion completed. {file} has been converted to {new_file_name}"
+        )
+        return new_file_name
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Video conversion FAILED. {file} has NOT been converted to {new_file_name}"
+        )
+        raise e
+
+
+def copy_video_to_directory(file: str, video_directory: str) -> str:
+    """Copies video file to video directory without conversion"""
+    new_file_name = video_directory + file.split("/")[-1]
+    logger = logging.getLogger("convert")
+    if os.path.exists(new_file_name):
+        return new_file_name
+    try:
+        # Construct the ffmpeg command
+        subprocess.run(f"cp {file} {new_file_name}", shell=True)
+        logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
+        return new_file_name
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Video copy FAILED. {file} has NOT been copied to {new_file_name}"
+        )
+        raise e
+
+
+def add_associated_video_files(
+    nwb_file: NWBFile,
+    metadata: dict,
+    session_df: pd.DataFrame,
+    video_directory: str,
+    convert_video: bool = False,
+):
+    # make processing module for video files
+    nwb_file.create_processing_module(
+        name="video_files", description="Contains all associated video files data"
+    )
+    # make a behavioral Event object to hold videos
+    video = BehavioralEvents(name="video")
+    # add the video file data
+    for video_metadata in metadata["associated_video_files"]:
+        epoch = video_metadata["task_epochs"][0]
+        # get the video file path
+        video_path = None
+        for file in session_df[session_df.file_extension == ".h264"].full_path:
+            if video_metadata["name"].rsplit(".", 1)[0] in file:
+                video_path = file
                 break
-        if video_metadata is None:
-            raise KeyError(f"Missing video metadata for epoch {epoch}")
+        if video_path is None:
+            raise FileNotFoundError(
+                f"Could not find video file {video_metadata['name']} in session_df"
+            )
+
+        # get timestamps for this video
+        # find the matching hw timestamps filepath
+        video_index = video_path.split(".")[-2]
+        video_hw_df = session_df.loc[
+            np.logical_and(
+                session_df.epoch == epoch,
+                session_df.file_extension == ".cameraHWSync",
+            )
+        ]
+        if not len(video_hw_df):
+            raise ValueError(
+                f"No cameraHWSync found for epoch {epoch}, video {video_index} in session_df"
+            )
+        video_timestamps_filepath = video_hw_df[
+            [
+                full_path.split(".")[-3] == video_index
+                for full_path in video_hw_df.full_path
+            ]
+        ].full_path.to_list()[0]
+        # get the timestamps
+        video_timestamps = get_video_timestamps(video_timestamps_filepath)
+
+        if convert_video:
+            video_file_name = convert_h264_to_mp4(video_path, video_directory)
+        else:
+            video_file_name = copy_video_to_directory(video_path, video_directory)
 
         video.add_timeseries(
             ImageSeries(
@@ -561,12 +837,15 @@ def add_position(
                     "camera_device " + str(video_metadata["camera_id"])
                 ],
                 name=video_metadata["name"],
-                timestamps=np.asarray(position_df.index),
-                external_file=[os.path.join(video_directory, video_metadata["name"])],
+                timestamps=video_timestamps,
+                external_file=[video_file_name.split("/")[-1]],
                 format="external",
                 starting_frame=[0],
                 description="video of animal behavior from epoch",
             )
         )
-    nwb_file.processing["behavior"].add(position)
+    if video_metadata is None:
+        raise KeyError(f"Missing video metadata for epoch {epoch}")
+
     nwb_file.processing["video_files"].add(video)
+    return

@@ -1,3 +1,4 @@
+import logging
 from typing import Tuple
 from warnings import warn
 
@@ -28,8 +29,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         stream_index: int = 3,  # TODO use the stream name instead of the index
         is_analog: bool = False,
         interpolate_dropped_packets: bool = False,
+        timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         **kwargs,
     ):
+        logger = logging.getLogger("convert")
         self.conversion = conversion
         self.is_analog = is_analog
         self.neo_io = [
@@ -38,9 +41,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
             for file in rec_file_path
         ]  # get all streams for all files
+        logger.info("Parsing headers")
         [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
-
+        logger.info("Parsing header COMPLETE")
         # for now, make sure that there is only one block, one segment, and four streams:
         # Controller_DIO_digital
         # ECU_digital
@@ -80,21 +84,23 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
         # NOTE: this will read all the timestamps from the rec file, which can be slow
-        if self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = []
-            [
-                self.timestamps.extend(neo_io.get_regressed_systime(0, None))
-                for neo_io in self.neo_io
-            ]
+        if timestamps is not None:
+            self.timestamps = timestamps
+
+        elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
+            self.timestamps = np.concatenate(
+                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
+            )
 
         else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            [
-                self.timestamps.extend(
+            self.timestamps = np.concatenate(
+                [
                     neo_io.get_systime_from_trodes_timestamps(0, None)
-                )
-                for neo_io in self.neo_io
-            ]
+                    for neo_io in self.neo_io
+                ]
+            )
 
+        logger.info("Reading timestamps COMPLETE")
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
@@ -131,14 +137,16 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # what global index each file starts at
         file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
         # the time indexes we want
-        time_index = np.arange(self._get_maxshape()[0])[selection_list[0]]
+        time_index = np.arange(selection_list[0].start, selection_list[0].stop)[
+            :: selection_list[0].step
+        ]
         data = []
         i = time_index[0]
         while i < min(time_index[-1], self._get_maxshape()[0]):
             # find the stream where this piece of slice begins
             io_stream = np.argmin(i >= file_start_ind) - 1
             # get the data from that stream
-            data.extend(
+            data.append(
                 (
                     self.neo_io[io_stream].get_analogsignal_chunk(
                         block_index=self.block_index,
@@ -162,7 +170,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 time_index[-1] - i,  # if finished in this stream
             )
 
-        data = (np.array(data) * self.conversion).astype("int16")
+        data = (np.concatenate(data) * self.conversion).astype("int16")
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:

@@ -422,7 +422,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         shape = raw_unit8_mask.shape
         shape = (shape[0], shape[1] // 2)
         # reshape the and retype by view
-        raw_unit16 = raw_unit8_mask.flatten().view("int16").reshape(shape)
+        raw_unit16 = raw_unit8_mask.reshape(-1).view("int16").reshape(shape)
 
         if re_order is not None:
             raw_unit16 = raw_unit16[:, re_order]
@@ -437,31 +437,60 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return raw_unit16
 
     def get_analogsignal_timestamps(self, i_start, i_stop):
-        raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
-        ]
-        raw_uint32 = raw_uint8.flatten().view("uint32")
+        if not self.interpolate_dropped_packets:
+            # no interpolation
+            raw_uint8 = self._raw_memmap[
+                i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
+            return raw_uint32
+
         if self.interpolate_dropped_packets and self.interpolate_index is None:
+            # first call in a interpolation iterator, needs to find the dropped packets
+            # has to run through the entire file to find missing packets
+            raw_uint8 = self._raw_memmap[
+                :, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
             self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
-            return self.get_analogsignal_timestamps(
-                i_start, i_stop
-            )  # call again to get the interpolated timestamps
+
+        # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
+        raw_uint8 = self._raw_memmap[
+            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+        ]
+        raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+        # add +1 to the inserted locations
+        inserted_locations = np.array(self._raw_memmap.inserted_locations) - i_start + 1
+        inserted_locations = inserted_locations[
+            (inserted_locations >= 0) & (inserted_locations < i_stop - i_start)
+        ]
+        if not len(inserted_locations) == 0:
+            raw_uint32[inserted_locations] += 1
         return raw_uint32
 
     def get_sys_clock(self, i_start, i_stop):
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
+        if i_stop is None:
+            i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
             i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
         ]
-        raw_uint64 = raw_uint8.flatten().view(dtype=np.int64)
+        raw_uint64 = raw_uint8.view(dtype=np.int64).reshape(-1)
         return raw_uint64
 
     @functools.lru_cache(maxsize=2)
-    def get_analogsignal_multiplexed(self, channel_names=None) -> dict[str, np.ndarray]:
+    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -513,8 +542,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # for now, allow only reading the entire dataset
         i_start = 0
-        i_stop = self._raw_memmap.shape[0]
-        raw_packets = self._raw_memmap[i_start:i_stop]
+        i_stop = None
 
         channel_index = -1
         for i, chan_id in enumerate(self._mask_channels_ids[stream_id]):
@@ -554,12 +582,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # this copies the data from the memmap into memory
         byte_mask = self._mask_channels_bytes[stream_id][channel_index]
-        raw_packets_masked = raw_packets[:, byte_mask]
+        raw_packets_masked = self._raw_memmap[i_start:i_stop, byte_mask]
 
         bit_mask = self._mask_channels_bits[stream_id][channel_index]
-        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[
-            :, bit_mask
-        ].flatten()
+        continuous_dio = np.unpackbits(raw_packets_masked, axis=1)[:, bit_mask].reshape(
+            -1
+        )
         change_dir = np.diff(continuous_dio).astype(
             np.int8
         )  # possible values: [-1, 0, 1]
@@ -588,23 +616,18 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
-        if i_stop is None:
-            i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        systime = self.get_sys_clock(i_start, i_stop)
+        systime_seconds = self.get_sys_clock(i_start, i_stop)
         # Convert
-        systime_seconds = np.asarray(systime).astype(np.float64)
-        trodestime_index = np.asarray(trodestime).astype(np.float64)
-
+        trodestime_index = np.asarray(trodestime, dtype=np.float64)
+        # regress
         slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
     def get_systime_from_trodes_timestamps(self, i_start, i_stop=None):
         MILLISECONDS_PER_SECOND = 1e3
-        if i_stop is None:
-            i_stop = self._raw_memmap.shape[0]
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
         return (trodestime - int(self.timestamp_at_creation)) * (
@@ -614,12 +637,76 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def _interpolate_raw_memmap(
         self,
     ):
-        """Interpolates single dropped packets in the analog data."""
-        if self.interpolate_dropped_packets:
-            # duplicates dropped packets in the raw memmap
-            self._raw_memmap = np.insert(
-                self._raw_memmap,
-                self.interpolate_index,
-                self._raw_memmap[self.interpolate_index],
-                axis=0,
-            )
+        # """Interpolates single dropped packets in the analog data."""
+        print("Interpolate memmap: ", self.filename)
+        self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
+
+
+class InsertedMemmap:
+    """
+    class to return slices into an interpolated memmap
+    Avoids loading data into memory during np.insert
+    """
+
+    def __init__(self, _raw_memmap, inserted_index=[]) -> None:
+        self._raw_memmap = _raw_memmap
+        self.mapped_index = np.arange(self._raw_memmap.shape[0])
+        self.mapped_index = np.insert(
+            self.mapped_index, inserted_index, self.mapped_index[inserted_index]
+        )
+        self.inserted_locations = inserted_index + np.arange(len(inserted_index))
+        self.shape = (self.mapped_index.size, self._raw_memmap.shape[1])
+
+    def __getitem__(self, index):
+        # request a slice in both time and channel
+        if isinstance(index, tuple):
+            index_chan = index[1]
+            return self._raw_memmap[self.access_coordinates(index[0]), index_chan]
+        # request a slice in time
+        return self._raw_memmap[self.access_coordinates(index)]
+
+    def access_coordinates(self, index):
+        if isinstance(index, int):
+            return self.mapped_index[index]
+        # if slice object
+        elif isinstance(index, slice):
+            # see if slice contains inserted values
+            if (
+                (
+                    (not index.start is None)
+                    and (not index.stop is None)
+                    and np.any(
+                        (self.inserted_locations >= index.start)
+                        & (self.inserted_locations < index.stop)
+                    )
+                )
+                | (
+                    (index.start is None)
+                    and (not index.stop is None)
+                    and np.any(self.inserted_locations < index.stop)
+                )
+                | (
+                    index.stop is None
+                    and (not index.start is None)
+                    and np.any(self.inserted_locations > index.start)
+                )
+                | (
+                    index.start is None
+                    and index.stop is None
+                    and len(self.inserted_locations) > 0
+                )
+            ):
+                # if so, need to use advanced indexing. return list of indeces
+                return self.mapped_index[index]
+            # if not, return slice object with coordinates adjusted
+            else:
+                return slice(
+                    index.start
+                    - np.searchsorted(self.inserted_locations, index.start, "right"),
+                    index.stop
+                    - np.searchsorted(self.inserted_locations, index.stop, "right"),
+                    index.step,
+                )
+        # if list of indeces
+        else:
+            return self.mapped_index[index]

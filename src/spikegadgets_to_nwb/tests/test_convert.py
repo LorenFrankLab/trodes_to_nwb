@@ -1,11 +1,12 @@
 import os
+import shutil
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from pynwb import NWBHDF5IO
 
-from spikegadgets_to_nwb.convert import _create_nwb
+from spikegadgets_to_nwb.convert import _create_nwb, get_included_probe_metadata_paths
 from spikegadgets_to_nwb.data_scanner import get_file_info
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +48,12 @@ def test_get_file_info():
         assert Path(file).exists()
 
 
+def test_get_included_probe_metadat_paths():
+    probes = get_included_probe_metadata_paths()
+    assert len(probes) == 3
+    assert [probe.exists() for probe in probes]
+
+
 def test_convert():
     try:
         # running on github
@@ -79,11 +86,17 @@ def test_convert():
         ]
     session_df = path_df[(path_df.animal == "sample")]
     assert len(session_df[session_df.file_extension == ".yml"]) == 1
+    # make temporary directory for video files
+    video_directory = path + "temp_video_directory_full_convert/"
+    if not os.path.exists(video_directory):
+        os.makedirs(video_directory)
+
     _create_nwb(
         session=("20230622", "sample", "1"),
         session_df=session_df,
         probe_metadata_paths=probe_metadata,
         output_dir=str(data_path),
+        video_directory=video_directory,
     )
     assert "sample20230622.nwb" in os.listdir(str(data_path))
     with NWBHDF5IO(str(data_path) + "/sample20230622.nwb") as io:
@@ -95,6 +108,7 @@ def test_convert():
             compare_nwbfiles(nwbfile, old_nwbfile)
     # cleanup
     os.remove(str(data_path) + "/sample20230622.nwb")
+    shutil.rmtree(video_directory)
 
 
 def check_module_entries(test, reference):
@@ -159,12 +173,12 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         == old_data[ind]
     ).all()
     # check that timestamps are less than one sample different
-    assert np.isclose(
+    assert np.allclose(
         nwbfile.acquisition["e-series"].timestamps[:],
         old_nwbfile.acquisition["e-series"].timestamps[:ephys_size],
         rtol=0,
         atol=1.0 / 30000,
-    ).all()
+    )
 
     # check analog data
     # get index mapping of channels

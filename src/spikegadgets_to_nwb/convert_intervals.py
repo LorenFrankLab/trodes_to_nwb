@@ -1,5 +1,5 @@
-from typing import List
 import logging
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -96,10 +96,7 @@ def add_sample_count(
     systime = np.array(rec_dci.timestamps) * 1e9
     # get the sample count information
     trodes_sample = np.concatenate(
-        [
-            neo_io.get_analogsignal_timestamps(0, n_time)
-            for neo_io, n_time in zip(rec_dci.neo_io, rec_dci.n_time)
-        ]
+        [neo_io.get_analogsignal_timestamps(0, None) for neo_io in rec_dci.neo_io]
     )
 
     # insert into nwbfile

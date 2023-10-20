@@ -8,6 +8,7 @@ dependencies:
 - scipy
 - pandas
 - pynwb
+- dask
 - ipython
 - black
 - pytest
@@ -15,6 +16,7 @@ dependencies:
 - pip
 - pyyaml
 - jsonschema
+- ffmpeg
 - pip:
     - ndx-franklab-novela
     - neo
