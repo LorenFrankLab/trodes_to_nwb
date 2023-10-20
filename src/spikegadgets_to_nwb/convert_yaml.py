@@ -45,7 +45,8 @@ def load_metadata(
         metadata = yaml.safe_load(stream)
     is_metadata_valid, metadata_errors = metadata_validation.validate(metadata)
     if not is_metadata_valid:
-        raise ValueError("".join(metadata_errors))
+        logger = logging.getLogger("convert")
+        logger.exception("".join(metadata_errors))
     probe_metadata = []
     for path in probe_metadata_paths:
         with open(path, "r") as stream:
