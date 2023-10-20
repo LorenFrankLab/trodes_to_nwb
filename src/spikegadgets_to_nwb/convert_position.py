@@ -514,7 +514,7 @@ def get_position_timestamps(
             "Camera frame rate estimated from MCU timestamps:"
             f" {1 / np.median(np.diff(video_timestamps.index)):0.1f} frames/s"
         )
-        return video_timestamps, original_video_timestamps
+        return video_timestamps
     else:
         dio_systime = rec_dci_timestamps[
             np.searchsorted(rec_dci_timestamps, dio_camera_timestamps)
@@ -576,9 +576,8 @@ def get_position_timestamps(
             )
         corrected_camera_systime = np.concatenate(corrected_camera_systime)
 
-        return (
-            video_timestamps.set_index(pd.Index(corrected_camera_systime, name="time")),
-            original_video_timestamps,
+        return video_timestamps.set_index(
+            pd.Index(corrected_camera_systime, name="time")
         )
 
 
@@ -677,7 +676,7 @@ def add_position(
         logger.info(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
         logger.info(f"\tposition_tracking_filepath: {position_tracking_filepath}")
 
-        position_df, original_video_timestamps = get_position_timestamps(
+        position_df = get_position_timestamps(
             position_timestamps_filepath,
             position_tracking_filepath,
             ptp_enabled=ptp_enabled,
