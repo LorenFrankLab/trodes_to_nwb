@@ -600,7 +600,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if self.sysClock_byte:
             timestamps = self.get_regressed_systime(i_start, i_stop)
         else:
-            timestamps = self.get_analogsignal_timestamps(i_start, i_stop)
+            timestamps = self.get_systime_from_trodes_timestamps(i_start, i_stop)
         dio_change_times = timestamps[np.where(change_dir)[0] + 1]
 
         # insert the first timestamp with the first value
@@ -630,9 +630,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         MILLISECONDS_PER_SECOND = 1e3
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        return (trodestime - int(self.timestamp_at_creation)) * (
-            1.0 / self._sampling_rate
-        ) + int(self.system_time_at_creation) / MILLISECONDS_PER_SECOND
+        return (trodestime - trodestime[0]) * (1.0 / self._sampling_rate) + int(
+            self.system_time_at_creation
+        ) / MILLISECONDS_PER_SECOND
 
     def _interpolate_raw_memmap(
         self,
