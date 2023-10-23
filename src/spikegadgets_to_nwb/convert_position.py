@@ -357,7 +357,7 @@ def remove_acquisition_timing_pause_non_ptp(
         - camera_systime : np.ndarray
             Camera system time after removing the pause.
     """
-    dio_systime = dio_systime[is_valid_camera_time][dio_systime > pause_mid_time]
+    dio_systime = dio_systime[dio_systime > pause_mid_time]
     frame_count = frame_count[is_valid_camera_time][camera_systime > pause_mid_time]
     is_valid_camera_time[is_valid_camera_time] = camera_systime > pause_mid_time
     camera_systime = camera_systime[camera_systime > pause_mid_time]
@@ -517,8 +517,11 @@ def get_position_timestamps(
         return video_timestamps
     else:
         try:
-            pause_mid_time = find_acquisition_timing_pause(
-                dio_camera_timestamps * NANOSECONDS_PER_SECOND
+            pause_mid_time = (
+                find_acquisition_timing_pause(
+                    dio_camera_timestamps * NANOSECONDS_PER_SECOND
+                )
+                / NANOSECONDS_PER_SECOND
             )
             frame_rate_from_dio = get_framerate(
                 dio_camera_timestamps[dio_camera_timestamps > pause_mid_time]
@@ -535,7 +538,7 @@ def get_position_timestamps(
         is_valid_camera_time = np.isin(video_timestamps.index, sample_count)
 
         camera_systime = rec_dci_timestamps[
-            np.isin(sample_count, video_timestamps.index[is_valid_camera_time])
+            np.digitize(video_timestamps.index[is_valid_camera_time], sample_count)
         ]
         if pause_mid_time is not None:
             (
@@ -564,8 +567,6 @@ def get_position_timestamps(
         corrected_camera_systime = []
         for id in non_repeat_timestamp_labels_id:
             is_chunk = video_timestamps.non_repeat_timestamp_labels == id
-            camera_systime[is_chunk]
-            frame_count[is_chunk]
             corrected_camera_systime.append(
                 correct_timestamps_for_camera_to_mcu_lag(
                     frame_count[is_chunk],
@@ -575,9 +576,12 @@ def get_position_timestamps(
             )
         corrected_camera_systime = np.concatenate(corrected_camera_systime)
 
-        return video_timestamps.set_index(
+        video_timestamps = video_timestamps.set_index(
             pd.Index(corrected_camera_systime, name="time")
         )
+        return video_timestamps.groupby(
+            video_timestamps.index
+        ).first()  # TODO: Figure out why duplicate timesteps make it to this point and why this line is necessary
 
 
 def add_position(
