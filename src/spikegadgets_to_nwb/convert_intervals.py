@@ -14,7 +14,7 @@ NANOSECONDS_PER_SECOND = 1e9
 
 def add_epochs(
     nwbfile: NWBFile,
-    session_info: pd.DataFrame,
+    session_df: pd.DataFrame,
     neo_io: List[SpikeGadgetsRawIO],
 ):
     """add epochs to nwbfile
@@ -33,9 +33,9 @@ def add_epochs(
         neo_io iterators for each rec file. Contains time information
     """
     logger = logging.getLogger("convert")
-    for epoch in set(session_info.epoch):
-        rec_file_list = session_info[
-            (session_info.epoch == epoch) & (session_info.file_extension == ".rec")
+    for epoch in set(session_df.epoch):
+        rec_file_list = session_df[
+            (session_df.epoch == epoch) & (session_df.file_extension == ".rec")
         ]
         if len(rec_file_list) == 0:
             logger.info(f"no rec files for epoch {epoch}, No epoch interval created")
