@@ -251,6 +251,12 @@ def _create_nwb(
     add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
     logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
+    logger.info("ADDING EPOCHS")
+    add_epochs(
+        nwbfile=nwb_file,
+        session_df=session_df,
+        neo_io=rec_dci.neo_io,
+    )
     logger.info("ADDING POSITION")
     ### add position ###
     ptp_enabled = detect_ptp_from_header(rec_header)
@@ -273,16 +279,6 @@ def _create_nwb(
             .data_interfaces["sample_count"]
             .data,
         )
-
-    # add epochs
-    logger.info("ADDING EPOCHS")
-    add_epochs(
-        nwbfile=nwb_file,
-        file_info=session_df,
-        date=session[0],
-        animal=session[1],
-        neo_io=rec_dci.neo_io,
-    )
 
     # write file
     logger.info(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
