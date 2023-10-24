@@ -697,7 +697,7 @@ def add_position(
             name="behavior", description="Contains all behavior-related data"
         )
     # get epoch data to seperate dio timestamps into epochs
-    if not (len(nwb_file.epochs) or (ptp_enabled)):
+    if (not ptp_enabled) and (not len(nwb_file.epochs)):
         raise ValueError(
             "add_epochs() must be run before add_position() for non-ptp data"
         )
