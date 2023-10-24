@@ -630,7 +630,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         MILLISECONDS_PER_SECOND = 1e3
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        return (trodestime - trodestime[0]) * (1.0 / self._sampling_rate) + int(
+        initial_time = self.get_analogsignal_timestamps(0, 1)[0]
+        return (trodestime - initial_time) * (1.0 / self._sampling_rate) + int(
             self.system_time_at_creation
         ) / MILLISECONDS_PER_SECOND
 
