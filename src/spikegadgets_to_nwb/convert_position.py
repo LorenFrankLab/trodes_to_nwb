@@ -584,13 +584,63 @@ def get_position_timestamps(
         ).first()  # TODO: Figure out why duplicate timesteps make it to this point and why this line is necessary
 
 
+def find_camera_dio_channel_per_epoch(
+    nwb_file: NWBFile, epoch_start: float, epoch_end: float
+):
+    """Find the camera dio channel for a given epoch.
+    Searches through dio channels with "camera ticks" in the name.
+    Selects first one with at least 100 ticks in the epoch.
+
+    Parameters
+    ----------
+    nwb_file : NWBFile
+        The NWBFile to find the dio channel in.
+    epoch_start : float
+        timestamp of the start of the epoch
+    epoch_end : float
+        timestamp of the end of the epoch
+
+    Returns
+    -------
+    dio_camera_timestamps : np.ndarray
+        The dio timestamps for the camera restricted to the epoch of interest
+
+    Raises
+    ------
+    ValueError
+        Error if dio's  are not added to the nwbfile
+    ValueError
+        Error if no camera dio channel is found
+    """
+    dio_camera_list = [
+        key
+        for key in nwb_file.processing["behavior"]["behavioral_events"].time_series
+        if "camera ticks" in key
+    ]
+    if not dio_camera_list:
+        raise ValueError(
+            "No camera dio channel found by name. Check metadata YAML. Name must contain 'camera ticks'"
+        )
+    for camera in dio_camera_list:
+        dio_camera_timestamps = (
+            nwb_file.processing["behavior"]["behavioral_events"]
+            .time_series[camera]
+            .timestamps
+        )
+        epoch_ind = np.logical_and(
+            dio_camera_timestamps >= epoch_start, dio_camera_timestamps <= epoch_end
+        )
+        if np.sum(epoch_ind) > 100:
+            return dio_camera_timestamps[epoch_ind]
+    raise ValueError("No camera dio has sufficient ticks for this epoch")
+
+
 def add_position(
     nwb_file: NWBFile,
     metadata: dict,
     session_df: pd.DataFrame,
     ptp_enabled: bool = True,
     rec_dci_timestamps: np.ndarray | None = None,
-    dio_camera_timestamps: np.ndarray | None = None,
     sample_count: np.ndarray | None = None,
 ):
     """
@@ -608,8 +658,6 @@ def add_position(
         Whether PTP was enabled, by default True.
     rec_dci_timestamps : np.ndarray, optional
         The recording timestamps, by default None. Only used if ptp not enabled.
-    dio_camera_timestamps : np.ndarray, optional
-        The dio camera timestamps, by default None. Only used if ptp not enabled.
     sample_count : np.ndarray, optional
         The trodes sample count, by default None. Only used if ptp not enabled.
     """
@@ -648,6 +696,14 @@ def add_position(
         nwb_file.create_processing_module(
             name="behavior", description="Contains all behavior-related data"
         )
+    # get epoch data to seperate dio timestamps into epochs
+    if not (len(nwb_file.epochs) or (ptp_enabled)):
+        raise ValueError(
+            "add_epochs() must be run before add_position() for non-ptp data"
+        )
+    if not ptp_enabled:
+        epoch_df = nwb_file.epochs.to_dataframe()
+    dio_camera_timestamps_epoch = None
 
     for epoch in session_df.epoch.unique():
         try:
@@ -679,12 +735,20 @@ def add_position(
         logger.info(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
         logger.info(f"\tposition_tracking_filepath: {position_tracking_filepath}")
 
+        # restrict dio camera timestamps to the current epoch
+        if not ptp_enabled:
+            epoch_start = epoch_df[epoch_df.index == epoch - 1]["start_time"].iloc[0]
+            epoch_end = epoch_df[epoch_df.index == epoch - 1]["stop_time"].iloc[0]
+            dio_camera_timestamps_epoch = find_camera_dio_channel_per_epoch(
+                nwb_file=nwb_file, epoch_start=epoch_start, epoch_end=epoch_end
+            )
+
         position_df = get_position_timestamps(
             position_timestamps_filepath,
             position_tracking_filepath,
             ptp_enabled=ptp_enabled,
             rec_dci_timestamps=rec_dci_timestamps,
-            dio_camera_timestamps=dio_camera_timestamps,
+            dio_camera_timestamps=dio_camera_timestamps_epoch,
             sample_count=sample_count,
         )
 

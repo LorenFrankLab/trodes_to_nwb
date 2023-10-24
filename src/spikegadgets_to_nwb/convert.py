@@ -267,14 +267,12 @@ def _create_nwb(
             session_df,
         )
     else:
-        dio_camera_timestamps = find_camera_dio_channel(nwb_file)
         add_position(
             nwb_file,
             metadata,
             session_df,
             ptp_enabled=ptp_enabled,
             rec_dci_timestamps=rec_dci_timestamps,
-            dio_camera_timestamps=dio_camera_timestamps,
             sample_count=nwb_file.processing["sample_count"]
             .data_interfaces["sample_count"]
             .data,
