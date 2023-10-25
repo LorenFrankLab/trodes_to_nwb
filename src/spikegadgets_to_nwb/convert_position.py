@@ -508,7 +508,6 @@ def get_position_timestamps(
             )[0][0]
             + 1
         )
-        original_video_timestamps = video_timestamps.copy()
         video_timestamps = video_timestamps.iloc[pause_mid_ind:]
         logger.info(
             "Camera frame rate estimated from MCU timestamps:"
