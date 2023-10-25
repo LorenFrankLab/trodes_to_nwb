@@ -699,7 +699,6 @@ def add_position(
         )
     if not ptp_enabled:
         epoch_df = nwb_file.epochs.to_dataframe()
-    dio_camera_timestamps_epoch = None
 
     for epoch in session_df.epoch.unique():
         try:
@@ -738,6 +737,8 @@ def add_position(
             dio_camera_timestamps_epoch = find_camera_dio_channel_per_epoch(
                 nwb_file=nwb_file, epoch_start=epoch_start, epoch_end=epoch_end
             )
+        else:
+            dio_camera_timestamps_epoch = None
 
         position_df = get_position_timestamps(
             position_timestamps_filepath,
