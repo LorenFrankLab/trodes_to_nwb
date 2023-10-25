@@ -530,7 +530,7 @@ def get_position_timestamps(
                 f" {frame_rate_from_dio:0.1f} frames/s"
             )
         except IndexError:
-            pause_mid_time = None
+            pause_mid_time = -1
 
         frame_count = np.asarray(video_timestamps.HWframeCount)
 
@@ -539,21 +539,18 @@ def get_position_timestamps(
         camera_systime = rec_dci_timestamps[
             np.digitize(video_timestamps.index[is_valid_camera_time], sample_count)
         ]
-        if pause_mid_time is not None:
-            (
-                dio_camera_timestamps,
-                frame_count,
-                is_valid_camera_time,
-                camera_systime,
-            ) = remove_acquisition_timing_pause_non_ptp(
-                dio_camera_timestamps,
-                frame_count,
-                camera_systime,
-                is_valid_camera_time,
-                pause_mid_time,
-            )
-        else:
-            frame_count = frame_count[is_valid_camera_time]
+        (
+            dio_camera_timestamps,
+            frame_count,
+            is_valid_camera_time,
+            camera_systime,
+        ) = remove_acquisition_timing_pause_non_ptp(
+            dio_camera_timestamps,
+            frame_count,
+            camera_systime,
+            is_valid_camera_time,
+            pause_mid_time,
+        )
         video_timestamps = video_timestamps.iloc[is_valid_camera_time]
         frame_rate_from_camera_systime = get_framerate(camera_systime)
         logger.info(
