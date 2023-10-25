@@ -13,6 +13,7 @@ subject:
   species: Rat
   subject_id: ginny
   weight: Unknown
+  date_of_birth: 2000-01-01T00:00:00.000Z
 
 associated_files:
 - description: Statescript log run 1
