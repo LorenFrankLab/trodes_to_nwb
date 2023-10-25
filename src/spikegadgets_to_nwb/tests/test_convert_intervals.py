@@ -35,7 +35,10 @@ def test_add_epochs():
         for file in file_info[file_info.file_extension == ".rec"].full_path
     ]
     [neo_io.parse_header() for neo_io in neo_io]
-    add_epochs(nwbfile, file_info, 20230622, "sample", neo_io)
+
+    file_info = file_info[file_info.animal == "sample"]
+    file_info = file_info[file_info.date == 20230622]
+    add_epochs(nwbfile, file_info, neo_io)
     epochs_df = nwbfile.epochs.to_dataframe()
     # load old nwb versio
     io = NWBHDF5IO(rec_to_nwb_file, "r")

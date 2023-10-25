@@ -13,9 +13,11 @@ from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     add_associated_video_files,
+    find_camera_dio_channel,
 )
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
+    detect_ptp_from_header,
     make_hw_channel_map,
     make_ref_electrode_map,
     read_header,
@@ -279,24 +281,32 @@ def _create_nwb(
     add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
     logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
-    logger.info("ADDING POSITION")
-    ### add position ###
-    add_position(
-        nwb_file,
-        metadata,
-        session_df,
-        rec_header,
-    )
-
-    # add epochs
     logger.info("ADDING EPOCHS")
     add_epochs(
         nwbfile=nwb_file,
-        file_info=session_df,
-        date=session[0],
-        animal=session[1],
+        session_df=session_df,
         neo_io=rec_dci.neo_io,
     )
+    logger.info("ADDING POSITION")
+    ### add position ###
+    ptp_enabled = detect_ptp_from_header(rec_header)
+    if ptp_enabled:
+        add_position(
+            nwb_file,
+            metadata,
+            session_df,
+        )
+    else:
+        add_position(
+            nwb_file,
+            metadata,
+            session_df,
+            ptp_enabled=ptp_enabled,
+            rec_dci_timestamps=rec_dci_timestamps,
+            sample_count=nwb_file.processing["sample_count"]
+            .data_interfaces["sample_count"]
+            .data,
+        )
 
     # write file
     logger.info(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
