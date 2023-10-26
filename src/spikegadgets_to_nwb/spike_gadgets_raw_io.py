@@ -614,6 +614,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return dio_change_times, change_dir_trim
 
+    @functools.lru_cache(maxsize=1)
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
         # get values
@@ -626,6 +627,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
+    @functools.lru_cache(maxsize=1)
     def get_systime_from_trodes_timestamps(self, i_start, i_stop=None):
         MILLISECONDS_PER_SECOND = 1e3
         # get values
