@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -85,11 +86,17 @@ def test_convert():
         ]
     session_df = path_df[(path_df.animal == "sample")]
     assert len(session_df[session_df.file_extension == ".yml"]) == 1
+    # make temporary directory for video files
+    video_directory = path + "temp_video_directory_full_convert/"
+    if not os.path.exists(video_directory):
+        os.makedirs(video_directory)
+
     _create_nwb(
         session=("20230622", "sample", "1"),
         session_df=session_df,
         probe_metadata_paths=probe_metadata,
         output_dir=str(data_path),
+        video_directory=video_directory,
     )
     assert "sample20230622.nwb" in os.listdir(str(data_path))
     with NWBHDF5IO(str(data_path) + "/sample20230622.nwb") as io:
@@ -101,6 +108,7 @@ def test_convert():
             compare_nwbfiles(nwbfile, old_nwbfile)
     # cleanup
     os.remove(str(data_path) + "/sample20230622.nwb")
+    shutil.rmtree(video_directory)
 
 
 def test_full_convert():

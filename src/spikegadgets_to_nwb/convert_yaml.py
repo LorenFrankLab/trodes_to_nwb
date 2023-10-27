@@ -3,6 +3,8 @@ import uuid
 from copy import deepcopy
 from datetime import datetime
 from xml.etree import ElementTree
+from spikegadgets_to_nwb import metadata_validation
+
 
 import pandas as pd
 import pytz
@@ -38,8 +40,13 @@ def load_metadata(
     tuple[dict, list[dict]]
         the yaml generator metadata and list of probe metadatas
     """
+    metadata = None
     with open(metadata_path, "r") as stream:
         metadata = yaml.safe_load(stream)
+    is_metadata_valid, metadata_errors = metadata_validation.validate(metadata)
+    if not is_metadata_valid:
+        logger = logging.getLogger("convert")
+        logger.exception("".join(metadata_errors))
     probe_metadata = []
     for path in probe_metadata_paths:
         with open(path, "r") as stream:
@@ -392,15 +399,13 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
         # read file content
         content = ""
         try:
-            with open(file["path"] + file["name"], "r") as open_file:
+            with open(file["path"], "r") as open_file:
                 content = open_file.read()
         except FileNotFoundError as err:
-            logger.info(
-                f"ERROR: associated file {file['path']+file['name']} does not exist"
-            )
+            logger.info(f"ERROR: associated file {file['path']} does not exist")
             logger.info(str(err))
         except IOError as err:
-            logger.info(f"ERROR: Cannot read file at {file['path']+file['name']}")
+            logger.info(f"ERROR: Cannot read file at {file['path']}")
             logger.info(str(err))
         # convert task epoch values into strings
         task_epochs = "".join([str(element) + ", " for element in file["task_epochs"]])

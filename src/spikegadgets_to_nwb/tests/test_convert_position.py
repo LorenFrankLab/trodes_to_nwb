@@ -4,9 +4,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from pynwb import NWBHDF5IO
+from pynwb import NWBHDF5IO, TimeSeries
 
 from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
+from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
+from spikegadgets_to_nwb.convert_intervals import add_sample_count
+from spikegadgets_to_nwb.convert_dios import add_dios
+from spikegadgets_to_nwb.convert_intervals import add_epochs
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     correct_timestamps_for_camera_to_mcu_lag,
@@ -20,6 +24,7 @@ from spikegadgets_to_nwb.convert_position import (
     parse_dtype,
     read_trodes_datafile,
     remove_acquisition_timing_pause_non_ptp,
+    find_camera_dio_channel,
 )
 from spikegadgets_to_nwb.data_scanner import get_file_info
 
@@ -222,11 +227,10 @@ def test_add_position():
 
     # run add_position and prerequisite functions
     convert_yaml.add_cameras(nwbfile, metadata)
-    add_position(nwbfile, metadata, session_df, rec_header, video_directory="")
+    add_position(nwbfile, metadata, session_df, rec_header)
 
     # Check that the objects were properly added
     assert "position" in nwbfile.processing["behavior"].data_interfaces
-    assert "video_files" in nwbfile.processing
     assert "non_repeat_timestamp_labels" in nwbfile.processing
     assert "position_frame_index" in nwbfile.processing
 
@@ -287,3 +291,72 @@ def test_add_position():
                 assert validated, f"Could not find matching series for {series}"
     # cleanup
     os.remove(filename)
+
+
+from spikegadgets_to_nwb.convert_position import read_trodes_datafile
+
+
+def test_add_position_non_ptp():
+    try:
+        # running on github
+        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
+    except (TypeError, FileNotFoundError):
+        # running locally
+        data_path = Path(path + "/test_data")
+    # make session_df
+    path_df = get_file_info(data_path)
+    session_df = path_df[(path_df.animal == "ginny")]
+    # get metadata
+    metadata_path = path + "/test_data/nonptp_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    # load the prepped non-ptp nwbfile
+    with NWBHDF5IO(data_path / "non_ptp_prep.nwb", "a", load_namespaces=True) as io:
+        nwbfile = io.read()
+        add_position(
+            nwbfile,
+            metadata,
+            session_df,
+            ptp_enabled=False,
+            rec_dci_timestamps=nwbfile.processing["sample_count"][
+                "sample_count"
+            ].timestamps[:]
+            / 1e9,
+            sample_count=nwbfile.processing["sample_count"]
+            .data_interfaces["sample_count"]
+            .data[:],
+        )
+        # read in position data to compare to
+        ref_pos = pd.read_pickle(data_path / "position_df.pkl")
+        # check that the data is the same
+        for series in [
+            "led_0_series_1",
+            "led_0_series_2",
+            "led_1_series_1",
+            "led_1_series_2",
+        ]:
+            # check series in new nwbfile
+            assert (
+                series
+                in nwbfile.processing["behavior"]["position"].spatial_series.keys()
+            )
+            # get the data for this series
+            t_new = nwbfile.processing["behavior"]["position"][series].timestamps[:]
+            pos_new = nwbfile.processing["behavior"]["position"][series].data[:]
+            assert t_new.size == pos_new.shape[0]
+            assert pos_new.shape[1] == 2
+            validated = False
+            for name in ref_pos.name.to_list():
+                t_ref = ref_pos[ref_pos.name == name].timestamps.values[0]
+
+                if t_new.size == t_ref.size and np.allclose(
+                    t_ref, t_new, atol=1, rtol=0
+                ):
+                    pos_ref = ref_pos[ref_pos.name == name].data.to_list()[0]
+                    if np.allclose(
+                        pos_ref[:100, :2], pos_new[:100], atol=1e-6, rtol=0
+                    ) or np.allclose(
+                        pos_ref[:100, 2:], pos_new[:100], atol=1e-6, rtol=0
+                    ):
+                        validated = True
+                        break
+            assert validated, f"Could not find matching series for {series}"
