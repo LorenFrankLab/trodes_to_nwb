@@ -27,8 +27,7 @@ from spikegadgets_to_nwb.convert_position import (
     find_camera_dio_channel,
 )
 from spikegadgets_to_nwb.data_scanner import get_file_info
-
-path = os.path.dirname(os.path.abspath(__file__))
+from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
 
 
 def test_parse_dtype_standard():
@@ -199,23 +198,15 @@ def test_correct_timestamps_for_camera_to_mcu_lag():
 
 
 def test_add_position():
-    try:
-        # running on github
-        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
-    except (TypeError, FileNotFoundError):
-        # running locally
-        data_path = Path(path + "/test_data")
-    probe_metadata = [Path(path + "/test_data/tetrode_12.5.yml")]
+    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
 
     # make session_df
     path_df = get_file_info(data_path)
     session_df = path_df[(path_df.animal == "sample")]
 
     # get metadata
-    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
-    probe_metadata = [
-        path + "/test_data/tetrode_12.5.yml",
-    ]
+    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     rec_file = session_df[
         (session_df.epoch == 1) & (session_df.file_extension == ".rec")
@@ -297,17 +288,11 @@ from spikegadgets_to_nwb.convert_position import read_trodes_datafile
 
 
 def test_add_position_non_ptp():
-    try:
-        # running on github
-        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
-    except (TypeError, FileNotFoundError):
-        # running locally
-        data_path = Path(path + "/test_data")
     # make session_df
     path_df = get_file_info(data_path)
     session_df = path_df[(path_df.animal == "ginny")]
     # get metadata
-    metadata_path = path + "/test_data/nonptp_metadata.yml"
+    metadata_path = yaml_path / "nonptp_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     # load the prepped non-ptp nwbfile
     with NWBHDF5IO(data_path / "non_ptp_prep.nwb", "a", load_namespaces=True) as io:

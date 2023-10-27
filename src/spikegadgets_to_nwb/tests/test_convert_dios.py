@@ -1,32 +1,22 @@
-import os
-
 import numpy as np
+import os
 import pynwb
 
 from spikegadgets_to_nwb import convert_yaml
 from spikegadgets_to_nwb.convert_dios import add_dios
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-
-path = os.path.dirname(os.path.abspath(__file__))
+from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
 
 
 def test_add_dios_single_rec():
     # load metadata yml and make nwb file
-    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
-    probe_metadata = [
-        path + "/test_data/tetrode_12.5.yml",
-    ]
+    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
     metadata, _ = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
-    try:
-        # running on github
-        recfile = [os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"]
-        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.nwb"
-    except (TypeError, FileNotFoundError):
-        # running locally
-        recfile = [path + "/test_data/20230622_sample_01_a1.rec"]
-        rec_to_nwb_file = path + "/test_data/20230622_155936.nwb"
+    recfile = [data_path / "20230622_sample_01_a1.rec"]
+    rec_to_nwb_file = data_path / "20230622_155936.nwb"  # comparison file
 
     add_dios(nwbfile, recfile, metadata)
 
@@ -71,27 +61,16 @@ def test_add_dios_single_rec():
 
 def test_add_dios_two_epoch():
     # load metadata yml and make nwb file
-    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
-    probe_metadata = [
-        path + "/test_data/tetrode_12.5.yml",
-    ]
+    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
     metadata, _ = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
-    try:
-        # running on github
-        recfile = [
-            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec",
-            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_02_a1.rec",
-        ]
-        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/minirec20230622_.nwb"
-    except (TypeError, FileNotFoundError):
-        # running locally
-        recfile = [
-            path + "/test_data/20230622_sample_01_a1.rec",
-            path + "/test_data/20230622_sample_02_a1.rec",
-        ]
-        rec_to_nwb_file = path + "/test_data/minirec20230622_.nwb"
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
 
     add_dios(nwbfile, recfile, metadata)
 
