@@ -16,13 +16,13 @@ def test_add_epochs():
     metadata, _ = load_metadata(metadata_path, [])
     nwbfile = initialize_nwb(metadata, default_test_xml_tree())
     file_info = get_file_info(data_path)
+    file_info = file_info[file_info.animal == "sample"]
+    file_info = file_info[file_info.date == 20230622]
     rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
     # get all streams for all files
     rec_dci = RecFileDataChunkIterator(
         file_info[file_info.file_extension == ".rec"].full_path.to_list()
     )
-    file_info = file_info[file_info.animal == "sample"]
-    file_info = file_info[file_info.date == 20230622]
     add_epochs(nwbfile, file_info, rec_dci.neo_io)
     epochs_df = nwbfile.epochs.to_dataframe()
     # load old nwb version
