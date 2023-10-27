@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from pynwb import NWBHDF5IO
 
-from spikegadgets_to_nwb.convert import _create_nwb, get_included_probe_metadata_paths
+from spikegadgets_to_nwb.convert import _create_nwb, get_included_probe_metadata_paths, create_nwbs
 from spikegadgets_to_nwb.data_scanner import get_file_info
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -101,6 +101,67 @@ def test_convert():
             compare_nwbfiles(nwbfile, old_nwbfile)
     # cleanup
     os.remove(str(data_path) + "/sample20230622.nwb")
+
+
+def test_full_convert():
+
+    try:
+        # running on github
+        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
+        yml_data_path = Path(path + "/test_data")
+        yml_path_df = get_file_info(yml_data_path)
+        yml_path_df = yml_path_df[yml_path_df.file_extension == ".yml"]
+        append_yml_df = True
+    except (TypeError, FileNotFoundError):
+        # running locally
+        data_path = Path(path + "/test_data")
+        append_yml_df = False
+    probe_metadata_paths = [Path(path + "/test_data/tetrode_12.5.yml")]
+
+
+
+    create_nwbs(
+        path=data_path,
+        probe_metadata_paths=probe_metadata_paths,
+        output_dir=str(data_path),
+        n_workers=1,
+    )
+
+    # make session_df
+    path_df = get_file_info(data_path)
+    if append_yml_df:
+        path_df = path_df[
+            path_df.file_extension != ".yml"
+        ]  # strip ymls, fixes github runner issue where yamls only sometimes present between jobs
+        path_df = pd.concat([path_df, yml_path_df])
+        path_df = path_df[
+            path_df.full_path
+            != yml_data_path.as_posix() + "/20230622_sample_metadataProbeReconfig.yml"
+        ]
+    else:
+        path_df = path_df[
+            path_df.full_path
+            != data_path.as_posix() + "/20230622_sample_metadataProbeReconfig.yml"
+        ]
+    session_df = path_df[(path_df.animal == "sample")]
+    assert len(session_df[session_df.file_extension == ".yml"]) == 1
+    # _create_nwb(
+    #     session=("20230622", "sample", "1"),
+    #     session_df=session_df,
+    #     probe_metadata_paths=probe_metadata,
+    #     output_dir=str(data_path),
+    # )
+    assert "sample20230622.nwb" in os.listdir(str(data_path))
+    with NWBHDF5IO(str(data_path) + "/sample20230622.nwb") as io:
+        nwbfile = io.read()
+        with NWBHDF5IO(str(data_path) + "/minirec20230622_.nwb") as io2:
+            old_nwbfile = io2.read()
+
+            # run nwb comparison
+            compare_nwbfiles(nwbfile, old_nwbfile)
+    # cleanup
+    os.remove(str(data_path) + "/sample20230622.nwb")
+
 
 
 def check_module_entries(test, reference):

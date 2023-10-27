@@ -1,9 +1,9 @@
 import logging
 import os
 from pathlib import Path
-
 import pandas as pd
 from dask.distributed import Client
+import nwbinspector
 from pynwb import NWBHDF5IO
 
 from spikegadgets_to_nwb.convert_analog import add_analog_data
@@ -189,6 +189,7 @@ def _create_nwb(
     metadata_filepaths = _get_file_paths(session_df, ".yml")
     if len(metadata_filepaths) != 1:
         try:
+            print(metadata_filepaths)
             raise ValueError("There must be exactly one metadata file per session")
         except ValueError as e:
             logger.exception("ERROR:")
@@ -265,8 +266,22 @@ def _create_nwb(
     )
 
     # write file
-    logger.info(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
-    with NWBHDF5IO(f"{output_dir}/{session[1]}{session[0]}.nwb", "w") as io:
+    output_path = Path("{output_dir}/{session[1]}{session[0]}.nwb")
+    logger.info(f"WRITING: {output_path}")
+    with NWBHDF5IO(output_path, "w") as io:
         io.write(nwb_file)
 
+    # run NWB Inspector to validate file for best practices before upload to DANDI
+    _inspect_nwb(output_path)
+
     logger.info("DONE")
+
+    return output_path
+
+
+def _inspect_nwb(nwbfile_path: Path):
+    """Run the resulting NWB file through the NWB Inspector to ensure it passes validation checks
+    required for upload to the DANDI archive."""
+    messages = list(nwbinspector.inspect_nwbfile(path=nwbfile_path, config=nwbinspector.load_config("dandi")))
+    print("NWB Inspector output:")
+    print(messages)

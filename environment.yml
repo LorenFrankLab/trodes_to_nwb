@@ -8,6 +8,8 @@ dependencies:
 - scipy
 - pandas
 - pynwb
+- hdmf
+- nwbinspector
 - dask
 - ipython
 - black
@@ -19,4 +21,3 @@ dependencies:
 - pip:
     - ndx-franklab-novela
     - neo
-    - hdmf=3.8.1
