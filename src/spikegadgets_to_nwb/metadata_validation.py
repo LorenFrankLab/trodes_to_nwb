@@ -1,8 +1,9 @@
-import jsonschema
-import os
-import yaml
 import copy
 import datetime
+import os
+
+import jsonschema
+import yaml
 
 
 def _get_nwb_json_schema_path() -> str:
