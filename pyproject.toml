@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "spikegadgets_to_nwb"
 description = "A python package to convert SpikeGadgets data to NWB"
 readme = "README.md"
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.8"
 license = { file = "LICENSE" }
 authors = [
     { name = "Sam Bray", email = "sam.bray@ucsf.edu" },
