@@ -1,7 +1,5 @@
-import os
-from pathlib import Path
-
 import numpy as np
+import os
 from pynwb import NWBHDF5IO
 
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
@@ -10,25 +8,15 @@ from spikegadgets_to_nwb.convert_yaml import initialize_nwb, load_metadata
 from spikegadgets_to_nwb.data_scanner import get_file_info
 from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-
-path = os.path.dirname(os.path.abspath(__file__))
+from spikegadgets_to_nwb.tests.utils import data_path
 
 
 def test_add_epochs():
-    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = load_metadata(metadata_path, [])
     nwbfile = initialize_nwb(metadata, default_test_xml_tree())
-    try:
-        # running on github
-        file_info = get_file_info(Path(os.environ.get("DOWNLOAD_DIR")))
-        rec_to_nwb_file = (
-            os.environ.get("DOWNLOAD_DIR") + "/probe_reconfig_20230622_155936.nwb"
-        )
-        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/minirec20230622_.nwb"
-    except (TypeError, FileNotFoundError):
-        # running locally
-        file_info = get_file_info(Path(path))
-        rec_to_nwb_file = path + "/test_data/minirec20230622_.nwb"
+    file_info = get_file_info(data_path)
+    rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
     # get all streams for all files
     neo_io = [
         SpikeGadgetsRawIO(filename=file)
@@ -40,7 +28,7 @@ def test_add_epochs():
     file_info = file_info[file_info.date == 20230622]
     add_epochs(nwbfile, file_info, neo_io)
     epochs_df = nwbfile.epochs.to_dataframe()
-    # load old nwb versio
+    # load old nwb version
     io = NWBHDF5IO(rec_to_nwb_file, "r")
     old_nwbfile = io.read()
     old_epochs_df = old_nwbfile.epochs.to_dataframe()
@@ -53,23 +41,14 @@ def test_add_epochs():
 
 
 def test_add_sample_count():
-    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = load_metadata(metadata_path, [])
     nwbfile = initialize_nwb(metadata, default_test_xml_tree())
-    try:
-        # running on github
-        recfile = [
-            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec",
-            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_02_a1.rec",
-        ]
-        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/minirec20230622_.nwb"
-    except (TypeError, FileNotFoundError):
-        # running locally
-        recfile = [
-            path + "/test_data/20230622_sample_01_a1.rec",
-            path + "/test_data/20230622_sample_02_a1.rec",
-        ]
-        rec_to_nwb_file = path + "/test_data/minirec20230622_.nwb"
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
 
     # make recfile data chunk iterator
     rec_dci = RecFileDataChunkIterator(recfile)

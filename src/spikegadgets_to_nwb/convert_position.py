@@ -833,7 +833,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
     """
     new_file_name = file.replace(".h264", ".mp4")
-    new_file_name = video_directory + new_file_name.split("/")[-1]
+    new_file_name = video_directory + "/" + new_file_name.split("/")[-1]
     logger = logging.getLogger("convert")
     if os.path.exists(new_file_name):
         return new_file_name
@@ -853,7 +853,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
 def copy_video_to_directory(file: str, video_directory: str) -> str:
     """Copies video file to video directory without conversion"""
-    new_file_name = video_directory + file.split("/")[-1]
+    new_file_name = video_directory + "/" + file.split("/")[-1]
     logger = logging.getLogger("convert")
     if os.path.exists(new_file_name):
         return new_file_name
