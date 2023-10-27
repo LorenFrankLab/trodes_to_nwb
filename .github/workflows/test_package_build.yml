@@ -46,8 +46,6 @@ jobs:
     strategy:
       matrix:
         package: ['wheel', 'sdist', 'archive', 'editable']
-    env:
-      DOWNLOAD_DIR: ${{ github.workspace }}/test_data
     steps:
       - name: Download sdist and wheel artifacts
         if: matrix.package != 'archive'
@@ -68,7 +66,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: 3
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Update pip
@@ -92,14 +90,19 @@ jobs:
           UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
           UCSF_BOX_USER: ${{ secrets.UCSF_BOX_USER }}
           WEBSITE: ftps://ftp.box.com/spikegadgets_to_nwb_test_data/
+          DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
         run: |
           wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR $WEBSITE
           tree $DOWNLOAD_DIR
       - name: Run tests without coverage
         if: matrix.package != 'editable'
+        env:
+          DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
         run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
       - name: Run tests with coverage
         if: matrix.package == 'editable'
+        env:
+          DOWNLOAD_DIR: ${{ github.workspace }}/src/spikegadgets_to_nwb/tests/test_data
         run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs spikegadgets_to_nwb
       - name: Upload coverage reports to Codecov
         if: matrix.package == 'editable'

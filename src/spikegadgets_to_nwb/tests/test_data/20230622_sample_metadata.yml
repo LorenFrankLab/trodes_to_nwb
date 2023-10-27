@@ -62,11 +62,20 @@ associated_files:
     path: path/
     task_epochs: 2
 associated_video_files:
-  - name: 20230622_sample_01_a1.1.h264
+  - name: video1
     camera_id: 0
     task_epochs: 1
-  - name: 20230622_sample_02_a1.1.h264
+  - name: video3
     camera_id: 0
+    task_epochs: 3
+  - name: video5
+    camera_id: 0
+    task_epochs: 5
+  - name: video2
+    camera_id: 1
+    task_epochs: 2
+  - name: video4
+    camera_id: 1
     task_epochs: 2
 units:
   analog: "-1"

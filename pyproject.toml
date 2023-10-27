@@ -10,9 +10,8 @@ requires-python = ">=3.8"
 license = { file = "LICENSE" }
 authors = [
     { name = "Sam Bray", email = "sam.bray@ucsf.edu" },
-    { name = "Eric Denovellis", email = "eric.denovellis@ucsf.edu" },
     { name = "Ryan Ly", email = "rly@lbl.gov" },
-    { name = "Philip Adenekan", email = "phil.adenekan@ucsf.edu" },
+    { name = "Eric Denovellis", email = "eric.denovellis@ucsf.edu" },
     { name = "Loren Frank", email = "loren.frank@ucsf.edu" },
 ]
 classifiers = [

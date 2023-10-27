@@ -1,19 +1,30 @@
 import os
+
 import pynwb
 
 from spikegadgets_to_nwb import convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_analog import add_analog_data, get_analog_channel_names
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.tests.utils import data_path
+
+path = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_add_analog_data():
     # load metadata yml and make nwb file
-    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    rec_file = data_path / "20230622_sample_01_a1.rec"
-    rec_to_nwb_file = data_path / "20230622_155936.nwb"  # comparison file
-    rec_header = convert_rec_header.read_header(rec_file)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+
+    try:
+        # running on github
+        rec_file = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        rec_header = convert_rec_header.read_header(rec_file)
+        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.nwb"
+    except:
+        # running locally
+        rec_file = path + "/test_data/20230622_sample_01_a1.rec"
+        rec_header = convert_rec_header.read_header(rec_file)
+        rec_to_nwb_file = path + "/test_data/20230622_155936.nwb"
     # make file with data
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
     analog_channel_names = get_analog_channel_names(rec_header)

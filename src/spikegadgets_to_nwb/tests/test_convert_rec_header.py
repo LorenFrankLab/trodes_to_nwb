@@ -5,7 +5,8 @@ import pytest
 from ndx_franklab_novela import HeaderDevice
 
 from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
-from spikegadgets_to_nwb.tests.utils import data_path
+
+path = os.path.dirname(os.path.abspath(__file__))
 
 
 def default_test_xml_tree() -> ElementTree:
@@ -16,23 +17,39 @@ def default_test_xml_tree() -> ElementTree:
     ElementTree
         root xml tree for intial nwb generation
     """
-    trodesconf_file = data_path / "20230622_sample_01_a1.rec"
-    # "reconfig_probeDevice.trodesconf"
-    rec_header = convert_rec_header.read_header(trodesconf_file)
+    try:
+        # running on github
+        trodesconf_file = (
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
+    except:
+        # running locally
+        trodesconf_file = (
+            path + "/test_data/20230622_sample_01_a1.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
     return rec_header
 
 
 def test_add_header_device():
     # Set up test data
-    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
-    recfile = data_path / "20230622_sample_01_a1.rec"
-
     # Call the function to be tested
-    convert_rec_header.add_header_device(
-        nwbfile, convert_rec_header.read_header(recfile)
-    )
+    try:
+        # running on github
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        convert_rec_header.add_header_device(
+            nwbfile, convert_rec_header.read_header(recfile)
+        )
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
+        convert_rec_header.add_header_device(
+            nwbfile, convert_rec_header.read_header(recfile)
+        )
 
     # Perform assertions to check the results
     # Check if the device was added correctly
@@ -63,7 +80,7 @@ def test_add_header_device():
     assert header_device.file_path == ""
 
     # Check if error raised if improper header file is passed
-    recfile = data_path / "bad_header.trodesconf"
+    recfile = path + "/test_data/bad_header.trodesconf"
     with pytest.raises(
         ValueError,
         match="SpikeGadgets: the xml header does not contain '</Configuration>'",
@@ -78,9 +95,14 @@ def test_detect_ptp():
 
 def test_validate_yaml_header_electrode_map():
     # get metadata and rec_header
-    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    recfile = data_path / "20230622_sample_01_a1.rec"
+    try:
+        # running on github
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
     rec_header = convert_rec_header.read_header(recfile)
 
     # correct matching

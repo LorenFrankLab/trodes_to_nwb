@@ -1,27 +1,38 @@
-import numpy as np
 import os
-from pathlib import Path
+
+import numpy as np
 import pynwb
 
 from spikegadgets_to_nwb import convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
+path = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_add_raw_ephys_single_rec():
     # load metadata yml and make nwb file
-    metadata_path = data_path / "20230622_sample_metadata.yml"
-    probe_metadata = [data_path / "tetrode_12.5.yml"]
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+    probe_metadata = [
+        path + "/test_data/tetrode_12.5.yml",
+    ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
-    trodesconf_file = data_path / "20230622_sample_01_a1.rec"
-    # "reconfig_probeDevice.trodesconf"
-    rec_header = convert_rec_header.read_header(trodesconf_file)
+    try:
+        # running on github
+        trodesconf_file = (
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
+    except:
+        # running locally
+        trodesconf_file = (
+            path + "/test_data/20230622_sample_01_a1.rec"
+        )  # "/test_data/reconfig_probeDevice.trodesconf"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
 
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
@@ -34,14 +45,22 @@ def test_add_raw_ephys_single_rec():
         nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
 
-    recfile = [data_path / "20230622_sample_01_a1.rec"]
-    rec_to_nwb_file = data_path / "20230622_155936.nwb"  # comparison file
+    try:
+        # running on github
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/20230622_155936.nwb"
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
+        rec_to_nwb_file = path + "/test_data/20230622_155936.nwb"
 
     map_row_ephys_data_to_row_electrodes_table = list(range(len(nwbfile.electrodes)))
 
     add_raw_ephys(
         nwbfile,
-        recfile,
+        [
+            recfile,
+        ],
         map_row_ephys_data_to_row_electrodes_table,
     )
 
@@ -90,13 +109,15 @@ def test_add_raw_ephys_single_rec():
 
 def test_add_raw_ephys_single_rec_probe_configuration():
     # load metadata yml and make nwb file
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+    metadata_path = path + "/test_data/20230622_sample_metadataProbeReconfig.yml"
+    probe_metadata = [
+        path + "/test_data/128c-4s6mm6cm-15um-26um-sl.yml",
+    ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
+    trodesconf_file = path + "/test_data/reconfig_probeDevice.trodesconf"
     rec_header = convert_rec_header.read_header(trodesconf_file)
 
     hw_channel_map = convert_rec_header.make_hw_channel_map(
@@ -110,16 +131,24 @@ def test_add_raw_ephys_single_rec_probe_configuration():
         nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
 
-    recfile = [data_path / "20230622_sample_01_a1.rec"]
-    rec_to_nwb_file = (
-        data_path / "probe_reconfig_20230622_155936.nwb"
-    )  # comparison file
+    try:
+        # running on github
+        recfile = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        rec_to_nwb_file = (
+            os.environ.get("DOWNLOAD_DIR") + "/probe_reconfig_20230622_155936.nwb"
+        )
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = path + "/test_data/20230622_sample_01_a1.rec"
+        rec_to_nwb_file = path + "/test_data/probe_reconfig_20230622_155936.nwb"
 
     map_row_ephys_data_to_row_electrodes_table = list(range(len(nwbfile.electrodes)))
 
     add_raw_ephys(
         nwbfile,
-        recfile,
+        [
+            recfile,
+        ],
         map_row_ephys_data_to_row_electrodes_table,
     )
 
@@ -169,14 +198,22 @@ def test_add_raw_ephys_single_rec_probe_configuration():
 
 def test_add_raw_ephys_two_epoch():
     # load metadata yml and make nwb file
-    metadata_path = data_path / "20230622_sample_metadata.yml"
-    probe_metadata = [data_path / "tetrode_12.5.yml"]
+    metadata_path = path + "/test_data/20230622_sample_metadata.yml"
+    probe_metadata = [
+        path + "/test_data/tetrode_12.5.yml",
+    ]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
-    trodesconf_file = data_path / "20230622_sample_01_a1.rec"
-    rec_header = convert_rec_header.read_header(trodesconf_file)
+    try:
+        # running on github
+        trodesconf_file = os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
+    except:
+        # running locally
+        trodesconf_file = path + "/test_data/20230622_sample_01_a1.rec"
+        rec_header = convert_rec_header.read_header(trodesconf_file)
 
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
@@ -189,12 +226,20 @@ def test_add_raw_ephys_two_epoch():
         nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
 
-    recfile = [
-        data_path / "20230622_sample_01_a1.rec",
-        data_path / "20230622_sample_02_a1.rec",
-    ]
-    rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
-
+    try:
+        # running on github
+        recfile = [
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_01_a1.rec",
+            os.environ.get("DOWNLOAD_DIR") + "/20230622_sample_02_a1.rec",
+        ]
+        rec_to_nwb_file = os.environ.get("DOWNLOAD_DIR") + "/minirec20230622_.nwb"
+    except (TypeError, FileNotFoundError):
+        # running locally
+        recfile = [
+            path + "/test_data/20230622_sample_01_a1.rec",
+            path + "/test_data/20230622_sample_02_a1.rec",
+        ]
+        rec_to_nwb_file = path + "/test_data/minirec20230622_.nwb"
     map_row_ephys_data_to_row_electrodes_table = list(range(len(nwbfile.electrodes)))
 
     add_raw_ephys(

@@ -15,9 +15,8 @@ dependencies:
 - pytest-cov
 - pip
 - pyyaml
-- jsonschema
 - ffmpeg
 - pip:
     - ndx-franklab-novela
     - neo
-    - hdmf==3.8.1
+    - hdmf=3.8.1

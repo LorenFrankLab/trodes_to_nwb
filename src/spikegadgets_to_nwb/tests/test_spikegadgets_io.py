@@ -1,13 +1,23 @@
+import os
+from pathlib import Path
+
 import numpy as np
 
 from spikegadgets_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
-from spikegadgets_to_nwb.tests.utils import data_path
+
+path = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_spikegadgets_raw_io_interpolation():
     # Interpolation of dropped timestamp only done for ephys data and systime
 
     # get the path to the rec file
+    try:
+        # running on github
+        data_path = Path(os.environ.get("DOWNLOAD_DIR"))
+    except (TypeError, FileNotFoundError):
+        # running locally
+        data_path = Path(path + "/test_data")
     rec_file = data_path / "20230622_sample_01_a1.rec"
 
     # create the SpikeGadgetsRawIO object
