@@ -70,26 +70,24 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
             prefix = "ECU_"
             break
 
-    for channel_name in channel_name_map:
-        # merge streams from multiple files
-        all_timestamps = []
-        all_state_changes = []
-        for io in neo_io:
+    # compile data for all dio channels in all files
+    all_timestamps = [np.array([], dtype=np.float64) for i in channel_name_map]
+    all_state_changes = [np.array([], dtype=np.float64) for i in channel_name_map]
+    for io in neo_io:
+        for i, channel_name in enumerate(channel_name_map):
             timestamps, state_changes = io.get_digitalsignal(
                 stream_name, prefix + channel_name
             )
-            all_timestamps.append(timestamps)
-            all_state_changes.append(state_changes)
-        all_timestamps = np.concatenate(all_timestamps)
-        all_state_changes = np.concatenate(all_state_changes)
-        assert isinstance(all_timestamps[0], np.float64)
-        assert isinstance(all_timestamps, np.ndarray)
+            all_timestamps[i] = np.concatenate((all_timestamps[i], timestamps))
+            all_state_changes[i] = np.concatenate((all_state_changes[i], state_changes))
+    # Add each channel as a behavioral event time series
+    for i, channel_name in enumerate(channel_name_map):
         ts = TimeSeries(
             name=channel_name_map[channel_name],
             description=channel_name,
-            data=all_state_changes,
+            data=all_state_changes[i],
             unit="-1",  # TODO change to "N/A",
-            timestamps=all_timestamps,  # TODO adjust timestamps
+            timestamps=all_timestamps[i],  # TODO adjust timestamps
         )
         beh_events.add_timeseries(ts)
 

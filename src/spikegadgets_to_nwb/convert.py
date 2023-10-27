@@ -10,9 +10,13 @@ from spikegadgets_to_nwb.convert_analog import add_analog_data
 from spikegadgets_to_nwb.convert_dios import add_dios
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
-from spikegadgets_to_nwb.convert_position import add_position
+from spikegadgets_to_nwb.convert_position import (
+    add_associated_video_files,
+    add_position,
+)
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
+    detect_ptp_from_header,
     make_hw_channel_map,
     make_ref_electrode_map,
     read_header,
@@ -105,7 +109,34 @@ def create_nwbs(
     video_directory: str = "",
     convert_video: bool = False,
     n_workers: int = 1,
+    query_expression: str | None = None,
 ):
+    """
+    Convert SpikeGadgets data to NWB format.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the SpikeGadgets data file.
+    header_reconfig_path : Path, optional
+        Path to the header reconfiguration file, by default None.
+    probe_metadata_paths : list[Path], optional
+        List of paths to the probe metadata files, by default None.
+    output_dir : str, optional
+        Output directory for the NWB files, by default "/home/stelmo/nwb/raw".
+    video_directory : str, optional
+        Directory containing the video files, by default "".
+    convert_video : bool, optional
+        Whether to convert the video files, by default False.
+    n_workers : int, optional
+        Number of workers to use for parallel processing, by default 1.
+    query_expression : str, optional
+        Pandas query expression to filter the data, by default None.
+        e.g. "animal == 'sample' and epoch == 1"
+        See https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html.
+
+    """
+
     if not isinstance(path, Path):
         path = Path(path)
 
@@ -114,6 +145,9 @@ def create_nwbs(
         probe_metadata_paths = get_included_probe_metadata_paths()
 
     file_info = get_file_info(path)
+
+    if query_expression is not None:
+        file_info = file_info.query(query_expression)
 
     if n_workers > 1:
 
@@ -225,6 +259,9 @@ def _create_nwb(
         nwb_file, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
     add_header_device(nwb_file, rec_header)
+    add_associated_video_files(
+        nwb_file, metadata, session_df, video_directory, convert_video
+    )
 
     logger.info("ADDING EPHYS DATA")
     ### add rec file data ###
@@ -243,26 +280,32 @@ def _create_nwb(
     add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
     logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
-    logger.info("ADDING POSITION")
-    ### add position ###
-    add_position(
-        nwb_file,
-        metadata,
-        session_df,
-        rec_header,
-        video_directory=video_directory,
-        convert_video=convert_video,
-    )
-
-    # add epochs
     logger.info("ADDING EPOCHS")
     add_epochs(
         nwbfile=nwb_file,
-        file_info=session_df,
-        date=session[0],
-        animal=session[1],
+        session_df=session_df,
         neo_io=rec_dci.neo_io,
     )
+    logger.info("ADDING POSITION")
+    ### add position ###
+    ptp_enabled = detect_ptp_from_header(rec_header)
+    if ptp_enabled:
+        add_position(
+            nwb_file,
+            metadata,
+            session_df,
+        )
+    else:
+        add_position(
+            nwb_file,
+            metadata,
+            session_df,
+            ptp_enabled=ptp_enabled,
+            rec_dci_timestamps=rec_dci_timestamps,
+            sample_count=nwb_file.processing["sample_count"]
+            .data_interfaces["sample_count"]
+            .data,
+        )
 
     # write file
     logger.info(f"WRITING: {output_dir}/{session[1]}{session[0]}.nwb")
