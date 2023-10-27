@@ -13,7 +13,6 @@ from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     add_associated_video_files,
-    find_camera_dio_channel,
 )
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,

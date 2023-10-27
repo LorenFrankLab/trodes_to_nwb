@@ -3,7 +3,6 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from xml.etree import ElementTree
 
 import numpy as np
 import pandas as pd
