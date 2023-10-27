@@ -6,15 +6,15 @@ import pynwb
 from spikegadgets_to_nwb import convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.convert_ephys import add_raw_ephys
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
+from spikegadgets_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
 
 
 def test_add_raw_ephys_single_rec():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
-    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
@@ -90,13 +90,13 @@ def test_add_raw_ephys_single_rec():
 
 def test_add_raw_ephys_single_rec_probe_configuration():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata = [yaml_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
+    probe_metadata = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
     # create the hw_channel map using the reconfig header
-    trodesconf_file = yaml_path / "reconfig_probeDevice.trodesconf"
+    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
     rec_header = convert_rec_header.read_header(trodesconf_file)
 
     hw_channel_map = convert_rec_header.make_hw_channel_map(
@@ -169,8 +169,8 @@ def test_add_raw_ephys_single_rec_probe_configuration():
 
 def test_add_raw_ephys_two_epoch():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
-    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 

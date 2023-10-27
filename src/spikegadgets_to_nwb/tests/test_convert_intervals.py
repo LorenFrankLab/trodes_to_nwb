@@ -8,11 +8,11 @@ from spikegadgets_to_nwb.convert_yaml import initialize_nwb, load_metadata
 from spikegadgets_to_nwb.data_scanner import get_file_info
 from spikegadgets_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
+from spikegadgets_to_nwb.tests.utils import data_path
 
 
 def test_add_epochs():
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = load_metadata(metadata_path, [])
     nwbfile = initialize_nwb(metadata, default_test_xml_tree())
     file_info = get_file_info(data_path)
@@ -41,7 +41,7 @@ def test_add_epochs():
 
 
 def test_add_sample_count():
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = load_metadata(metadata_path, [])
     nwbfile = initialize_nwb(metadata, default_test_xml_tree())
     recfile = [

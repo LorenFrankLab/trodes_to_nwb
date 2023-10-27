@@ -11,13 +11,13 @@ from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from spikegadgets_to_nwb.data_scanner import get_file_info
 from spikegadgets_to_nwb.convert_position import add_associated_video_files
-from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
+from spikegadgets_to_nwb.tests.utils import data_path
 
 from ndx_franklab_novela import CameraDevice
 
 
 def test_initial_nwb_creation():
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # check that things were added in
@@ -38,7 +38,7 @@ def test_initial_nwb_creation():
 
 
 def test_subject_creation():
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_subject(nwb_file, metadata)
@@ -54,7 +54,7 @@ def test_subject_creation():
 
 
 def test_camera_creation():
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_cameras(nwb_file, metadata)
@@ -68,7 +68,7 @@ def test_camera_creation():
 
 
 def test_acq_device_creation():
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwb_file = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
@@ -82,8 +82,8 @@ def test_acq_device_creation():
 
 def test_electrode_creation():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
-    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
@@ -153,8 +153,8 @@ def test_electrode_creation():
 
 def test_electrode_creation_reconfigured():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata = [yaml_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
+    probe_metadata = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
@@ -163,7 +163,7 @@ def test_electrode_creation_reconfigured():
     metadata["ntrode_electrode_group_channel_map"][-1]["map"]["31"] = 126
 
     # create the hw_channel map using the reconfig header
-    trodesconf_file = yaml_path / "reconfig_probeDevice.trodesconf"
+    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
     rec_header = convert_rec_header.read_header(trodesconf_file)
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
@@ -230,7 +230,7 @@ def test_electrode_creation_reconfigured():
 
 def test_add_tasks():
     # Set up test data
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
@@ -284,12 +284,12 @@ def test_add_associated_files(capsys):
     # Create a logger
     logger = convert.setup_logger("convert", "testing.log")
     # Set up test data
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     # Change path of files to be relative to this directory
     for assoc_meta in metadata["associated_files"]:
-        assoc_meta["path"] = str(yaml_path / assoc_meta["name"])
+        assoc_meta["path"] = str(data_path / assoc_meta["name"])
     # call the function to test
     convert_yaml.add_associated_files(nwbfile, metadata)
     assert "associated_files" in nwbfile.processing
@@ -329,7 +329,7 @@ def test_add_associated_files(capsys):
 
 def test_add_associated_video_files():
     # Set up test data
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
+    metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
     convert_yaml.add_cameras(nwbfile, metadata)

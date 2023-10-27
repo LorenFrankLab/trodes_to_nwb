@@ -6,7 +6,7 @@ import shutil
 
 from spikegadgets_to_nwb.convert import _create_nwb, get_included_probe_metadata_paths
 from spikegadgets_to_nwb.data_scanner import get_file_info
-from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
+from spikegadgets_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
 
@@ -46,7 +46,7 @@ def test_get_included_probe_metadat_paths():
 
 
 def test_convert():
-    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
     # make session_df
     path_df = get_file_info(data_path)
     # exclude the reconfig yaml file

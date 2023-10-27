@@ -5,13 +5,13 @@ import pynwb
 from spikegadgets_to_nwb import convert_yaml
 from spikegadgets_to_nwb.convert_dios import add_dios
 from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.tests.utils import yaml_path, data_path
+from spikegadgets_to_nwb.tests.utils import data_path
 
 
 def test_add_dios_single_rec():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
-    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
     metadata, _ = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
@@ -61,8 +61,8 @@ def test_add_dios_single_rec():
 
 def test_add_dios_two_epoch():
     # load metadata yml and make nwb file
-    metadata_path = yaml_path / "20230622_sample_metadata.yml"
-    probe_metadata = [yaml_path / "tetrode_12.5.yml"]
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
     metadata, _ = convert_yaml.load_metadata(metadata_path, probe_metadata)
     nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
 
