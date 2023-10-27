@@ -767,14 +767,7 @@ def add_position(
                         timestamps=np.asarray(position_df.index),
                     )
         else:
-            position.create_spatial_series(
-                name=f"series_{epoch}",
-                description=", ".join(["xloc", "yloc"]),
-                data=np.asarray([]),
-                conversion=meters_per_pixel,
-                reference_frame="Upper left corner of video frame",
-                timestamps=np.asarray(position_df.index),
-            )
+            logging.warning(f"No position tracking data found for epoch {epoch}")
 
         # add the video frame index as a new processing module
         if "position_frame_index" not in nwb_file.processing:
