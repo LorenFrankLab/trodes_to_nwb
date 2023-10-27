@@ -94,6 +94,7 @@ def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:
         # notes=self.link_to_notes, TODO
         experiment_description=metadata["experiment_description"],
         source_script="spikegadgets_to_nwb " + __version__,
+        source_script_file_name="convert.py",
     )
     return nwbfile
 
