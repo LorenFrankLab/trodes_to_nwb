@@ -1,4 +1,3 @@
-from warnings import warn
 from xml.etree import ElementTree
 
 import numpy as np
