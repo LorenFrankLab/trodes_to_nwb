@@ -11,8 +11,8 @@ from spikegadgets_to_nwb.convert_dios import add_dios
 from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
 from spikegadgets_to_nwb.convert_position import (
-    add_position,
     add_associated_video_files,
+    add_position,
 )
 from spikegadgets_to_nwb.convert_rec_header import (
     add_header_device,
