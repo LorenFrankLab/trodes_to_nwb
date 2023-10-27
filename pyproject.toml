@@ -28,7 +28,6 @@ dependencies = [
     "pyyaml",
     "neo",
     "dask[complete]",
-    "ffmpeg",
 ]
 dynamic = ["version"]
 
@@ -38,6 +37,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 test = ["black", "pytest", "pytest-cov"]
+convert_video = ["ffmpeg"]
 
 [tool.hatch.version]
 source = "vcs"
