@@ -13,7 +13,7 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _spike_channel_dtype,
 )
 from scipy.stats import linregress
-
+INT_16_CONVERSION = 256
 
 class SpikeGadgetsRawIO(BaseRawIO):
     extensions = ["rec"]
@@ -526,7 +526,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # read the data into int16
         data = (
             self._raw_memmap[:, data_offsets[:, 0]]
-            + self._raw_memmap[:, data_offsets[:, 0] + 1] * 256
+            + self._raw_memmap[:, data_offsets[:, 0] + 1] * INT_16_CONVERSION
         )
         # initialize the first row
         analog_multiplexed_data[0] = data[0]
