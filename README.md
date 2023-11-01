@@ -1,4 +1,5 @@
 # spikegadgets_to_nwb
+
 [![Tests](https://github.com/LorenFrankLab/spikegadgets_to_nwb/actions/workflows/test_package_build.yml/badge.svg)](https://github.com/LorenFrankLab/spikegadgets_to_nwb/actions/workflows/test_package_build.yml)
 [![codecov](https://codecov.io/gh/LorenFrankLab/spikegadgets_to_nwb/branch/main/graph/badge.svg?token=ZY6X3HSRHE)](https://codecov.io/gh/LorenFrankLab/spikegadgets_to_nwb)
 
