@@ -13,7 +13,9 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _spike_channel_dtype,
 )
 from scipy.stats import linregress
+
 INT_16_CONVERSION = 256
+
 
 class SpikeGadgetsRawIO(BaseRawIO):
     extensions = ["rec"]
