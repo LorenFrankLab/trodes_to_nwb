@@ -120,7 +120,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                     j += MAXIMUM_ITERATOR_SIZE
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators
-        logger.info("# iterators:", len(self.neo_io))
+        logger.info(f"# iterators: {len(self.neo_io)}")
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         if timestamps is not None:
             self.timestamps = timestamps
