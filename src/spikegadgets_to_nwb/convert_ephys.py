@@ -10,12 +10,13 @@ from pynwb.ecephys import ElectricalSeries
 
 from spikegadgets_to_nwb import convert_rec_header
 
-from .spike_gadgets_raw_io import SpikeGadgetsRawIO
+from .spike_gadgets_raw_io import SpikeGadgetsRawIO, SpikeGadgetsRawIOPartial
 
 MICROVOLTS_PER_VOLT = 1e6
 VOLTS_PER_MICROVOLT = 1e-6
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
+MAXIMUM_ITERATOR_SIZE = int(30000 * 60 * 30)  # 30 min of data at 30 kHz
 
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
@@ -83,6 +84,43 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
+        """split excessively large iterators into smaller ones
+        """
+        iterator_size = [neo_io._raw_memmap.shape[0] for neo_io in self.neo_io]
+        iterator_size.reverse()
+        for i, size in enumerate(
+            iterator_size
+        ):  # iterate backwards so can insert new iterators
+            if size > MAXIMUM_ITERATOR_SIZE:
+                # split into smaller iterators
+                sub_iterators = []
+                j = 0
+                previous_multiplex_state = None
+                iterator_loc = len(iterator_size) - i - 1
+                while j < size:
+                    sub_iterators.append(
+                        SpikeGadgetsRawIOPartial(
+                            self.neo_io[iterator_loc],
+                            start_index=j,
+                            stop_index=j + MAXIMUM_ITERATOR_SIZE,
+                            previous_multiplex_state=previous_multiplex_state,
+                        )
+                    )
+                    if self.n_multiplexed_channel > 0:
+                        partial_size = sub_iterators[-1]._raw_memmap.shape[0]
+                        previous_multiplex_state = sub_iterators[
+                            -1
+                        ].get_analogsignal_multiplexed_partial(
+                            i_start=partial_size - 10,
+                            i_stop=partial_size,
+                            padding=30000,
+                        )[
+                            -1
+                        ]
+                    j += MAXIMUM_ITERATOR_SIZE
+                self.neo_io.pop(iterator_loc)
+                self.neo_io[iterator_loc:iterator_loc] = sub_iterators
+        logger.info(f"# iterators: {len(self.neo_io)}")
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         if timestamps is not None:
             self.timestamps = timestamps
