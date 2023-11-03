@@ -1,4 +1,4 @@
-|Yaml Input|NWBfile Location|Description|Data Type| 
+|Yaml Input|NWBfile Location|Description|Data Type|
 | :---        |    :----:   |          ---: | ---:|
 | __General__ |
 | Experimenter Name| file.experimenter | |_tuple -> str_, Dandi format: lastName, firstName |
@@ -7,7 +7,7 @@
 | Experiment Description | file.experiment_description | |_str_|
 | Session Description | file.session_description | |_str_|
 | Session ID | file.session_id | |_str_|
-| Keywords | ????? | 
+| Keywords | ????? |
 |__Subject__|
 | Description | file.subject.description | Description of subject and where subject came from (e.g., breeder, if animal) |_str_|
 | Species | file.subject.species | |_str_|
@@ -56,7 +56,7 @@
 | Name |
 |__Electrode Groups__|
 | ID | Names the electrodeGroup (Name = str(id)) | typically a number| _str_
-| Location | ??? | 
+| Location | ??? |
 | Device Type | file.electrode_groups[Name].device_type | Used to match to probe yaml data|_str_|
 | Description | file.electrode_groups[Name].description ||_str_|
 | Targeted Location | file.electrode_groups[Name].location | Where device is implanted | _str_ |

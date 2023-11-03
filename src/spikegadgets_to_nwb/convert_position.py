@@ -3,7 +3,6 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from xml.etree import ElementTree
 
 import numpy as np
 import pandas as pd
@@ -768,14 +767,7 @@ def add_position(
                         timestamps=np.asarray(position_df.index),
                     )
         else:
-            position.create_spatial_series(
-                name=f"series_{epoch}",
-                description=", ".join(["xloc", "yloc"]),
-                data=np.asarray([]),
-                conversion=meters_per_pixel,
-                reference_frame="Upper left corner of video frame",
-                timestamps=np.asarray(position_df.index),
-            )
+            logging.warning(f"No position tracking data found for epoch {epoch}")
 
         # add the video frame index as a new processing module
         if "position_frame_index" not in nwb_file.processing:
@@ -834,7 +826,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
     """
     new_file_name = file.replace(".h264", ".mp4")
-    new_file_name = video_directory + new_file_name.split("/")[-1]
+    new_file_name = video_directory + "/" + new_file_name.split("/")[-1]
     logger = logging.getLogger("convert")
     if os.path.exists(new_file_name):
         return new_file_name
@@ -854,7 +846,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
 def copy_video_to_directory(file: str, video_directory: str) -> str:
     """Copies video file to video directory without conversion"""
-    new_file_name = video_directory + file.split("/")[-1]
+    new_file_name = video_directory + "/" + file.split("/")[-1]
     logger = logging.getLogger("convert")
     if os.path.exists(new_file_name):
         return new_file_name
