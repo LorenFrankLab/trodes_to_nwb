@@ -1,9 +1,10 @@
 import logging
 import os
 from pathlib import Path
+
+import nwbinspector
 import pandas as pd
 from dask.distributed import Client
-import nwbinspector
 from pynwb import NWBHDF5IO
 
 from spikegadgets_to_nwb.convert_analog import add_analog_data
@@ -309,22 +310,52 @@ def _create_nwb(
         )
 
     # write file
-    output_path = Path("{output_dir}/{session[1]}{session[0]}.nwb")
+    output_path = Path(f"{output_dir}/{session[1]}{session[0]}.nwb")
     logger.info(f"WRITING: {output_path}")
+    nwb_file.experimenter[0] = "Test"
     with NWBHDF5IO(output_path, "w") as io:
         io.write(nwb_file)
 
     # run NWB Inspector to validate file for best practices before upload to DANDI
-    _inspect_nwb(output_path)
+    logger.info("RUNNING NWB INSPECTOR")
+    _inspect_nwb(output_path, logger)
 
     logger.info("DONE")
 
     return output_path
 
 
-def _inspect_nwb(nwbfile_path: Path):
+def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
     """Run the resulting NWB file through the NWB Inspector to ensure it passes validation checks
     required for upload to the DANDI archive."""
-    messages = list(nwbinspector.inspect_nwbfile(path=nwbfile_path, config=nwbinspector.load_config("dandi")))
-    print("NWB Inspector output:")
-    print(messages)
+    # this may take some time
+    messages = list(nwbinspector.inspect_nwbfile(
+        nwbfile_path=nwbfile_path,
+        config=nwbinspector.load_config("dandi")
+    ))
+    logger.info("NWB Inspector output:")
+    logger.info(messages)
+    formatted_messages = nwbinspector.inspector_tools.format_messages(messages=messages)
+    report_file_path = nwbfile_path.parent / f"{nwbfile_path.stem}_nwbinspector_report.txt"
+    nwbinspector.inspector_tools.save_report(
+        report_file_path=report_file_path,
+        formatted_messages=formatted_messages,
+        overwrite=True,
+    )
+    logger.info(f"NWB Inspector report saved to {str(Path(report_file_path).absolute())}!")
+
+    flagged_error_levels = [
+        nwbinspector.Importance.ERROR,
+        nwbinspector.Importance.BEST_PRACTICE_VIOLATION,
+        nwbinspector.Importance.CRITICAL,
+        nwbinspector.Importance.BEST_PRACTICE_SUGGESTION,
+    ]
+    critical_errors = list(filter(lambda x: x.importance in flagged_error_levels, messages))
+    if critical_errors:
+        print("NWB Inspector found the following critical errors:")
+        formatted_critical_errors = nwbinspector.inspector_tools.format_messages(messages=critical_errors)
+        nwbinspector.inspector_tools.print_to_console(formatted_messages=formatted_critical_errors)
+    else:
+        print("NWB Inspector found no critical errors")
+
+    print(f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report")

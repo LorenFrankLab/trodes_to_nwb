@@ -169,3 +169,5 @@ _version.py
 *.h264
 *.rec
 *.stateScriptLog
+*.nwb
+*.pkl
