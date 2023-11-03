@@ -348,14 +348,25 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
         nwbinspector.Importance.ERROR,
         nwbinspector.Importance.BEST_PRACTICE_VIOLATION,
         nwbinspector.Importance.CRITICAL,
-        nwbinspector.Importance.BEST_PRACTICE_SUGGESTION,
     ]
     critical_errors = list(filter(lambda x: x.importance in flagged_error_levels, messages))
     if critical_errors:
-        print("NWB Inspector found the following critical errors:")
+        print(f"NWB Inspector found the following {len(critical_errors)} critical errors:")
         formatted_critical_errors = nwbinspector.inspector_tools.format_messages(messages=critical_errors)
         nwbinspector.inspector_tools.print_to_console(formatted_messages=formatted_critical_errors)
     else:
-        print("NWB Inspector found no critical errors")
+        print("NWB Inspector found 0 critical errors")
+
+    best_practice_violations = list(filter(
+        lambda x: x.importance == nwbinspector.Importance.BEST_PRACTICE_VIOLATION,
+        messages
+    ))
+    print(f"NWB Inspector found {len(best_practice_violations)} best practice violations")
+
+    best_practice_suggestions = list(filter(
+        lambda x: x.importance == nwbinspector.Importance.BEST_PRACTICE_SUGGESTION,
+        messages
+    ))
+    print(f"NWB Inspector found {len(best_practice_suggestions)} best practice suggestions")
 
     print(f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report")
