@@ -311,7 +311,6 @@ def _create_nwb(
     # write file
     output_path = Path(f"{output_dir}/{session[1]}{session[0]}.nwb")
     logger.info(f"WRITING: {output_path}")
-    nwb_file.experimenter[0] = "Test"
     with NWBHDF5IO(output_path, "w") as io:
         io.write(nwb_file)
 
