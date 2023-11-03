@@ -108,7 +108,10 @@ def test_convert_full_with_inspector_error(mocker):
     output_report_path = data_path / "sample20230622_nwbinspector_report.txt"
     assert os.path.isfile(output_report_path)
 
-    # TODO check that the error is in the report, or check that it is printed to stdout
+    with open(output_report_path) as f:
+        assert "Importance.CRITICAL: check_subject_exists" in f.read()
+
+    # TODO check that the error is printed to stdout
     # 0.0  Importance.CRITICAL: check_subject_exists - 'NWBFile' object at location '/'
     #    Message: Subject is missing.
 
