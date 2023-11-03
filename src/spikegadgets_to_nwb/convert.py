@@ -224,7 +224,6 @@ def _create_nwb(
     metadata_filepaths = _get_file_paths(session_df, ".yml")
     if len(metadata_filepaths) != 1:
         try:
-            print(metadata_filepaths)
             raise ValueError("There must be exactly one metadata file per session")
         except ValueError as e:
             logger.exception("ERROR:")
