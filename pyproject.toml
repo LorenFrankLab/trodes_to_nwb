@@ -38,7 +38,7 @@ dynamic = ["version"]
 "Bug Tracker" = "https://github.com/LorenFrankLab/spikegadgets_to_nwb/issues"
 
 [project.optional-dependencies]
-test = ["black", "pytest", "pytest-cov"]
+test = ["black", "pytest", "pytest-cov", "pytest-mock"]
 
 [tool.hatch.version]
 source = "vcs"
