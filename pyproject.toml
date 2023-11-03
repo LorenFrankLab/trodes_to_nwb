@@ -25,6 +25,7 @@ dependencies = [
     "scipy",
     "pandas",
     "pynwb",
+    "nwbinspector",
     "ndx_franklab_novela",
     "pyyaml",
     "neo",
