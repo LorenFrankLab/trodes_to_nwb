@@ -778,6 +778,7 @@ def add_position(
 
         except IndexError:
             position_tracking_filepath = None
+            position_timestamps_filepath = None
 
         logger.info(epoch)
         logger.info(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
