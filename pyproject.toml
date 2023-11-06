@@ -31,7 +31,6 @@ dependencies = [
     "neo",
     "dask[complete]",
     "ffmpeg",
-    "nwbinspector",
 ]
 dynamic = ["version"]
 
