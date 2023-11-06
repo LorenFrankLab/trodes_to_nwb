@@ -1,10 +1,11 @@
-import numpy as np
 import os
-from pathlib import Path
-from pynwb import NWBHDF5IO
 import shutil
+from pathlib import Path
 
-from spikegadgets_to_nwb.convert import _create_nwb, get_included_probe_metadata_paths
+import numpy as np
+from pynwb import NWBHDF5IO
+
+from spikegadgets_to_nwb.convert import create_nwbs, get_included_probe_metadata_paths
 from spikegadgets_to_nwb.data_scanner import get_file_info
 from spikegadgets_to_nwb.tests.utils import data_path
 
@@ -45,32 +46,25 @@ def test_get_included_probe_metadat_paths():
     assert [probe.exists() for probe in probes]
 
 
-def test_convert():
+def test_convert_full():
     probe_metadata = [data_path / "tetrode_12.5.yml"]
-    # make session_df
-    path_df = get_file_info(data_path)
-    # exclude the reconfig yaml file
-    path_df = path_df[
-        path_df.full_path
-        != str(data_path / "20230622_sample_metadataProbeReconfig.yml")
-    ]
-    session_df = path_df[(path_df.animal == "sample")]
-    assert len(session_df[session_df.file_extension == ".yml"]) == 1
-    # make temporary directory for video files
+
     video_directory = data_path / "temp_video_directory_full_convert"
     if not os.path.exists(video_directory):
         os.makedirs(video_directory)
 
-    _create_nwb(
-        session=("20230622", "sample", "1"),
-        session_df=session_df,
+    exclude_reconfig_yaml = str(data_path / "20230622_sample_metadataProbeReconfig.yml")
+    create_nwbs(
+        path=data_path,
         probe_metadata_paths=probe_metadata,
         output_dir=str(data_path),
-        video_directory=str(video_directory),
+        n_workers=1,
+        query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
     )
 
     output_file_path = data_path / "sample20230622.nwb"
     assert output_file_path.exists()
+
     rec_to_nwb_file = data_path / "minirec20230622_.nwb"
     with NWBHDF5IO(output_file_path) as io:
         nwbfile = io.read()
@@ -78,8 +72,52 @@ def test_convert():
             old_nwbfile = io2.read()
             # run nwb comparison
             compare_nwbfiles(nwbfile, old_nwbfile)
+
+    output_report_path = data_path / "sample20230622_nwbinspector_report.txt"
+    assert os.path.isfile(output_report_path)
+
     # cleanup
     os.remove(output_file_path)
+    os.remove(output_report_path)
+    shutil.rmtree(video_directory)
+
+
+def test_convert_full_with_inspector_error(mocker):
+    def do_nothing(nwbfile, metadata_dict):
+        pass
+
+    mocker.patch("spikegadgets_to_nwb.convert.add_subject", do_nothing)
+
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
+
+    video_directory = data_path / "temp_video_directory_full_convert"
+    if not os.path.exists(video_directory):
+        os.makedirs(video_directory)
+
+    exclude_reconfig_yaml = str(data_path / "20230622_sample_metadataProbeReconfig.yml")
+    create_nwbs(
+        path=data_path,
+        probe_metadata_paths=probe_metadata,
+        output_dir=str(data_path),
+        n_workers=1,
+        query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
+    )
+
+    output_file_path = data_path / "sample20230622.nwb"
+
+    output_report_path = data_path / "sample20230622_nwbinspector_report.txt"
+    assert os.path.isfile(output_report_path)
+
+    with open(output_report_path) as f:
+        assert "Importance.CRITICAL: check_subject_exists" in f.read()
+
+    # TODO check that the error is printed to stdout
+    # 0.0  Importance.CRITICAL: check_subject_exists - 'NWBFile' object at location '/'
+    #    Message: Subject is missing.
+
+    # cleanup
+    os.remove(output_file_path)
+    os.remove(output_report_path)
     shutil.rmtree(video_directory)
 
 

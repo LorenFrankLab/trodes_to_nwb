@@ -1,6 +1,5 @@
 name: spikegadgets_to_nwb
 channels:
-- defaults
 - conda-forge
 - franklab
 dependencies:
@@ -8,16 +7,17 @@ dependencies:
 - scipy
 - pandas
 - pynwb
+- nwbinspector
 - dask
 - ipython
 - black
 - pytest
 - pytest-cov
-- pip
+- pytest-mock
 - pyyaml
 - jsonschema
 - ffmpeg
+- pip
 - pip:
     - ndx-franklab-novela
     - neo
-    - hdmf==3.8.1
