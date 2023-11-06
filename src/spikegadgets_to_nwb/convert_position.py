@@ -31,7 +31,7 @@ def find_wrap_point(t):
     wrap_point = None
     rng = [0, len(t) - 1]
     while t[rng[1]] <= t[rng[0]]:
-        mid = int(np.mean(rng))
+        mid = np.mean(rng, dtype=int)
         if t[mid] <= t[rng[0]]:
             rng[1] = mid
         else:
@@ -58,7 +58,7 @@ def wrapped_digitize(
     Returns
     -------
     np.ndarray
-        digitized indeces
+        digitized indices
     """
     wrap_point = find_wrap_point(bins)
     if wrap_point is None:
