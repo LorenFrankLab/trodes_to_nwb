@@ -35,6 +35,8 @@ def test_wrapped_digitize():
     bins = np.array([4, 5, 6, 0, 1, 2])
     expected = np.array([0, 1, 2, 3, 4, 5])
     assert np.array_equal(wrapped_digitize(x, bins), expected)
+    # test case no wrapping
+    assert np.array_equal(wrapped_digitize(expected, expected), expected)
 
 
 def test_parse_dtype_standard():
