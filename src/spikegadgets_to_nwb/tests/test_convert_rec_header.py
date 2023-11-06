@@ -3,9 +3,9 @@ from xml.etree import ElementTree
 
 import pytest
 from ndx_franklab_novela import HeaderDevice
+from trodes_to_nwb.tests.utils import data_path
 
-from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
-from spikegadgets_to_nwb.tests.utils import data_path
+from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 
 
 def default_test_xml_tree() -> ElementTree:

@@ -4,9 +4,9 @@ import numpy as np
 import pynwb
 from hdmf.backends.hdf5 import H5DataIO
 from pynwb import NWBFile
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 
-from spikegadgets_to_nwb import convert_rec_header
-from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb import convert_rec_header
 
 
 def add_analog_data(

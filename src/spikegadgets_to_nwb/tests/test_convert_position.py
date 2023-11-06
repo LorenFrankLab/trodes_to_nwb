@@ -5,12 +5,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO, TimeSeries
-
-from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
-from spikegadgets_to_nwb.convert_dios import add_dios
-from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
-from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
-from spikegadgets_to_nwb.convert_position import (
+from trodes_to_nwb.convert_dios import add_dios
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
+from trodes_to_nwb.convert_position import (
     add_position,
     correct_timestamps_for_camera_to_mcu_lag,
     detect_repeat_timestamps,
@@ -26,8 +24,10 @@ from spikegadgets_to_nwb.convert_position import (
     remove_acquisition_timing_pause_non_ptp,
     wrapped_digitize,
 )
-from spikegadgets_to_nwb.data_scanner import get_file_info
-from spikegadgets_to_nwb.tests.utils import data_path
+from trodes_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.tests.utils import data_path
+
+from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 
 
 def test_wrapped_digitize():
@@ -293,7 +293,7 @@ def test_add_position():
     os.remove(filename)
 
 
-from spikegadgets_to_nwb.convert_position import read_trodes_datafile
+from trodes_to_nwb.convert_position import read_trodes_datafile
 
 
 def test_add_position_non_ptp():

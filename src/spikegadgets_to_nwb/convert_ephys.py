@@ -8,7 +8,7 @@ from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
-from spikegadgets_to_nwb import convert_rec_header
+from trodes_to_nwb import convert_rec_header
 
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO, SpikeGadgetsRawIOPartial
 

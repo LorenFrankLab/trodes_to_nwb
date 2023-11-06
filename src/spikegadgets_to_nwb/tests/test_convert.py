@@ -4,10 +4,9 @@ from pathlib import Path
 
 import numpy as np
 from pynwb import NWBHDF5IO
-
-from spikegadgets_to_nwb.convert import create_nwbs, get_included_probe_metadata_paths
-from spikegadgets_to_nwb.data_scanner import get_file_info
-from spikegadgets_to_nwb.tests.utils import data_path
+from trodes_to_nwb.convert import create_nwbs, get_included_probe_metadata_paths
+from trodes_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
 
@@ -86,7 +85,7 @@ def test_convert_full_with_inspector_error(mocker):
     def do_nothing(nwbfile, metadata_dict):
         pass
 
-    mocker.patch("spikegadgets_to_nwb.convert.add_subject", do_nothing)
+    mocker.patch("trodes_to_nwb.convert.add_subject", do_nothing)
 
     probe_metadata = [data_path / "tetrode_12.5.yml"]
 

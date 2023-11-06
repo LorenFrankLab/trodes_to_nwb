@@ -86,21 +86,21 @@ jobs:
         if: matrix.package == 'editable'
         run: pip install -e .
       - name: Install test extras
-        run: pip install spikegadgets_to_nwb[test]
+        run: pip install trodes_to_nwb[test]
       - name: Download test rec files
         env:
           UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
           UCSF_BOX_USER: ${{ secrets.UCSF_BOX_USER }}
-          WEBSITE: ftps://ftp.box.com/spikegadgets_to_nwb_test_data/
+          WEBSITE: ftps://ftp.box.com/trodes_to_nwb_test_data/
         run: |
           wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR $WEBSITE
           tree $DOWNLOAD_DIR
       - name: Run tests without coverage
         if: matrix.package != 'editable'
-        run: pytest --doctest-modules -v --pyargs spikegadgets_to_nwb
+        run: pytest --doctest-modules -v --pyargs trodes_to_nwb
       - name: Run tests with coverage
         if: matrix.package == 'editable'
-        run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs spikegadgets_to_nwb
+        run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
       - name: Upload coverage reports to Codecov
         if: matrix.package == 'editable'
         uses: codecov/codecov-action@v3

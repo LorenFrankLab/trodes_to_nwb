@@ -1,11 +1,12 @@
-import numpy as np
 import os
-import pynwb
 
-from spikegadgets_to_nwb import convert_yaml
-from spikegadgets_to_nwb.convert_dios import add_dios
-from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.tests.utils import data_path
+import numpy as np
+import pynwb
+from trodes_to_nwb.convert_dios import add_dios
+from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
+from trodes_to_nwb.tests.utils import data_path
+
+from trodes_to_nwb import convert_yaml
 
 
 def test_add_dios_single_rec():

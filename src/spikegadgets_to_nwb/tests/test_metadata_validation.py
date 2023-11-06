@@ -1,11 +1,10 @@
 import copy
 import datetime
 from unittest.mock import MagicMock, patch
-from spikegadgets_to_nwb.metadata_validation import (
-    validate,
-    _get_nwb_json_schema_path,
-)
-from spikegadgets_to_nwb.tests.test_data import test_metadata_dict_samples
+
+from trodes_to_nwb.metadata_validation import _get_nwb_json_schema_path, validate
+
+from trodes_to_nwb.tests.test_data import test_metadata_dict_samples
 
 
 def test_path_to_json_schema_is_correct():
@@ -15,7 +14,7 @@ def test_path_to_json_schema_is_correct():
     assert json_schema_file in path
 
 
-@patch("spikegadgets_to_nwb.metadata_validation._get_json_schema")
+@patch("trodes_to_nwb.metadata_validation._get_json_schema")
 @patch("jsonschema.Draft202012Validator")
 def test_verify_validation_called(jsonValidator, getSchema):
     basic_test_data = copy.deepcopy(test_metadata_dict_samples.basic_data)

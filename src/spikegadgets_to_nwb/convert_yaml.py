@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 
 import pandas as pd
 import pytz
+import trodes_to_nwb.metadata_validation
 import yaml
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
@@ -20,8 +21,7 @@ from pynwb import NWBFile
 from pynwb.ecephys import ElectrodeGroup
 from pynwb.file import ProcessingModule, Subject
 
-import spikegadgets_to_nwb.metadata_validation
-from spikegadgets_to_nwb import __version__
+from trodes_to_nwb import __version__
 
 
 def load_metadata(
@@ -47,7 +47,7 @@ def load_metadata(
     (
         is_metadata_valid,
         metadata_errors,
-    ) = spikegadgets_to_nwb.metadata_validation.validate(metadata)
+    ) = trodes_to_nwb.metadata_validation.validate(metadata)
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
         logger.exception("".join(metadata_errors))
@@ -93,7 +93,7 @@ def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:
         session_id=metadata["session_id"],
         # notes=self.link_to_notes, TODO
         experiment_description=metadata["experiment_description"],
-        source_script="spikegadgets_to_nwb " + __version__,
+        source_script="trodes_to_nwb " + __version__,
         source_script_file_name="convert.py",
     )
     return nwbfile

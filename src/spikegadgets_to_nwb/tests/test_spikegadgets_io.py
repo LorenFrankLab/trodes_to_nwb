@@ -1,7 +1,6 @@
 import numpy as np
-
-from spikegadgets_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
-from spikegadgets_to_nwb.tests.utils import data_path
+from trodes_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
+from trodes_to_nwb.tests.utils import data_path
 
 
 def test_spikegadgets_raw_io_interpolation():

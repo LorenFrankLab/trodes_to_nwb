@@ -1,19 +1,17 @@
-from datetime import datetime
 import logging
 import os
 import shutil
+from datetime import datetime
 
 from hdmf.common.table import DynamicTable, VectorData
-from ndx_franklab_novela import Probe, Shank, ShanksElectrode
+from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
+from trodes_to_nwb.convert_position import add_associated_video_files
+from trodes_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
+from trodes_to_nwb.tests.utils import data_path
 
-from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
-from spikegadgets_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from spikegadgets_to_nwb.data_scanner import get_file_info
-from spikegadgets_to_nwb.convert_position import add_associated_video_files
-from spikegadgets_to_nwb.tests.utils import data_path
-
-from ndx_franklab_novela import CameraDevice
+from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 
 
 def test_initial_nwb_creation():

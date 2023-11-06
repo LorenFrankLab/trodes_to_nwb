@@ -1,4 +1,4 @@
-name: spikegadgets_to_nwb
+name: trodes_to_nwb
 channels:
 - conda-forge
 - franklab

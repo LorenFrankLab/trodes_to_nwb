@@ -1,33 +1,32 @@
-import pytest
 import os
-from spikegadgets_to_nwb.metadata_validation import (
-    validate,
-)
-from spikegadgets_to_nwb.tests.test_data.test_metadata_dict_samples import (
+
+import pytest
+from trodes_to_nwb.metadata_validation import validate
+from trodes_to_nwb.tests.test_data.test_metadata_dict_samples import (
     basic_data,
     basic_data_with_optional_arrays,
-    empty_experimenter_name,
-    string_as_experimenter_name,
-    empty_lab,
-    empty_institution,
+    basic_ntrode_electrode_group_channel_map,
+    data_acq_device_with_no_values,
+    empty_data_acq_device,
+    empty_device_name,
     empty_experiment_description,
+    empty_experimenter_name,
+    empty_institution,
+    empty_keywords,
+    empty_lab,
     empty_session_description,
     empty_session_id,
-    empty_keywords,
+    empty_subject,
+    empty_units,
+    invalid_default_header_file_path,
+    invalid_raw_data_to_volts,
+    invalid_times_period_multiplier,
     keywords_array_with_empty_item,
     not_array_keywords,
-    empty_subject,
+    string_as_experimenter_name,
     subject_with_empty_values,
-    subject_with_invalid_sex,
     subject_with_invalid_date,
-    empty_data_acq_device,
-    data_acq_device_with_no_values,
-    empty_units,
-    invalid_times_period_multiplier,
-    invalid_raw_data_to_volts,
-    invalid_default_header_file_path,
-    empty_device_name,
-    basic_ntrode_electrode_group_channel_map,
+    subject_with_invalid_sex,
 )
 
 

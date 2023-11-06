@@ -6,16 +6,12 @@ import nwbinspector
 import pandas as pd
 from dask.distributed import Client
 from pynwb import NWBHDF5IO
-
-from spikegadgets_to_nwb.convert_analog import add_analog_data
-from spikegadgets_to_nwb.convert_dios import add_dios
-from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
-from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
-from spikegadgets_to_nwb.convert_position import (
-    add_associated_video_files,
-    add_position,
-)
-from spikegadgets_to_nwb.convert_rec_header import (
+from trodes_to_nwb.convert_analog import add_analog_data
+from trodes_to_nwb.convert_dios import add_dios
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
+from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
+from trodes_to_nwb.convert_position import add_associated_video_files, add_position
+from trodes_to_nwb.convert_rec_header import (
     add_header_device,
     detect_ptp_from_header,
     make_hw_channel_map,
@@ -23,7 +19,7 @@ from spikegadgets_to_nwb.convert_rec_header import (
     read_header,
     validate_yaml_header_electrode_map,
 )
-from spikegadgets_to_nwb.convert_yaml import (
+from trodes_to_nwb.convert_yaml import (
     add_acquisition_devices,
     add_associated_files,
     add_cameras,
@@ -33,7 +29,7 @@ from spikegadgets_to_nwb.convert_yaml import (
     initialize_nwb,
     load_metadata,
 )
-from spikegadgets_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.data_scanner import get_file_info
 
 
 def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:

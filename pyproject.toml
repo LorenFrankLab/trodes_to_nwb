@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "spikegadgets_to_nwb"
+name = "trodes_to_nwb"
 description = "A python package to convert SpikeGadgets data to NWB"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -35,8 +35,8 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-"Homepage" = "https://github.com/LorenFrankLab/spikegadgets_to_nwb"
-"Bug Tracker" = "https://github.com/LorenFrankLab/spikegadgets_to_nwb/issues"
+"Homepage" = "https://github.com/LorenFrankLab/trodes_to_nwb"
+"Bug Tracker" = "https://github.com/LorenFrankLab/trodes_to_nwb/issues"
 
 [project.optional-dependencies]
 test = ["black", "pytest", "pytest-cov", "pytest-mock"]
@@ -46,11 +46,11 @@ source = "vcs"
 fallback_version = "0.1.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/spikegadgets_to_nwb/_version.py"
+version-file = "src/trodes_to_nwb/_version.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [".git_archival.txt"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/spikegadgets_to_nwb"]
-exclude = ["src/spikegadgets_to_nwb/data/test_data"]
+packages = ["src/trodes_to_nwb"]
+exclude = ["src/trodes_to_nwb/data/test_data"]
