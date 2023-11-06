@@ -7,10 +7,9 @@ import pytest
 from pynwb import NWBHDF5IO, TimeSeries
 
 from spikegadgets_to_nwb import convert, convert_rec_header, convert_yaml
-from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
-from spikegadgets_to_nwb.convert_intervals import add_sample_count
 from spikegadgets_to_nwb.convert_dios import add_dios
-from spikegadgets_to_nwb.convert_intervals import add_epochs
+from spikegadgets_to_nwb.convert_ephys import RecFileDataChunkIterator
+from spikegadgets_to_nwb.convert_intervals import add_epochs, add_sample_count
 from spikegadgets_to_nwb.convert_position import (
     add_position,
     correct_timestamps_for_camera_to_mcu_lag,
@@ -19,15 +18,25 @@ from spikegadgets_to_nwb.convert_position import (
     estimate_camera_time_from_mcu_time,
     estimate_camera_to_mcu_lag,
     find_acquisition_timing_pause,
+    find_camera_dio_channel,
     find_large_frame_jumps,
     get_framerate,
     parse_dtype,
     read_trodes_datafile,
     remove_acquisition_timing_pause_non_ptp,
-    find_camera_dio_channel,
+    wrapped_digitize,
 )
 from spikegadgets_to_nwb.data_scanner import get_file_info
 from spikegadgets_to_nwb.tests.utils import data_path
+
+
+def test_wrapped_digitize():
+    x = np.array([4, 5, 6, 0, 1, 2])
+    bins = np.array([4, 5, 6, 0, 1, 2])
+    expected = np.array([0, 1, 2, 3, 4, 5])
+    assert np.array_equal(wrapped_digitize(x, bins), expected)
+    # test case no wrapping
+    assert np.array_equal(wrapped_digitize(expected, expected), expected)
 
 
 def test_parse_dtype_standard():

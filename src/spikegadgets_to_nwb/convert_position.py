@@ -15,6 +15,60 @@ from scipy.stats import linregress
 NANOSECONDS_PER_SECOND = 1e9
 
 
+def find_wrap_point(t):
+    """
+    Finds the point at which the timestamps wrap around due to overflow.
+    Returns None if no wrap point is found
+    Parameters
+    ----------
+    t : np.ndarray
+        Array of timestamps
+    Returns
+    -------
+    wrap_point : int
+        Index of the wrap point
+    """
+    wrap_point = None
+    rng = [0, len(t) - 1]
+    while t[rng[1]] <= t[rng[0]]:
+        mid = np.mean(rng, dtype=int)
+        if t[mid] <= t[rng[0]]:
+            rng[1] = mid
+        else:
+            rng[0] = mid
+        if rng[0] == rng[1]:
+            wrap_point = rng[0] + 1
+            break
+    return wrap_point
+
+
+def wrapped_digitize(
+    x,
+    bins,
+):
+    """Digitize a location with timestamps that wrap around due to overflow.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        indeces to digitize
+    bins : np.ndarray
+        bins to digitize into
+
+    Returns
+    -------
+    np.ndarray
+        digitized indices
+    """
+    wrap_point = find_wrap_point(bins)
+    if wrap_point is None:
+        return np.digitize(x, bins, right=True)
+    ind_first = np.digitize(x, bins[:wrap_point], right=True)
+    ind_second = np.digitize(x, bins[wrap_point:], right=True) + wrap_point
+    section = (x < bins[0]).astype(int)  # True if in the second section (post-wrap)
+    return ind_first * (1 - section) + ind_second * section
+
+
 def parse_dtype(fieldstr: str) -> np.dtype:
     """
     Parses the last fields parameter (<time uint32><...>) as a single string.
@@ -536,7 +590,7 @@ def get_position_timestamps(
         is_valid_camera_time = np.isin(video_timestamps.index, sample_count)
 
         camera_systime = rec_dci_timestamps[
-            np.digitize(video_timestamps.index[is_valid_camera_time], sample_count)
+            wrapped_digitize(video_timestamps.index[is_valid_camera_time], sample_count)
         ]
         (
             dio_camera_timestamps,
