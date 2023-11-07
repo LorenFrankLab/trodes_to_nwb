@@ -46,6 +46,8 @@ Developers should install from source.
 
     These files need to be named in the following format `{date}_{animal}_{epoch}_{tag}.{extension}` where date is in the `YYYYMMDD` format, epoch is an integer with zero padding (e.g. `02` and not `2`), and tag can be any handy short descriptor. For example, `20230622_randy_02_r1.rec` is the recording file for animal randy, second epoch, run 1 (r1) for June 22, 2023.
 
+    (*Note: By default, Trodes saves video-related files (`.h264`, `videoPositionTracking`, `cameraHWSync`) slightly different from this format as `{date}_{animal}_{epoch}_{tag}.{camera number}.{extension}`. This is accepted by this conversion package, and used to match camera to position tracking in epochs with mulitple cameras*)
+
 2. Create a metadata yaml file for each recording session. See this [example metadata yaml file](src/trodes_to_nwb/tests/test_data/20230622_sample_metadata.yml). We recommend using the [NWB YAML Creator](https://lorenfranklab.github.io/rec_to_nwb_yaml_creator/) to create the metadata yaml file in the correct format.
 
     The metadata yaml file should be named `{date}_{animal}.metadata.yml` where date is in the `YYYYMMDD` format and placed in the same directory as the `.rec` files.
