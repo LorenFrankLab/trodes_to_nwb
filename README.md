@@ -78,3 +78,5 @@ Developers should install from source.
     + `convert_video`: Converts the .h264 video file to .mp4. This requires `ffmpeg` to be installed on your system.
     + `n_workers`: Number of workers to use for parallel processing. Defaults to 1.
     + `query_expression`: A query expression to select which files to convert. For example, if you have several animals in your folder, you could write `"animal == 'sample'"` to select only the sample animal. Defaults to `None` which converts all files in the directory.
+
+    For complete example code of the conversion, see the [tutorial notebook](notebooks/conversion_tutorial.ipynb)
