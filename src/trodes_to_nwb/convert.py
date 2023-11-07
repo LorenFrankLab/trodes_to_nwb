@@ -6,6 +6,7 @@ import nwbinspector
 import pandas as pd
 from dask.distributed import Client
 from pynwb import NWBHDF5IO
+
 from trodes_to_nwb.convert_analog import add_analog_data
 from trodes_to_nwb.convert_dios import add_dios
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
@@ -102,7 +103,7 @@ def create_nwbs(
     path: Path,
     header_reconfig_path: Path | None = None,
     probe_metadata_paths: list[Path] | None = None,
-    output_dir: str = "/home/stelmo/nwb/raw",
+    output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
     n_workers: int = 1,
@@ -120,7 +121,7 @@ def create_nwbs(
     probe_metadata_paths : list[Path], optional
         List of paths to the probe metadata files, by default None.
     output_dir : str, optional
-        Output directory for the NWB files, by default "/home/stelmo/nwb/raw".
+        Output directory for the NWB files, by default "/stelmo/nwb/raw".
     video_directory : str, optional
         Directory containing the video files, by default "".
     convert_video : bool, optional
