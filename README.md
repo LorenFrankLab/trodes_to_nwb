@@ -67,7 +67,7 @@ Developers should install from source.
        |           |-- 20190718_beans_01_s1.1.videoTimeStamps.cameraHWSync
        |           |-- 20190718_beans_01_s1.rec
        |           |-- 20190718_beans_01_s1.stateScriptLog
-       |           `-- 20190718_beans.metadata.yml
+       |           `-- 20190718_beans_metadata.yml
        |
        `-- README.md
     ```
