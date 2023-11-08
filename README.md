@@ -52,6 +52,26 @@ Developers should install from source.
 
     The metadata yaml file should be named `{date}_{animal}.metadata.yml` where date is in the `YYYYMMDD` format and placed in the same directory as the `.rec` files.
 
+    Here is an example valid directory structure:
+
+    ```bash
+   `-- beans
+       |   |
+       |   `-- raw
+       |       |
+       |       `-- 20190718
+       |           |-- 20190718_beans_01_s1.1.h264
+       |           |-- 20190718_beans_01_s1.1.trackgeometry
+       |           |-- 20190718_beans_01_s1.1.videoPositionTracking
+       |           |-- 20190718_beans_01_s1.1.videoTimeStamps
+       |           |-- 20190718_beans_01_s1.1.videoTimeStamps.cameraHWSync
+       |           |-- 20190718_beans_01_s1.rec
+       |           |-- 20190718_beans_01_s1.stateScriptLog
+       |           `-- 20190718_beans_metadata.yml
+       |
+       `-- README.md
+    ```
+
 3. Run the code in python. This will create a NWB file for each `.rec` file in the output directory.
 
     ```python
@@ -59,7 +79,6 @@ Developers should install from source.
 
     path = "/path/to/your/data" # from step 1
     output_dir = "/path/to/your/output/directory"
-    reconfig
 
     create_nwbs(
         path,
@@ -70,6 +89,12 @@ Developers should install from source.
         n_workers=1,
         query_expression=None,
     )
+    ```
+
+    For the example directory structure above, the path would look like this:
+
+    ```python
+    path = "/path/to/your/data/beans/raw"
     ```
 
     Note the following optional arguments:
