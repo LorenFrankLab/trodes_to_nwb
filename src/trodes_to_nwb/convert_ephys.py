@@ -33,6 +33,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         **kwargs,
     ):
+        if not rec_file_path:
+            raise FileNotFoundError("Must provide at least one rec file path")
         logger = logging.getLogger("convert")
         self.conversion = conversion
         self.is_analog = is_analog
@@ -60,7 +62,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         self.stream_index = stream_index  # TODO confirm that the stream index is trodes
 
         # check that all files have the same number of channels.
-        assert (
+        if (
             len(
                 set(
                     [
@@ -69,8 +71,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                     ]
                 )
             )
-            == 1
-        )
+            > 1
+        ):
+            raise ValueError("All files must have the same number of signal channels.")
         self.n_channel = self.neo_io[0].signal_channels_count(
             stream_index=self.stream_index
         )
