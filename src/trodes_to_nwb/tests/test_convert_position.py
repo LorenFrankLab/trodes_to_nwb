@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO, TimeSeries
+
+from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_dios import add_dios
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
@@ -27,8 +29,6 @@ from trodes_to_nwb.convert_position import (
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.utils import data_path
 
-from trodes_to_nwb import convert, convert_rec_header, convert_yaml
-
 
 def test_wrapped_digitize():
     x = np.array([4, 5, 6, 0, 1, 2])
@@ -37,6 +37,9 @@ def test_wrapped_digitize():
     assert np.array_equal(wrapped_digitize(x, bins), expected)
     # test case no wrapping
     assert np.array_equal(wrapped_digitize(expected, expected), expected)
+    # test case multiple wraps, preserved uniqueness
+    x = np.array([7, 8, 9, 4, 5, 6, 0, 1, 2])
+    assert np.array_equal(wrapped_digitize(x, x), np.arange(9))
 
 
 def test_parse_dtype_standard():
