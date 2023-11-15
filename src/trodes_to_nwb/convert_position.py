@@ -63,8 +63,8 @@ def wrapped_digitize(
     wrap_point = find_wrap_point(bins)
     if wrap_point is None:
         return np.digitize(x, bins, right=True)
-    ind_first = np.digitize(x, bins[:wrap_point], right=True)
-    ind_second = np.digitize(x, bins[wrap_point:], right=True) + wrap_point
+    ind_first = wrapped_digitize(x, bins[:wrap_point])
+    ind_second = wrapped_digitize(x, bins[wrap_point:]) + wrap_point
     section = (x < bins[0]).astype(int)  # True if in the second section (post-wrap)
     return ind_first * (1 - section) + ind_second * section
 
