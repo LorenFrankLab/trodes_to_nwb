@@ -777,8 +777,8 @@ def add_position(
             ].full_path.to_list()[0]
 
         except IndexError:
-            position_tracking_filepath = None
-            position_timestamps_filepath = None
+            logging.warning(f"No position tracking data found for epoch {epoch}")
+            continue
 
         logger.info(epoch)
         logger.info(f"\tposition_timestamps_filepath: {position_timestamps_filepath}")
