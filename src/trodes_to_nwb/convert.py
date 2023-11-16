@@ -108,6 +108,7 @@ def create_nwbs(
     convert_video: bool = False,
     n_workers: int = 1,
     query_expression: str | None = None,
+    disable_ptp: bool = False,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -132,6 +133,8 @@ def create_nwbs(
         Pandas query expression to filter the data, by default None.
         e.g. "animal == 'sample' and epoch == 1"
         See https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html.
+    disable_ptp : bool, optional
+        Blocks use of ptp timestamps regardless of rec header, by default False.
 
     """
 
@@ -187,6 +190,7 @@ def create_nwbs(
                 output_dir,
                 video_directory,
                 convert_video,
+                disable_ptp,
             )
 
 
@@ -198,6 +202,7 @@ def _create_nwb(
     output_dir: str = "/home/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    disable_ptp: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
@@ -286,7 +291,10 @@ def _create_nwb(
     )
     logger.info("ADDING POSITION")
     ### add position ###
-    ptp_enabled = detect_ptp_from_header(rec_header)
+    if disable_ptp:
+        ptp_enabled = False
+    else:
+        ptp_enabled = detect_ptp_from_header(rec_header)
     if ptp_enabled:
         add_position(
             nwb_file,
