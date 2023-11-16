@@ -26,11 +26,16 @@ Developers should install from source.
 
 2. Install from source
 
-    ```bash
+    _Note: We currently reccomend using mamba as a package manager.  If using conda, please replace mamba with conda in the command below._
 
+    ```bash
     git clone https://github.com/LorenFrankLab/trodes_to_nwb.git
 
     cd trodes_to_nwb
+
+    mamba env create -f environment.yml
+
+    mamba activate trodes_to_nwb
 
     pip install -e .
     ```
