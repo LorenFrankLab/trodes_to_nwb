@@ -1,4 +1,5 @@
 import logging
+import datetime
 import os
 import re
 import subprocess
@@ -547,6 +548,12 @@ def get_position_timestamps(
         ptp_systime = np.asarray(video_timestamps.HWTimestamp)
         # Convert from integer nanoseconds to float seconds
         ptp_timestamps = pd.Index(ptp_systime / NANOSECONDS_PER_SECOND, name="time")
+        # Check that the PTP timestamps correspond to a time later than 2000, log a warning if not
+        if datetime.datetime.fromtimestamp(ptp_timestamps[0]).year < 2000:
+            logger.warning(
+                "PTP timestamps correspond to a time earlier than 2000. This may be due to a PTP clock reset."
+            )
+
         video_timestamps = video_timestamps.drop(
             columns=["HWframeCount", "HWTimestamp"]
         ).set_index(ptp_timestamps)
