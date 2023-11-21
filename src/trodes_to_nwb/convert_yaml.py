@@ -201,6 +201,10 @@ def add_electrode_groups(
             if test_meta["probe_type"] == egroup_metadata["device_type"]:
                 probe_meta = test_meta
                 break
+        if probe_meta is None:
+            raise FileNotFoundError(
+                f"No probe metadata found for {egroup_metadata['device_type']}"
+            )
         # Build the relevant Probe
         probe = Probe(
             id=egroup_metadata["id"],
