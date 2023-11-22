@@ -4,9 +4,9 @@ import numpy as np
 import pynwb
 from hdmf.backends.hdf5 import H5DataIO
 from pynwb import NWBFile
-from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 
 from trodes_to_nwb import convert_rec_header
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 
 
 def add_analog_data(
@@ -53,7 +53,7 @@ def add_analog_data(
     # by studies by the NWB team.
     # could also add compression here. zstd/blosc-zstd are recommended by the NWB team, but
     # they require the hdf5plugin library to be installed. gzip is available by default.
-    data_data_io = H5DataIO(rec_dci, chunks=(16384, min(rec_dci.n_channel, 32)))
+    data_data_io = H5DataIO(rec_dci, chunks=(16384, min(len(analog_channel_ids), 32)))
 
     # make the objects to add to the nwb file
     nwbfile.create_processing_module(
