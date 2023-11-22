@@ -216,7 +216,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         if (
             self.neo_io[0].header["signal_streams"][self.stream_index]["id"]
             == "ECU_analog"
-        ):
+        ) and self.is_analog:
             multiplex_keys = self.neo_io[0].multiplexed_channel_xml.keys()
             n_multiplex = len(multiplex_keys)
             n_analog = (
