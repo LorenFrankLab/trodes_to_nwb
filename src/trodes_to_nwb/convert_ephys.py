@@ -212,6 +212,34 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
 
         data = (np.concatenate(data) * self.conversion).astype("int16")
+        # Handle the appended multiplex data
+        if (
+            self.neo_io[0].header["signal_streams"][self.stream_index]["id"]
+            == "ECU_analog"
+        ):
+            multiplex_keys = self.neo_io[0].multiplexed_channel_xml.keys()
+            n_multiplex = len(multiplex_keys)
+            n_analog = (
+                self.n_channel
+            )  # number of non-multiplexed channels in the dataset
+            n_analog_selected = data.shape[1] - n_multiplex
+            return_indecies = np.arange(
+                n_analog_selected
+            )  # include all non-multiplexed channels pulled
+            # determine which multiplex channels are being requested
+            if (
+                selection[1].stop > n_analog
+            ):  # if multiplexed channels are being requested
+                requested_multiplex = np.arange(n_multiplex) + n_analog_selected
+                multiplex_slice = slice(
+                    selection[1].start - n_analog,
+                    selection[1].stop - n_analog,
+                    selection[1].step,
+                )
+                requested_multiplex = requested_multiplex[multiplex_slice]
+                return_indecies = np.append(return_indecies, requested_multiplex)
+            data = data[:, return_indecies]
+
         return data
 
     def _get_maxshape(self) -> Tuple[int, int]:
