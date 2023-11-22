@@ -232,8 +232,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             ):  # if multiplexed channels are being requested
                 requested_multiplex = np.arange(n_multiplex) + n_analog_selected
                 multiplex_slice = slice(
-                    selection[1].start - n_analog,
-                    selection[1].stop - n_analog,
+                    max(selection[1].start - n_analog, 0),
+                    max(selection[1].stop - n_analog, 0),
                     selection[1].step,
                 )
                 requested_multiplex = requested_multiplex[multiplex_slice]
