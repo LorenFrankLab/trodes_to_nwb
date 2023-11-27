@@ -223,7 +223,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 self.n_channel
             )  # number of non-multiplexed channels in the dataset
             n_analog_selected = data.shape[1] - n_multiplex
-            return_indecies = np.arange(
+            return_indices = np.arange(
                 n_analog_selected
             )  # include all non-multiplexed channels pulled
             # determine which multiplex channels are being requested
@@ -237,8 +237,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                     selection[1].step,
                 )
                 requested_multiplex = requested_multiplex[multiplex_slice]
-                return_indecies = np.append(return_indecies, requested_multiplex)
-            data = data[:, return_indecies]
+                return_indices = np.append(return_indices, requested_multiplex)
+            data = data[:, return_indices]
 
         return data
 
