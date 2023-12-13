@@ -18,7 +18,7 @@ subject:
   weight: 100
 data_acq_device:
   - name: SpikeGadgets
-    system: Main Control Unit
+    system: SpikeGadgets
     amplifier: Intan
     adc_circuit: Intan
 cameras:
