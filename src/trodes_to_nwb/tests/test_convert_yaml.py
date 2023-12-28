@@ -106,7 +106,12 @@ def test_electrode_creation():
     for i, group_metadata in enumerate(metadata["electrode_groups"]):
         group = nwbfile.electrode_groups[str(group_metadata["id"])]
         assert group.description == group_metadata["description"]
-        assert group.location == group_metadata["targeted_location"]
+        assert group.location == group_metadata["location"]
+        assert group.targeted_location == group_metadata["targeted_location"]
+        assert group.targeted_x == group_metadata["targeted_x"]
+        assert group.targeted_y == group_metadata["targeted_y"]
+        assert group.targeted_z == group_metadata["targeted_z"]
+        assert group.units == group_metadata["units"]
 
     # Check if the probes were added correctly
     assert len(nwbfile.devices) == len(metadata["electrode_groups"])
@@ -181,7 +186,12 @@ def test_electrode_creation_reconfigured():
     for i, group_metadata in enumerate(metadata["electrode_groups"]):
         group = nwbfile.electrode_groups[str(group_metadata["id"])]
         assert group.description == group_metadata["description"]
-        assert group.location == group_metadata["targeted_location"]
+        assert group.location == group_metadata["location"]
+        assert group.targeted_location == group_metadata["targeted_location"]
+        assert group.targeted_x == group_metadata["targeted_x"]
+        assert group.targeted_y == group_metadata["targeted_y"]
+        assert group.targeted_z == group_metadata["targeted_z"]
+        assert group.units == group_metadata["units"]
 
     # Check if the probes were added correctly
     assert len(nwbfile.devices) == len(metadata["electrode_groups"])
