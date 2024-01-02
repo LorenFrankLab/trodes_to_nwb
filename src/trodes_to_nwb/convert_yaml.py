@@ -6,7 +6,6 @@ from xml.etree import ElementTree
 
 import pandas as pd
 import pytz
-import trodes_to_nwb.metadata_validation
 import yaml
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
@@ -16,11 +15,12 @@ from ndx_franklab_novela import (
     Probe,
     Shank,
     ShanksElectrode,
+    NwbElectrodeGroup,
 )
 from pynwb import NWBFile
-from pynwb.ecephys import ElectrodeGroup
 from pynwb.file import ProcessingModule, Subject
 
+import trodes_to_nwb.metadata_validation
 from trodes_to_nwb import __version__
 
 
@@ -216,10 +216,15 @@ def add_electrode_groups(
             contact_size=probe_meta["contact_size"],
         )
         # make the electrode group with the probe (Do it here so have electrodeGroup object to reference when making electrodes)
-        e_group = ElectrodeGroup(
+        e_group = NwbElectrodeGroup(
             name=str(egroup_metadata["id"]),
             description=egroup_metadata["description"],
-            location=egroup_metadata["targeted_location"],
+            location=egroup_metadata["location"],
+            targeted_location=egroup_metadata["targeted_location"],
+            targeted_x=float(egroup_metadata["targeted_x"]),
+            targeted_y=float(egroup_metadata["targeted_y"]),
+            targeted_z=float(egroup_metadata["targeted_z"]),
+            units=egroup_metadata["units"],
             device=probe,
         )
         nwbfile.add_electrode_group(e_group)
