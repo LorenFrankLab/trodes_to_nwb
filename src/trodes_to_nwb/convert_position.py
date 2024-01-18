@@ -513,8 +513,8 @@ def get_position_timestamps(
 
     Returns
     -------
-    _type_
-        _description_
+    np.ndarray
+        timestamps for the position data
     """
     logger = logging.getLogger("convert")
 
