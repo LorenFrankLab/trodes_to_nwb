@@ -3,6 +3,7 @@ channels:
 - conda-forge
 - franklab
 dependencies:
+- jsonschema=4.19.2
 - numpy
 - scipy
 - pandas
@@ -15,7 +16,6 @@ dependencies:
 - pytest-cov
 - pytest-mock
 - pyyaml
-- jsonschema=4.19.2
 - ffmpeg
 - pip
 - pip:
