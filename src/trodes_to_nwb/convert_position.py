@@ -492,6 +492,30 @@ def get_position_timestamps(
     ptp_enabled: bool = True,
     epoch_interval: list[float] | None = None,
 ):
+    """Get the timestamps for a position data file. Includes protocol;s for both ptp and non-ptp data.
+
+    Parameters
+    ----------
+    position_timestamps_filepath : Path
+        path to the position timestamps file
+    position_tracking_filepath : _type_, optional
+        path to the position tracking file, by default None | Path
+    rec_dci_timestamps : _type_, optional
+        system clock times from the rec file used for non-ptp data, by default None | np.ndarray
+    dio_camera_timestamps : _type_, optional
+        Timestamps of the dio camera ticks used for non-ptp data, by default None | np.ndarray
+    sample_count : _type_, optional
+        trodes timestamps from the rec file used for non-ptp data, by default None | np.ndarray
+    ptp_enabled : bool, optional
+        whether ptp was enabled for position tracking, by default True
+    epoch_interval : list[float] | None, optional
+        the timeinterval for the epoch used for non-ptp data, by default None
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     logger = logging.getLogger("convert")
 
     # Get video timestamps
