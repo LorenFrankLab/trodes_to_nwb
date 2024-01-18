@@ -1,5 +1,5 @@
-import logging
 import datetime
+import logging
 import os
 import re
 import subprocess
@@ -490,6 +490,7 @@ def get_position_timestamps(
     dio_camera_timestamps=None | np.ndarray,
     sample_count=None | np.ndarray,
     ptp_enabled: bool = True,
+    epoch_interval: list[float] | None = None,
 ):
     logger = logging.getLogger("convert")
 
@@ -596,8 +597,15 @@ def get_position_timestamps(
 
         is_valid_camera_time = np.isin(video_timestamps.index, sample_count)
 
+        epoch_start_ind = np.digitize(epoch_interval[0], rec_dci_timestamps)
+        epoch_end_ind = np.digitize(epoch_interval[1], rec_dci_timestamps)
+
         camera_systime = rec_dci_timestamps[
-            wrapped_digitize(video_timestamps.index[is_valid_camera_time], sample_count)
+            wrapped_digitize(
+                video_timestamps.index[is_valid_camera_time],
+                sample_count[epoch_start_ind:epoch_end_ind],
+            )
+            + epoch_start_ind
         ]
         (
             dio_camera_timestamps,
@@ -808,6 +816,7 @@ def add_position(
             rec_dci_timestamps=rec_dci_timestamps,
             dio_camera_timestamps=dio_camera_timestamps_epoch,
             sample_count=sample_count,
+            epoch_interval=[epoch_start, epoch_end] if not ptp_enabled else None,
         )
 
         # TODO: Doesn't handle multiple cameras currently
