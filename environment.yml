@@ -15,7 +15,7 @@ dependencies:
 - pytest-cov
 - pytest-mock
 - pyyaml
-- jsonschema
+- jsonschema=4.19.2
 - ffmpeg
 - pip
 - pip:
