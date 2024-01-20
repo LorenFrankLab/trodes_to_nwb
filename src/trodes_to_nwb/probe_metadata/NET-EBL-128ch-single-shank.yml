@@ -1,0 +1,521 @@
+probe_type: NET-EBL-128ch-single-shank
+units: 'um'
+probe_description: 'NET Probe 128 channel'
+num_shanks: 1
+contact_side_numbering: true
+contact_size: 20.0
+shanks:
+  - shank_id: 0
+    electrodes:
+    - id: 0
+      rel_x: -21.4
+      rel_y: 349.45
+      rel_z: 0
+    - id: 1
+      rel_x: 0
+      rel_y: 1351.4
+      rel_z: 0
+    - id: 2
+      rel_x: 0
+      rel_y: 1165
+      rel_z: 0
+    - id: 3
+      rel_x: 0
+      rel_y: 1398
+      rel_z: 0
+    - id: 4
+      rel_x: 0
+      rel_y: 1071.8
+      rel_z: 0
+    - id: 5
+      rel_x: 0
+      rel_y: 1304.8
+      rel_z: 0
+    - id: 6
+      rel_x: 0
+      rel_y: 1491.2
+      rel_z: 0
+    - id: 7
+      rel_x: -21.4
+      rel_y: 302.85
+      rel_z: 0
+    - id: 8
+      rel_x: 0
+      rel_y: 1817.4
+      rel_z: 0
+    - id: 9
+      rel_x: 0
+      rel_y: 1118.4
+      rel_z: 0
+    - id: 10
+      rel_x: 0
+      rel_y: 1025.2
+      rel_z: 0
+    - id: 11
+      rel_x: 0
+      rel_y: 1910.6
+      rel_z: 0
+    - id: 12
+      rel_x: -21.4
+      rel_y: 23.25
+      rel_z: 0
+    - id: 13
+      rel_x: 0
+      rel_y: 1444.6
+      rel_z: 0
+    - id: 14
+      rel_x: -21.4
+      rel_y: 116.45
+      rel_z: 0
+    - id: 15
+      rel_x: 0
+      rel_y: 1864
+      rel_z: 0
+    - id: 16
+      rel_x: 0
+      rel_y: 978.6
+      rel_z: 0
+    - id: 17
+      rel_x: 0
+      rel_y: 1631
+      rel_z: 0
+    - id: 18
+      rel_x: -21.4
+      rel_y: 69.85
+      rel_z: 0
+    - id: 19
+      rel_x: 0
+      rel_y: 1770.8
+      rel_z: 0
+    - id: 20
+      rel_x: 0
+      rel_y: 1677.6
+      rel_z: 0
+    - id: 21
+      rel_x: -21.4
+      rel_y: 163.05
+      rel_z: 0
+    - id: 22
+      rel_x: 0
+      rel_y: 1724.2
+      rel_z: 0
+    - id: 23
+      rel_x: -21.4
+      rel_y: 1933.85
+      rel_z: 0
+    - id: 24
+      rel_x: -21.4
+      rel_y: 1095.05
+      rel_z: 0
+    - id: 25
+      rel_x: -21.4
+      rel_y: 209.65
+      rel_z: 0
+    - id: 26
+      rel_x: -21.4
+      rel_y: 1048.45
+      rel_z: 0
+    - id: 27
+      rel_x: 0
+      rel_y: 1584.4
+      rel_z: 0
+    - id: 28
+      rel_x: -21.4
+      rel_y: 1001.85
+      rel_z: 0
+    - id: 29
+      rel_x: 0
+      rel_y: 1537.8
+      rel_z: 0
+    - id: 30
+      rel_x: -21.4
+      rel_y: 1887.25
+      rel_z: 0
+    - id: 31
+      rel_x: 0
+      rel_y: 1258.2
+      rel_z: 0
+    - id: 32
+      rel_x: -21.4
+      rel_y: 256.25
+      rel_z: 0
+    - id: 33
+      rel_x: 0
+      rel_y: 1211.6
+      rel_z: 0
+    - id: 34
+      rel_x: -21.4
+      rel_y: 442.65
+      rel_z: 0
+    - id: 35
+      rel_x: -21.4
+      rel_y: 489.25
+      rel_z: 0
+    - id: 36
+      rel_x: -21.4
+      rel_y: 1794.05
+      rel_z: 0
+    - id: 37
+      rel_x: -21.4
+      rel_y: 1747.45
+      rel_z: 0
+    - id: 38
+      rel_x: -21.4
+      rel_y: 396.05
+      rel_z: 0
+    - id: 39
+      rel_x: -21.4
+      rel_y: 1700.85
+      rel_z: 0
+    - id: 40
+      rel_x: -21.4
+      rel_y: 1840.65
+      rel_z: 0
+    - id: 41
+      rel_x: -21.4
+      rel_y: 1654.25
+      rel_z: 0
+    - id: 42
+      rel_x: -21.4
+      rel_y: 535.85
+      rel_z: 0
+    - id: 43
+      rel_x: -21.4
+      rel_y: 1607.65
+      rel_z: 0
+    - id: 44
+      rel_x: -21.4
+      rel_y: 582.45
+      rel_z: 0
+    - id: 45
+      rel_x: -21.4
+      rel_y: 1561.05
+      rel_z: 0
+    - id: 46
+      rel_x: -21.4
+      rel_y: 629.05
+      rel_z: 0
+    - id: 47
+      rel_x: -21.4
+      rel_y: 1514.45
+      rel_z: 0
+    - id: 48
+      rel_x: -21.4
+      rel_y: 1467.85
+      rel_z: 0
+    - id: 49
+      rel_x: -21.4
+      rel_y: 675.65
+      rel_z: 0
+    - id: 50
+      rel_x: -21.4
+      rel_y: 1421.25
+      rel_z: 0
+    - id: 51
+      rel_x: -21.4
+      rel_y: 722.25
+      rel_z: 0
+    - id: 52
+      rel_x: -21.4
+      rel_y: 1374.65
+      rel_z: 0
+    - id: 53
+      rel_x: -21.4
+      rel_y: 768.85
+      rel_z: 0
+    - id: 54
+      rel_x: -21.4
+      rel_y: 1328.05
+      rel_z: 0
+    - id: 55
+      rel_x: -21.4
+      rel_y: 815.45
+      rel_z: 0
+    - id: 56
+      rel_x: -21.4
+      rel_y: 1281.45
+      rel_z: 0
+    - id: 57
+      rel_x: -21.4
+      rel_y: 862.05
+      rel_z: 0
+    - id: 58
+      rel_x: -21.4
+      rel_y: 1234.85
+      rel_z: 0
+    - id: 59
+      rel_x: -21.4
+      rel_y: 908.65
+      rel_z: 0
+    - id: 60
+      rel_x: -21.4
+      rel_y: 1188.25
+      rel_z: 0
+    - id: 61
+      rel_x: -21.4
+      rel_y: 955.25
+      rel_z: 0
+    - id: 62
+      rel_x: -21.4
+      rel_y: 1141.65
+      rel_z: 0
+    - id: 63
+      rel_x: -21.4
+      rel_y: 1980.45
+      rel_z: 0
+    - id: 64
+      rel_x: 21.4
+      rel_y: 1794.05
+      rel_z: 0
+    - id: 65
+      rel_x: 21.4
+      rel_y: 1188.25
+      rel_z: 0
+    - id: 66
+      rel_x: 21.4
+      rel_y: 1933.85
+      rel_z: 0
+    - id: 67
+      rel_x: 21.4
+      rel_y: 1234.85
+      rel_z: 0
+    - id: 68
+      rel_x: 21.4
+      rel_y: 1980.45
+      rel_z: 0
+    - id: 69
+      rel_x: 21.4
+      rel_y: 1281.45
+      rel_z: 0
+    - id: 70
+      rel_x: 21.4
+      rel_y: 955.25
+      rel_z: 0
+    - id: 71
+      rel_x: 21.4
+      rel_y: 1328.05
+      rel_z: 0
+    - id: 72
+      rel_x: 21.4
+      rel_y: 908.65
+      rel_z: 0
+    - id: 73
+      rel_x: 21.4
+      rel_y: 1374.65
+      rel_z: 0
+    - id: 74
+      rel_x: 21.4
+      rel_y: 862.05
+      rel_z: 0
+    - id: 75
+      rel_x: 21.4
+      rel_y: 1421.25
+      rel_z: 0
+    - id: 76
+      rel_x: 21.4
+      rel_y: 815.45
+      rel_z: 0
+    - id: 77
+      rel_x: 21.4
+      rel_y: 1467.85
+      rel_z: 0
+    - id: 78
+      rel_x: 21.4
+      rel_y: 768.85
+      rel_z: 0
+    - id: 79
+      rel_x: 21.4
+      rel_y: 1514.45
+      rel_z: 0
+    - id: 80
+      rel_x: 21.4
+      rel_y: 1561.05
+      rel_z: 0
+    - id: 81
+      rel_x: 21.4
+      rel_y: 722.25
+      rel_z: 0
+    - id: 82
+      rel_x: 21.4
+      rel_y: 1607.65
+      rel_z: 0
+    - id: 83
+      rel_x: 21.4
+      rel_y: 675.65
+      rel_z: 0
+    - id: 84
+      rel_x: 21.4
+      rel_y: 1654.25
+      rel_z: 0
+    - id: 85
+      rel_x: 21.4
+      rel_y: 629.05
+      rel_z: 0
+    - id: 86
+      rel_x: 21.4
+      rel_y: 1700.85
+      rel_z: 0
+    - id: 87
+      rel_x: 21.4
+      rel_y: 582.45
+      rel_z: 0
+    - id: 88
+      rel_x: 21.4
+      rel_y: 1747.45
+      rel_z: 0
+    - id: 89
+      rel_x: 0
+      rel_y: 139.8
+      rel_z: 0
+    - id: 90
+      rel_x: 21.4
+      rel_y: 489.25
+      rel_z: 0
+    - id: 91
+      rel_x: 21.4
+      rel_y: 535.85
+      rel_z: 0
+    - id: 92
+      rel_x: 0
+      rel_y: 233
+      rel_z: 0
+    - id: 93
+      rel_x: 0
+      rel_y: 186.4
+      rel_z: 0
+    - id: 94
+      rel_x: 0
+      rel_y: 1957.2
+      rel_z: 0
+    - id: 95
+      rel_x: 0
+      rel_y: 932
+      rel_z: 0
+    - id: 96
+      rel_x: 21.4
+      rel_y: 256.25
+      rel_z: 0
+    - id: 97
+      rel_x: 21.4
+      rel_y: 1887.25
+      rel_z: 0
+    - id: 98
+      rel_x: 0
+      rel_y: 559.2
+      rel_z: 0
+    - id: 99
+      rel_x: 21.4
+      rel_y: 1048.45
+      rel_z: 0
+    - id: 100
+      rel_x: 0
+      rel_y: 512.6
+      rel_z: 0
+    - id: 101
+      rel_x: 21.4
+      rel_y: 1095.05
+      rel_z: 0
+    - id: 102
+      rel_x: 21.4
+      rel_y: 302.85
+      rel_z: 0
+    - id: 103
+      rel_x: 21.4
+      rel_y: 1141.65
+      rel_z: 0
+    - id: 104
+      rel_x: 21.4
+      rel_y: 1840.65
+      rel_z: 0
+    - id: 105
+      rel_x: 0
+      rel_y: 372.8
+      rel_z: 0
+    - id: 106
+      rel_x: 21.4
+      rel_y: 349.45
+      rel_z: 0
+    - id: 107
+      rel_x: 0
+      rel_y: 466
+      rel_z: 0
+    - id: 108
+      rel_x: 0
+      rel_y: 326.2
+      rel_z: 0
+    - id: 109
+      rel_x: 21.4
+      rel_y: 442.65
+      rel_z: 0
+    - id: 110
+      rel_x: 0
+      rel_y: 419.4
+      rel_z: 0
+    - id: 111
+      rel_x: 21.4
+      rel_y: 163.05
+      rel_z: 0
+    - id: 112
+      rel_x: 0
+      rel_y: 605.8
+      rel_z: 0
+    - id: 113
+      rel_x: 21.4
+      rel_y: 396.05
+      rel_z: 0
+    - id: 114
+      rel_x: 0
+      rel_y: 745.6
+      rel_z: 0
+    - id: 115
+      rel_x: 21.4
+      rel_y: 209.65
+      rel_z: 0
+    - id: 116
+      rel_x: 0
+      rel_y: 652.4
+      rel_z: 0
+    - id: 117
+      rel_x: 21.4
+      rel_y: 116.45
+      rel_z: 0
+    - id: 118
+      rel_x: 21.4
+      rel_y: 23.25
+      rel_z: 0
+    - id: 119
+      rel_x: 0
+      rel_y: 279.6
+      rel_z: 0
+    - id: 120
+      rel_x: 0
+      rel_y: 46.6
+      rel_z: 0
+    - id: 121
+      rel_x: 0
+      rel_y: 699
+      rel_z: 0
+    - id: 122
+      rel_x: 0
+      rel_y: 885.4
+      rel_z: 0
+    - id: 123
+      rel_x: 21.4
+      rel_y: 69.85
+      rel_z: 0
+    - id: 124
+      rel_x: 0
+      rel_y: 792.2
+      rel_z: 0
+    - id: 125
+      rel_x: 0
+      rel_y: 0
+      rel_z: 0
+    - id: 126
+      rel_x: 0
+      rel_y: 838.8
+      rel_z: 0
+    - id: 127
+      rel_x: 0
+      rel_y: 93.2
+      rel_z: 0
