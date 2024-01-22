@@ -31,6 +31,7 @@ dependencies = [
     "neo",
     "dask[complete]",
     "ffmpeg",
+    "jsonschema==4.19.2"
 ]
 dynamic = ["version"]
 
