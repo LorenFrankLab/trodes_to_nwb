@@ -95,6 +95,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             iterator_size
         ):  # iterate backwards so can insert new iterators
             if size > MAXIMUM_ITERATOR_SIZE:
+                # calculate systime regression on full epoch, parameters stored and inherited by partial iterators
+                self.neo_io[i].get_regressed_systime(0, None)
                 # split into smaller iterators
                 sub_iterators = []
                 j = 0

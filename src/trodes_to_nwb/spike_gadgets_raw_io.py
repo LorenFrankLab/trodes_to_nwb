@@ -361,6 +361,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # initialize interpolate index as none so can check if it has been set in a trodes timestamps call
         self.interpolate_index = None
 
+        # initialize systime parameters as empty dict so can check if they have been set in a get_regressed_systime call
+        self.regressed_systime_parameters = {}
+
         self._generate_minimal_annotations()
         # info from GlobalConfiguration in xml are copied to block and seg annotations
         bl_ann = self.raw_annotations["blocks"][0]
@@ -707,13 +710,22 @@ class SpikeGadgetsRawIO(BaseRawIO):
     @functools.lru_cache(maxsize=1)
     def get_regressed_systime(self, i_start, i_stop=None):
         NANOSECONDS_PER_SECOND = 1e9
-        # get values
+        # get trodes timestamp values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        systime_seconds = self.get_sys_clock(i_start, i_stop)
         # Convert
         trodestime_index = np.asarray(trodestime, dtype=np.float64)
-        # regress
-        slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
+        if not self.regressed_systime_parameters:
+            # get raw systime values
+            systime_seconds = self.get_sys_clock(i_start, i_stop)
+            # regress
+            slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
+            self.regressed_systime_parameters = {
+                "slope": slope,
+                "intercept": intercept,
+            }
+        else:
+            slope = self.regressed_systime_parameters["slope"]
+            intercept = self.regressed_systime_parameters["intercept"]
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
@@ -857,6 +869,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         self._mask_streams = full_io._mask_streams
         self.selected_streams = full_io.selected_streams
         self._generate_minimal_annotations()
+        self.regressed_systime_parameters = full_io.regressed_systime_parameters
 
         # crop key information to range of interest
         header_size = None
