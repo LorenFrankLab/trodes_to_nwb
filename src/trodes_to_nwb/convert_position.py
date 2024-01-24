@@ -619,10 +619,11 @@ def get_position_timestamps(
 
         frame_count = np.asarray(video_timestamps.HWframeCount)
 
-        is_valid_camera_time = np.isin(video_timestamps.index, sample_count)
-
         epoch_start_ind = np.digitize(epoch_interval[0], rec_dci_timestamps)
         epoch_end_ind = np.digitize(epoch_interval[1], rec_dci_timestamps)
+        is_valid_camera_time = np.isin(
+            video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
+        )
 
         camera_systime = rec_dci_timestamps[
             wrapped_digitize(
