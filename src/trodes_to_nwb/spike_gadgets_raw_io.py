@@ -101,6 +101,15 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         self._sampling_rate = float(hconf.attrib["samplingRate"])
         num_ephy_channels = int(hconf.attrib["numChannels"])
+        # check for agreement with number of channels in xml
+        sconf_channels = np.sum([len(x) for x in sconf])
+        if sconf_channels < num_ephy_channels:
+            num_ephy_channels = sconf_channels
+        if sconf_channels > num_ephy_channels:
+            raise ValueError(
+                "SpikeGadgets: the number of channels in the spike configuration is larger than the number of channels in the hardware configuration"
+            )
+
         try:
             num_chan_per_chip = int(sconf.attrib["chanPerChip"])
         except KeyError:
