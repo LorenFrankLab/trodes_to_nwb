@@ -87,6 +87,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
+        if stream_index == 3 and len(self.nwb_hw_channel_order) < self.n_channel:
+            self.n_channel = len(self.nwb_hw_channel_order)
         """split excessively large iterators into smaller ones
         """
         iterator_size = [neo_io._raw_memmap.shape[0] for neo_io in self.neo_io]
