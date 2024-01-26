@@ -27,12 +27,36 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         rec_file_path: list[str],
         nwb_hw_channel_order=[],
         conversion: float = 1.0,
-        stream_index: int = 3,  # TODO use the stream name instead of the index
+        stream_index: int = None,  # TODO use the stream name instead of the index
+        stream_id: str = None,
         is_analog: bool = False,
         interpolate_dropped_packets: bool = False,
         timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         **kwargs,
     ):
+        """
+
+        Parameters
+        ----------
+        rec_file_path : list[str]
+            list of paths to rec files
+        nwb_hw_channel_order : list, optional
+            order of hw channels in the nwb file, by default []
+        conversion : float, optional
+            conversion factor from raw data to volts, by default 1.0
+        stream_index : int, optional
+            index of stream to use. If both this and stream_id provided values must match in rec header, by default None
+        stream_id : str, optional
+            id name of stream to use. If both this and stream_index provided values must match in rec header, by default None
+        is_analog : bool, optional
+            whether this is an analog stream, by default False
+        interpolate_dropped_packets : bool, optional
+            whether to interpolate single dropped packets, by default False
+        timestamps : [type], optional
+            timestamps to use. Can provide efficiency improvements by skipping recalculating timestamps from rec files, by default None
+        kwargs : dict
+            additional arguments to pass to GenericDataChunkIterator
+        """
         if not rec_file_path:
             raise FileNotFoundError("Must provide at least one rec file path")
         logger = logging.getLogger("convert")
@@ -59,7 +83,23 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         self.block_index = 0
         self.seg_index = 0
-        self.stream_index = stream_index  # TODO confirm that the stream index is trodes
+
+        # resolve stream index and id based on rec header and provided info
+        if stream_id is not None:  # if stream id is provided
+            if (
+                stream_index is None
+            ):  # if stream index is not provided, get from the SpikegadgetsRawIO object
+                stream_index = self.neo_io[0].get_stream_index_from_id(stream_id)
+            # if both provided, check that they agree
+            elif not self.neo_io[0].get_stream_id_from_index(stream_index) == stream_id:
+                raise ValueError(
+                    f"Provided stream index {stream_index} does not match provided stream id {stream_id}"
+                )
+        else:  # if stream id is not provided
+            stream_id = self.neo_io[0].get_stream_id_from_index(stream_index)
+
+        self.stream_id = stream_id
+        self.stream_index = stream_index
 
         # check that all files have the same number of channels.
         if (
@@ -87,7 +127,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
-        if stream_index == 3 and len(self.nwb_hw_channel_order) < self.n_channel:
+        if (
+            self.stream_id == "trodes"
+            and len(self.nwb_hw_channel_order) < self.n_channel
+        ):
             self.n_channel = len(self.nwb_hw_channel_order)
         """split excessively large iterators into smaller ones
         """
@@ -298,6 +341,7 @@ def add_raw_ephys(
         nwb_hw_channel_order=nwb_hw_chan_order,
         conversion=conversion,
         interpolate_dropped_packets=True,
+        stream_id="trodes",
     )  # can set buffer_gb if needed
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended

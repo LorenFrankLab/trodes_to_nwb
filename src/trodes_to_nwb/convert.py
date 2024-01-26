@@ -213,7 +213,9 @@ def _create_nwb(
 
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
-    rec_dci = RecFileDataChunkIterator(rec_filepaths, interpolate_dropped_packets=False)
+    rec_dci = RecFileDataChunkIterator(
+        rec_filepaths, interpolate_dropped_packets=False, stream_id="trodes"
+    )
     rec_dci_timestamps = (
         rec_dci.timestamps
     )  # pass these when creating other non-interpolated rec iterators to save time
