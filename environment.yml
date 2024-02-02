@@ -3,7 +3,7 @@ channels:
 - conda-forge
 - franklab
 dependencies:
-- jsonschema=4.19.2
+- jsonschema<4.21.0
 - numpy
 - scipy
 - pandas
