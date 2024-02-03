@@ -3,7 +3,6 @@ import datetime
 from unittest.mock import MagicMock, patch
 
 from trodes_to_nwb.metadata_validation import _get_nwb_json_schema_path, validate
-
 from trodes_to_nwb.tests.test_data import test_metadata_dict_samples
 
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from pynwb import NWBHDF5IO
+
 from trodes_to_nwb.convert import create_nwbs, get_included_probe_metadata_paths
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.utils import data_path

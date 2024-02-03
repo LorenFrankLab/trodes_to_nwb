@@ -1,5 +1,6 @@
-import pytest
 import copy
+
+import pytest
 
 basic_data = {
     "experimenter_name": ["michael jackson"],

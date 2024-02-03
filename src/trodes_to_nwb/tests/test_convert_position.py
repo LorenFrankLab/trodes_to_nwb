@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO, TimeSeries
+
+from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_dios import add_dios
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
@@ -26,8 +28,6 @@ from trodes_to_nwb.convert_position import (
 )
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.utils import data_path
-
-from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 
 
 def test_wrapped_digitize():

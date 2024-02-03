@@ -4,6 +4,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 from pynwb import NWBFile, TimeSeries
+
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
