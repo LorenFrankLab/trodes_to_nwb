@@ -22,7 +22,8 @@ def test_add_epochs():
     rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
     # get all streams for all files
     rec_dci = RecFileDataChunkIterator(
-        file_info[file_info.file_extension == ".rec"].full_path.to_list()
+        file_info[file_info.file_extension == ".rec"].full_path.to_list(),
+        stream_id="trodes",
     )
     add_epochs(nwbfile, file_info, rec_dci.neo_io)
     epochs_df = nwbfile.epochs.to_dataframe()
@@ -49,7 +50,7 @@ def test_add_sample_count():
     rec_to_nwb_file = data_path / "minirec20230622_.nwb"  # comparison file
 
     # make recfile data chunk iterator
-    rec_dci = RecFileDataChunkIterator(recfile)
+    rec_dci = RecFileDataChunkIterator(recfile, stream_id="trodes")
 
     # add sample counts
     add_sample_count(nwbfile, rec_dci)

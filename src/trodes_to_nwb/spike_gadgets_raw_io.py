@@ -101,6 +101,15 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         self._sampling_rate = float(hconf.attrib["samplingRate"])
         num_ephy_channels = int(hconf.attrib["numChannels"])
+        # check for agreement with number of channels in xml
+        sconf_channels = np.sum([len(x) for x in sconf])
+        if sconf_channels < num_ephy_channels:
+            num_ephy_channels = sconf_channels
+        if sconf_channels > num_ephy_channels:
+            raise ValueError(
+                "SpikeGadgets: the number of channels in the spike configuration is larger than the number of channels in the hardware configuration"
+            )
+
         try:
             num_chan_per_chip = int(sconf.attrib["chanPerChip"])
         except KeyError:
@@ -745,6 +754,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # """Interpolates single dropped packets in the analog data."""
         print("Interpolate memmap: ", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
+
+    def get_stream_index_from_id(self, stream_id):
+        return np.where(self.header["signal_streams"]["id"] == stream_id)[0][0]
+
+    def get_stream_id_from_index(self, stream_index):
+        return self.header["signal_streams"]["id"][stream_index]
 
 
 class InsertedMemmap:
