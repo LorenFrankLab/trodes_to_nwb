@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 from pynwb import NWBHDF5IO
+
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
 from trodes_to_nwb.convert_yaml import initialize_nwb, load_metadata

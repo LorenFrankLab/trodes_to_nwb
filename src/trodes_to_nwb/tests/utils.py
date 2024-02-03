@@ -1,8 +1,8 @@
 """Set the path to the bulk test data dir and copies the yaml/config files there"""
-import os
-from pathlib import Path
-import shutil
 
+import os
+import shutil
+from pathlib import Path
 
 yaml_path = Path(__file__).resolve().parent / "test_data"
 

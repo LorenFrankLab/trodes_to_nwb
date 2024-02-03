@@ -1,4 +1,5 @@
 import numpy as np
+
 from trodes_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
 from trodes_to_nwb.tests.utils import data_path
 
