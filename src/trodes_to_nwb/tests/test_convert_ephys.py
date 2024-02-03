@@ -3,11 +3,11 @@ from pathlib import Path
 
 import numpy as np
 import pynwb
+
+from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_ephys import add_raw_ephys
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
-
-from trodes_to_nwb import convert_rec_header, convert_yaml
 
 MICROVOLTS_PER_VOLT = 1e6
 
