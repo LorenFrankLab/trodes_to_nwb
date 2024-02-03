@@ -12,10 +12,10 @@ from ndx_franklab_novela import (
     AssociatedFiles,
     CameraDevice,
     DataAcqDevice,
+    NwbElectrodeGroup,
     Probe,
     Shank,
     ShanksElectrode,
-    NwbElectrodeGroup,
 )
 from pynwb import NWBFile
 from pynwb.file import ProcessingModule, Subject
