@@ -42,7 +42,7 @@ def test_get_file_info():
 
 def test_get_included_probe_metadat_paths():
     probes = get_included_probe_metadata_paths()
-    assert len(probes) == 8
+    assert len(probes) == 9
     assert [probe.exists() for probe in probes]
 
 
