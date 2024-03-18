@@ -205,12 +205,16 @@ def make_ref_electrode_map(
         )
 
     for group in spike_config:
+        # define the current ntrode group's nwb id
+        ntrode_id = group.attrib["id"]
+        nwb_group_id = ntrode_id_to_nwb[ntrode_id]
         if "refNTrodeID" in group.attrib:
-            # define the current ntrode group's nwb id
-            ntrode_id = group.attrib["id"]
-            nwb_group_id = ntrode_id_to_nwb[ntrode_id]
-            # find channel map for ref group
             ntrode_ref_group_id = group.attrib["refNTrodeID"]
+            # if reference defined on null ntrode value, set to -1
+            if int(ntrode_ref_group_id) <= 0:
+                ref_electrode_map[nwb_group_id] = (-1, -1)
+                continue
+            # find channel map for ref group
             ref_channel_map = None
             for test_meta in metadata["ntrode_electrode_group_channel_map"]:
                 if str(test_meta["ntrode_id"]) == ntrode_ref_group_id:
