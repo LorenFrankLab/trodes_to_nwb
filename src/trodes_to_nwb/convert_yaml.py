@@ -292,6 +292,9 @@ def add_electrode_groups(
     for nwb_group in list(electrode_table["group_name"]):
         # use the refference electrode map and defined electrode table to find index of the reference electrode
         ref_group, ref_electrode = ref_electrode_map[str(nwb_group)]
+        if ref_group == -1:
+            ref_electrode_id.append(-1)
+            continue
         ref_electrode_id.append(
             electrode_table.index[
                 (electrode_table["group_name"] == ref_group)
