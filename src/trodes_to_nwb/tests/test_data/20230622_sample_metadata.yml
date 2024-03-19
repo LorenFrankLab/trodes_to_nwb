@@ -80,6 +80,7 @@ device:
 behavioral_events:
   - description: Din1
     name: Light_1
+    comments: Indicator for reward delivery
   - description: Din2
     name: Light_2
   - description: Dout2

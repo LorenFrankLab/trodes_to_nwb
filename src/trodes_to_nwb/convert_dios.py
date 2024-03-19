@@ -25,7 +25,12 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
             raise ValueError(
                 f"Duplicate channel name {dio_event['description']} in metadata YAML"
             )
-        channel_name_map[dio_event["description"]] = dio_event["name"]
+        channel_name_map[dio_event["description"]] = {
+            "name": dio_event["name"],
+            "comments": (
+                dio_event["comments"] if "comments" in dio_event else "no comments"
+            ),
+        }
     return channel_name_map
 
 
@@ -88,7 +93,8 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
         assert isinstance(timestamps[0], np.float64)
         assert isinstance(timestamps, np.ndarray)
         ts = TimeSeries(
-            name=channel_name_map[channel_name],
+            name=channel_name_map[channel_name]["name"],
+            comments=channel_name_map[channel_name]["comments"],
             description=channel_name,
             data=state_changes,
             unit="-1",  # TODO change to "N/A",
