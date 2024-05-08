@@ -146,7 +146,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 previous_multiplex_state = None
                 iterator_loc = len(iterator_size) - i - 1
                 # calculate systime regression on full epoch, parameters stored and inherited by partial iterators
-                self.neo_io[iterator_loc].get_regressed_systime(0, None)
+                if self.neo_io[iterator_loc].sysClock_byte:
+                    self.neo_io[iterator_loc].get_regressed_systime(0, None)          
                 while j < size:
                     sub_iterators.append(
                         SpikeGadgetsRawIOPartial(
