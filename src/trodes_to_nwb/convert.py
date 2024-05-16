@@ -398,3 +398,43 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
     print(
         f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report"
     )
+    
+def add_position_to_existing(nwb_path: Path,
+                             data_path: Path,
+                             metadata_path: Path,
+                             output_path: Path,
+):
+    assert nwb_path.exists(), f"File does not exist: {nwb_path}"
+    assert data_path.exists(), f"Data path does not exist: {data_path}"
+    assert metadata_path.exists(), f"Metadata path does not exist: {metadata_path}"
+    
+    # find needed data files
+    file_info = get_file_info(data_path)
+    file_info = file_info[file_info["date"] == date]
+    file_info = file_info[file_info["animal"] == animal]
+    # make the metadata object
+    metadata, probe_metadata = load_metadata(
+            metadata_path, probe_metadata_paths=[]
+        )
+    # find a rec file to get the header
+    rec_filepaths = _get_file_paths(file_info, ".rec")
+    rec_header = read_header(rec_filepaths[0])
+    ptp_on = detect_ptp_from_header(rec_header)
+    
+    io =  NWBHDF5IO(nwb_path, mode="r")
+    nwb_file = io.read()
+    
+    if ptp_on:
+        add_position(
+            nwb_file,
+            metadata,
+            file_info,
+        )
+    else:
+        raise NotImplementedError(
+            "Adding post-conversion osition data not yet implemented for non-ptp data")
+
+    with NWBHDF5IO(output_path, "w", manager=io.manager) as export_io:
+        export_io.export(io, nwb_file)
+    
+    
