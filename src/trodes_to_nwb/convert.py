@@ -341,11 +341,11 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
     )
     logger.info("NWB Inspector output:")
     logger.info(messages)
-    formatted_messages = nwbinspector.inspector_tools.format_messages(messages=messages)
+    formatted_messages = nwbinspector.format_messages(messages=messages)
     report_file_path = (
         nwbfile_path.parent / f"{nwbfile_path.stem}_nwbinspector_report.txt"
     )
-    nwbinspector.inspector_tools.save_report(
+    nwbinspector.save_report(
         report_file_path=report_file_path,
         formatted_messages=formatted_messages,
         overwrite=True,
@@ -366,12 +366,10 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
         print(
             f"NWB Inspector found the following {len(critical_errors)} critical errors:"
         )
-        formatted_critical_errors = nwbinspector.inspector_tools.format_messages(
+        formatted_critical_errors = nwbinspector.format_messages(
             messages=critical_errors
         )
-        nwbinspector.inspector_tools.print_to_console(
-            formatted_messages=formatted_critical_errors
-        )
+        nwbinspector.print_to_console(formatted_messages=formatted_critical_errors)
     else:
         print("NWB Inspector found 0 critical errors")
 
