@@ -20,4 +20,4 @@ dependencies:
 - pip
 - pip:
     - ndx-franklab-novela
-    - neo
+    - neo>=0.13.4
