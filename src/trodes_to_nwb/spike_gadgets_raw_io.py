@@ -201,7 +201,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     if stream_id not in stream_ids:
                         stream_ids.append(stream_id)
                         stream_name = stream_id
-                        signal_streams.append((stream_name, stream_id))
+                        signal_streams.append(
+                            (
+                                stream_name,
+                                stream_id,
+                                "",
+                            )
+                        )
                         self._mask_channels_ids[stream_id] = []
                         self._mask_channels_bytes[stream_id] = []
                         self._mask_channels_bits[stream_id] = []
@@ -223,6 +229,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                             gain,
                             offset,
                             stream_id,
+                            "",
                         )
                     )
 
@@ -242,7 +249,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     if stream_id not in stream_ids:
                         stream_ids.append(stream_id)
                         stream_name = stream_id
-                        signal_streams.append((stream_name, stream_id))
+                        signal_streams.append(
+                            (
+                                stream_name,
+                                stream_id,
+                                "",
+                            )
+                        )
                         self._mask_channels_ids[stream_id] = []
                         self._mask_channels_bytes[stream_id] = []
                         self._mask_channels_bits[stream_id] = []
@@ -265,6 +278,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                             gain,
                             offset,
                             stream_id,
+                            "",
                         )
                     )
 
@@ -290,7 +304,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if num_ephy_channels > 0:
             stream_id = "trodes"
             stream_name = stream_id
-            signal_streams.append((stream_name, stream_id))
+            signal_streams.append(
+                (
+                    stream_name,
+                    stream_id,
+                    "",
+                )
+            )
             self._mask_channels_bytes[stream_id] = []
 
             channel_ids = self._produce_ephys_channel_ids(
@@ -317,6 +337,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                             gain,
                             offset,
                             stream_id,
+                            "",
                         )
                     )
 
