@@ -3,7 +3,7 @@ units: 'um'
 probe_description: '128 channel polyimide probe'
 num_shanks: 4
 contact_side_numbering: true
-contact_size: 20.0
+contact_size: 15.0
 shanks:
   - shank_id: 0
     electrodes:
