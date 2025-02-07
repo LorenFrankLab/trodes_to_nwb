@@ -172,6 +172,15 @@ def read_trodes_datafile(filename: Path) -> dict:
         return fields_text
 
 
+def convert_datafile_to_pandas(datafile) -> pd.DataFrame:
+    """Takes the output of read_trodes_datafile and converts it to a pandas dataframe.
+    Added for changes identified in numpy 2.2.2
+    """
+    return pd.DataFrame(
+        {key: np.squeeze(datafile["data"][key]) for key in datafile["data"].dtype.names}
+    )
+
+
 def get_framerate(timestamps: np.ndarray) -> float:
     """
     Calculates the framerate of a video based on the timestamps of each frame.
@@ -472,15 +481,12 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
         An array of video timestamps.
     """
     # Get video timestamps
+    video_timestamps = read_trodes_datafile(video_timestamps_filepath)["data"]
     video_timestamps = (
-        pd.DataFrame(read_trodes_datafile(video_timestamps_filepath)["data"])
-        .set_index("PosTimestamp")
-        .rename(columns={"frameCount": "HWframeCount"})
-    )
-    return (
-        np.asarray(video_timestamps.HWTimestamp, dtype=np.float64)
+        np.squeeze(video_timestamps["HWTimestamp"]).astype(np.float64)
         / NANOSECONDS_PER_SECOND
     )
+    return video_timestamps
 
 
 def get_position_timestamps(
@@ -519,8 +525,9 @@ def get_position_timestamps(
     logger = logging.getLogger("convert")
 
     # Get video timestamps
+    datafile = read_trodes_datafile(position_timestamps_filepath)
     video_timestamps = (
-        pd.DataFrame(read_trodes_datafile(position_timestamps_filepath)["data"])
+        convert_datafile_to_pandas(datafile)
         .set_index("PosTimestamp")
         .rename(columns={"frameCount": "HWframeCount"})
     )
@@ -549,7 +556,7 @@ def get_position_timestamps(
     # Get position tracking information
     try:
         position_tracking = pd.DataFrame(
-            read_trodes_datafile(position_tracking_filepath)["data"]
+            convert_datafile_to_pandas(read_trodes_datafile(position_tracking_filepath))
         ).set_index("time")
         is_repeat_timestamp = detect_repeat_timestamps(position_tracking.index)
         position_tracking = position_tracking.iloc[~is_repeat_timestamp]
@@ -1005,7 +1012,7 @@ def add_associated_video_files(
             ]
         ].full_path.to_list()[0]
         # get the timestamps
-        video_timestamps = get_video_timestamps(video_timestamps_filepath)
+        video_timestamps = np.squeeze(get_video_timestamps(video_timestamps_filepath))
 
         if convert_video:
             video_file_name = convert_h264_to_mp4(video_path, video_directory)
