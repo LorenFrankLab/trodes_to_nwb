@@ -12,6 +12,7 @@ from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
 from trodes_to_nwb.convert_position import (
     add_position,
+    convert_datafile_to_pandas,
     correct_timestamps_for_camera_to_mcu_lag,
     detect_repeat_timestamps,
     detect_trodes_time_repeats_or_frame_jumps,
@@ -79,7 +80,7 @@ def test_read_trodes_datafile_correct_settings(tmp_path):
     result = read_trodes_datafile(filename)
     assert result["clock rate"] == "30000"
 
-    expected_data = pd.DataFrame(result["data"])
+    expected_data = convert_datafile_to_pandas(result)
     assert expected_data["field1"].dtype == np.uint32
     assert expected_data["field2"].dtype == np.int32
     assert np.array_equal(expected_data.field1, np.array([1, 3], dtype=np.uint32))

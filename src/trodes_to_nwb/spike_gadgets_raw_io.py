@@ -560,8 +560,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         )
         # read the data into int16
         data = (
-            self._raw_memmap[:, data_offsets[:, 0]]
-            + self._raw_memmap[:, data_offsets[:, 0] + 1] * INT_16_CONVERSION
+            self._raw_memmap[:, data_offsets[:, 0]].astype(np.int16)
+            + self._raw_memmap[:, data_offsets[:, 0] + 1].astype(np.int16)
+            * INT_16_CONVERSION
         )
         # initialize the first row
         analog_multiplexed_data[0] = data[0]
@@ -646,8 +647,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         )
         # read the data into int16
         data = (
-            self._raw_memmap[i_start:i_stop, data_offsets[:, 0]]
-            + self._raw_memmap[i_start:i_stop, data_offsets[:, 0] + 1]
+            self._raw_memmap[i_start:i_stop, data_offsets[:, 0]].astype(np.int16)
+            + self._raw_memmap[i_start:i_stop, data_offsets[:, 0] + 1].astype(np.int16)
             * INT_16_CONVERSION
         )
         # initialize the first row
@@ -969,8 +970,9 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         )
         # read the data into int16
         data = (
-            self._raw_memmap[:, data_offsets[:, 0]]
-            + self._raw_memmap[:, data_offsets[:, 0] + 1] * INT_16_CONVERSION
+            self._raw_memmap[:, data_offsets[:, 0]].astype(np.int16)
+            + self._raw_memmap[:, data_offsets[:, 0] + 1].astype(np.int16)
+            * INT_16_CONVERSION
         )
         # initialize the first row
         # if no previous state, assume first segment. Default to superclass behavior
