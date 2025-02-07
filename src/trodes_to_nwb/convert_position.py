@@ -94,7 +94,7 @@ def parse_dtype(fieldstr: str) -> np.dtype:
     --------
     >>> fieldstr = '<time uint32><x float32><y float32><z float32>'
     >>> parse_dtype(fieldstr)
-    dtype([('time', '<u4'), ('x', '<f4'), ('y', '<f4'), ('z', '<f4')])
+    dtype([('time', '<u4', (1,)), ('x', '<f4', (1,)), ('y', '<f4', (1,)), ('z', '<f4', (1,))])
 
     """
     # Returns np.dtype from field string
