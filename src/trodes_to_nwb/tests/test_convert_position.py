@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from pynwb import NWBHDF5IO, TimeSeries
+from pynwb.behavior import BehavioralEvents, Position
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_dios import add_dios
@@ -207,7 +208,7 @@ def test_correct_timestamps_for_camera_to_mcu_lag():
     np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
 
 
-def test_add_position():
+def test_add_position(prior_position=False):
     probe_metadata = [data_path / "tetrode_12.5.yml"]
 
     # make session_df
@@ -226,8 +227,17 @@ def test_add_position():
     # make nwb file
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
 
+    # Optional test: add position data to nwbfile before running add_position
+    if prior_position:
+        nwbfile.create_processing_module(
+            name="behavior", description="Contains all behavior-related data"
+        )
+        position = Position(name="position")
+        nwbfile.processing["behavior"].add(position)
+
     # run add_position and prerequisite functions
     convert_yaml.add_cameras(nwbfile, metadata)
+
     add_position(nwbfile, metadata, session_df, rec_header)
 
     # Check that the objects were properly added
@@ -292,6 +302,10 @@ def test_add_position():
                 assert validated, f"Could not find matching series for {series}"
     # cleanup
     os.remove(filename)
+
+
+def test_add_position_preexisting():
+    test_add_position(prior_position=True)
 
 
 from trodes_to_nwb.convert_position import read_trodes_datafile

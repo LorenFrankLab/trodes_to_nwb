@@ -785,13 +785,18 @@ def add_position(
 
     epoch_to_camera_ids = pd.concat(df).set_index("epoch").sort_index()
 
-    position = Position(name="position")
-
     # Make a processing module for behavior and add to the nwbfile
     if not "behavior" in nwb_file.processing:
         nwb_file.create_processing_module(
             name="behavior", description="Contains all behavior-related data"
         )
+
+    if "position" not in nwb_file.processing["behavior"].data_interfaces:
+        position = Position(name="position")
+        nwb_file.processing["behavior"].add(position)
+    else:
+        position = nwb_file.processing["behavior"]["position"]
+
     # get epoch data to seperate dio timestamps into epochs
     if (not ptp_enabled) and (not len(nwb_file.epochs)):
         raise ValueError(
@@ -902,8 +907,6 @@ def add_position(
                 timestamps=np.asarray(position_df.index),
             )
         )
-
-    nwb_file.processing["behavior"].add(position)
 
 
 def convert_h264_to_mp4(file: str, video_directory: str) -> str:
