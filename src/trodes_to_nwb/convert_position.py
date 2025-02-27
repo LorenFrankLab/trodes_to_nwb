@@ -791,10 +791,7 @@ def add_position(
             name="behavior", description="Contains all behavior-related data"
         )
 
-    new_position = (
-        "position" not in nwb_file.processing["behavior"].data_interfaces.keys()
-    )
-    if new_position:
+    if "position" not in nwb_file.processing["behavior"].data_interfaces:
         position = Position(name="position")
         nwb_file.processing["behavior"].add(position)
     else:
