@@ -922,11 +922,6 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
 
-        # raw_memmap = np.memmap(self.filename, mode="r", offset=header_size, dtype="<u1")
-        # packet_size = full_io._raw_memmap.shape[1]
-        # num_packet = raw_memmap.size // packet_size
-        # raw_memmap = raw_memmap[: num_packet * packet_size]
-        # self._raw_memmap = raw_memmap.reshape(-1, packet_size)
         if isinstance(full_io._raw_memmap, InsertedMemmap):
             self._raw_memmap = full_io._raw_memmap._raw_memmap
         else:
