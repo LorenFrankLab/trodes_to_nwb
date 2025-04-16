@@ -1,3 +1,10 @@
+"""Main module for orchestrating the conversion of Trodes sessions to NWB format.
+
+Handles file discovery, session grouping, parallel processing setup (optional),
+calling conversion functions for different data types (ephys, position, DIOs, etc.),
+and final NWB file writing and validation.
+"""
+
 import logging
 import os
 from pathlib import Path

@@ -1,3 +1,7 @@
+"""Module for creating and adding epoch intervals (start/stop times) and
+sample count information (mapping Trodes timestamps to system time) to the NWB file.
+"""
+
 import logging
 from typing import List
 

@@ -1,3 +1,7 @@
+"""Handles the conversion of raw electrophysiology (ephys) data from Trodes .rec files
+into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient reading.
+"""
+
 import logging
 from typing import Tuple
 from warnings import warn

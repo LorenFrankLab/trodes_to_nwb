@@ -1,3 +1,10 @@
+"""Custom implementation of a Neo RawIO class for reading SpikeGadgets .rec files.
+
+Handles parsing the header, reading continuous signal chunks (ephys, analog, DIO),
+timestamp extraction (Trodes, system clock), and optional interpolation of dropped packets.
+Intended as a temporary solution until official support is available in Neo.
+"""
+
 # TODO use neo.rawio.SpikeGadgetsRawIO instead of this file when it is available in neo
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 

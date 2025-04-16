@@ -1,3 +1,5 @@
+"""Module for handling the conversion of ECU analog and headstage sensor data streams from Trodes .rec files to NWB format."""
+
 from xml.etree import ElementTree
 
 import numpy as np

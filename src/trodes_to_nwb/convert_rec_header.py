@@ -1,3 +1,8 @@
+"""Provides functions for reading, parsing, and interpreting the XML header
+information embedded within Trodes .rec files. Extracts hardware configuration,
+electrode mappings, and other essential metadata.
+"""
+
 import logging
 from pathlib import Path
 from xml.etree import ElementTree

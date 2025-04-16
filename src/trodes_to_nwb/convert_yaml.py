@@ -1,3 +1,8 @@
+"""Module for loading, processing, and adding metadata from user-provided YAML files
+(session metadata, probe geometry) to the NWB file during conversion. Handles
+initial NWB file setup, subject info, device entries, electrode tables, etc.
+"""
+
 import logging
 import uuid
 from copy import deepcopy

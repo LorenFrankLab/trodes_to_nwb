@@ -1,3 +1,8 @@
+"""Handles the conversion of position tracking data (from .videoPositionTracking,
+.cameraHWSync files) and associated video files (.h264) into NWB Position spatial series
+and ImageSeries. Includes logic for PTP and non-PTP timestamp alignment.
+"""
+
 import datetime
 import logging
 import os

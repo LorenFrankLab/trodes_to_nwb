@@ -1,3 +1,7 @@
+"""Provides functions for validating user-provided metadata dictionaries against
+a predefined JSON schema to ensure completeness and correctness before NWB conversion.
+"""
+
 import copy
 import datetime
 import os

@@ -1,3 +1,7 @@
+"""Module for converting Digital Input/Output (DIO) event data (state changes)
+from Trodes .rec files into NWB TimeSeries within a BehavioralEvents container.
+"""
+
 import numpy as np
 from pynwb import NWBFile, TimeSeries
 from pynwb.behavior import BehavioralEvents
