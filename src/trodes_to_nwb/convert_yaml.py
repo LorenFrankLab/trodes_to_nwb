@@ -356,7 +356,7 @@ def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
     """
     # make a processing module for task data
     nwbfile.add_processing_module(
-        ProcessingModule("tasks", "Contains all tasks information")
+        ProcessingModule(name="tasks", description="Contains all tasks information")
     )
     # loop through tasks in the metadata and add them
     for i, task_metadata in enumerate(metadata["tasks"]):
