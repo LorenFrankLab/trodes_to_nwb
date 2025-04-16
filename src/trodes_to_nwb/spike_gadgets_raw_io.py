@@ -61,25 +61,63 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def _source_name(self):
         return self.filename
 
-    def _produce_ephys_channel_ids(self, n_total_channels, n_channels_per_chip):
+    @staticmethod
+    def _produce_ephys_channel_ids(
+        n_total_channels: int, n_channels_per_chip: int
+    ) -> list[int]:
         """Compute the channel ID labels
-        The ephys channels in the .rec file are stored in the following order:
-        hwChan ID of channel 0 of first chip, hwChan ID of channel 0 of second chip, ..., hwChan ID of channel 0 of Nth chip,
-        hwChan ID of channel 1 of first chip, hwChan ID of channel 1 of second chip, ..., hwChan ID of channel 1 of Nth chip,
-        ...
-        So if there are 32 channels per chip and 128 channels (4 chips), then the channel IDs are:
-        0, 32, 64, 96, 1, 33, 65, 97, ..., 128
-        See also: https://github.com/NeuralEnsemble/python-neo/issues/1215
+
+        Generates the order of hardware channel IDs as they appear interleaved
+        across chips in the Trodes data stream. For example, with 4 chips of
+        32 channels each (128 total), the order would be:
+        [ 0, 32, 64, 96,  1, 33, 65, 97, ..., 31, 63, 95, 127].
+
+        Parameters
+        ----------
+        n_total_channels : int
+            Total number of ephys channels recorded.
+        n_channels_per_chip : int
+            Number of channels per headstage chip/amplifier.
+
+        Returns
+        -------
+        list[int]
+            List of hardware channel IDs in the interleaved order as they
+            appear in the data packets. Returns an empty list if
+            `n_total_channels` or `n_channels_per_chip` is 0.
+
+        Raises
+        ------
+        ValueError
+            If `n_total_channels` is not a multiple of `n_channels_per_chip`.
+
+        See Also
+        --------
+        https://github.com/NeuralEnsemble/python-neo/issues/1215 : Discussion
+            on SpikeGadgets channel ordering in Neo.
+
         """
-        x = []
-        for k in range(n_channels_per_chip):
-            x.append(
-                [
-                    k + i * n_channels_per_chip
-                    for i in range(int(n_total_channels / n_channels_per_chip))
-                ]
+        if n_total_channels == 0 or n_channels_per_chip == 0:
+            return []  # Handle edge case of zero channels
+
+        if n_total_channels % n_channels_per_chip != 0:
+            raise ValueError(
+                "Total number of channels must be a multiple of channels per chip "
+                f"({n_total_channels} % {n_channels_per_chip} != 0)"
             )
-        return [item for sublist in x for item in sublist]
+
+        n_chips = n_total_channels // n_channels_per_chip
+
+        # Create base sequence for one chip repetition (0, n_ch_per_chip, 2*n_ch_per_chip, ...)
+        chip_offsets = np.arange(n_chips) * n_channels_per_chip
+        # Create sequences for all channels within a chip (0, 1, 2, ..., n_ch_per_chip-1)
+        within_chip_indices = np.arange(n_channels_per_chip)
+
+        # Form a grid of channel IDs by adding the chip offsets to the within-chip indices
+        channel_id_grid = within_chip_indices[:, None] + chip_offsets
+        interleaved_channel_ids = channel_id_grid.flatten(order="F")
+
+        return interleaved_channel_ids.tolist()
 
     def _parse_header(self):
         # parse file until "</Configuration>"
