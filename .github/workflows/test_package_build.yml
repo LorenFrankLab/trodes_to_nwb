@@ -94,7 +94,7 @@ jobs:
         if: matrix.package == 'editable'
         run: pip install -e .
       - name: Install test extras
-        run: pip install -e trodes_to_nwb[test]
+        run: pip install trodes_to_nwb[test]
 
 
       # --- Cache Test Data Step ---
