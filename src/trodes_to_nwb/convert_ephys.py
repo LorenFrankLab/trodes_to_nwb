@@ -20,7 +20,16 @@ MICROVOLTS_PER_VOLT = 1e6
 VOLTS_PER_MICROVOLT = 1e-6
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
-MAXIMUM_ITERATOR_SIZE = int(30000 * 60 * 30)  # 30 min of data at 30 kHz
+
+DEFAULT_SAMPLING_RATE = 30000  # 30 kHz
+SECONDS_PER_MINUTE = 60
+MAX_ITERATOR_MINUTES = 30
+
+MAXIMUM_ITERATOR_SIZE = int(
+    DEFAULT_SAMPLING_RATE * SECONDS_PER_MINUTE * MAX_ITERATOR_MINUTES
+)  # 30 min of data at 30 kHz
+DEFAULT_CHUNK_TIME_DIM = 16384
+DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
 class RecFileDataChunkIterator(GenericDataChunkIterator):
@@ -355,7 +364,13 @@ def add_raw_ephys(
     # by studies by the NWB team.
     # could also add compression here. zstd/blosc-zstd are recommended by the NWB team, but
     # they require the hdf5plugin library to be installed. gzip is available by default.
-    data_data_io = H5DataIO(rec_dci, chunks=(16384, min(rec_dci.n_channel, 32)))
+    data_data_io = H5DataIO(
+        rec_dci,
+        chunks=(
+            DEFAULT_CHUNK_TIME_DIM,
+            min(rec_dci.n_channel, DEFAULT_CHUNK_MAX_CHANNEL_DIM),
+        ),
+    )
 
     # do we want to pull the timestamps from the rec file? or is there another source?
     eseries = ElectricalSeries(

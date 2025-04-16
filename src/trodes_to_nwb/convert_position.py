@@ -18,6 +18,12 @@ from scipy.ndimage import label
 from scipy.stats import linregress
 
 NANOSECONDS_PER_SECOND = 1e9
+DEFAULT_MIN_PTP_PAUSE_S = (
+    0.4  # Minimum duration for detecting acquisition timing pause (PTP)
+)
+DEFAULT_MAX_PTP_PAUSE_S = (
+    2.0  # Maximum duration for detecting acquisition timing pause (PTP)
+)
 
 
 def find_wrap_point(t):
@@ -612,8 +618,8 @@ def get_position_timestamps(
         pause_mid_ind = (
             np.nonzero(
                 np.logical_and(
-                    np.diff(video_timestamps.index[:100]) > 0.4,
-                    np.diff(video_timestamps.index[:100]) < 2.0,
+                    np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
+                    np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
                 )
             )[0][0]
             + 1

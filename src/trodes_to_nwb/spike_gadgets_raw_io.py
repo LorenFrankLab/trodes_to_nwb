@@ -22,6 +22,11 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
+BITS_PER_BYTE = 8
+TIMESTAMP_SIZE_BYTES = 4  # uint32
+SYSCLOCK_SIZE_BYTES = 8  # int64
+EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
+EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -137,13 +142,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
-        packet_size += 4
+        packet_size += TIMESTAMP_SIZE_BYTES
         assert (
             "sysTimeIncluded" not in hconf.attrib
         ), "sysTimeIncluded not supported yet"
         # if sysTimeIncluded, then 8-byte system clock is included after timestamp
 
-        packet_size += 2 * num_ephy_channels
+        packet_size += EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels
 
         # read the binary part lazily
         raw_memmap = np.memmap(self.filename, mode="r", offset=header_size, dtype="<u1")
@@ -242,14 +247,17 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
                     self._mask_channels_ids[stream_id].append(channel.attrib["id"])
 
-                    num_bytes = device_bytes[device_name] + int(
+                    num_bytes_offset = device_bytes[device_name] + int(
                         channel.attrib["startByte"]
                     )
                     chan_mask_bytes = np.zeros(packet_size, dtype="bool")
-                    chan_mask_bytes[num_bytes] = True
-                    chan_mask_bytes[num_bytes + 1] = True
+                    chan_mask_bytes[
+                        num_bytes_offset : num_bytes_offset + EPHYS_SAMPLE_SIZE_BYTES
+                    ] = True
                     self._mask_channels_bytes[stream_id].append(chan_mask_bytes)
-                    chan_mask_bits = np.zeros(packet_size * 8, dtype="bool")  # TODO
+                    chan_mask_bits = np.zeros(
+                        packet_size * BITS_PER_BYTE, dtype="bool"
+                    )  # TODO
                     self._mask_channels_bits[stream_id].append(chan_mask_bits)
 
                 elif channel.attrib["dataType"] == "digital":  # handle DIO
@@ -300,7 +308,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     self._mask_channels_bytes[stream_id].append(chan_byte_mask)
 
                     # within the concatenated, masked bytes, mask the bit (flipped order)
-                    chan_bit_mask = np.zeros(8 * 1, dtype="bool")
+                    chan_bit_mask = np.zeros(BITS_PER_BYTE * 1, dtype="bool")
                     chan_bit_mask[int(channel.attrib["bit"])] = True
                     chan_bit_mask = np.flip(chan_bit_mask)
                     self._mask_channels_bits[stream_id].append(chan_bit_mask)
@@ -349,9 +357,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     )
 
                     chan_mask = np.zeros(packet_size, dtype="bool")
-                    num_bytes = packet_size - 2 * num_ephy_channels + 2 * chan_ind
-                    chan_mask[num_bytes] = True
-                    chan_mask[num_bytes + 1] = True
+                    num_bytes_offset = (
+                        packet_size
+                        - (EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels)
+                        + (EPHYS_SAMPLE_SIZE_BYTES * chan_ind)
+                    )
+                    chan_mask[
+                        num_bytes_offset : num_bytes_offset + EPHYS_SAMPLE_SIZE_BYTES
+                    ] = True
                     self._mask_channels_bytes[stream_id].append(chan_mask)
 
                     chan_ind += 1
@@ -482,7 +495,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if not self.interpolate_dropped_packets:
             # no interpolation
             raw_uint8 = self._raw_memmap[
-                i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+                i_start:i_stop,
+                self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES,
             ]
             raw_uint32 = (
                 raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
@@ -493,12 +507,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
             # first call in a interpolation iterator, needs to find the dropped packets
             # has to run through the entire file to find missing packets
             raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + 4
+                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
             ]
             raw_uint32 = (
                 raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
             )
-            self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
+            self.interpolate_index = np.where(
+                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
+            )[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
@@ -507,7 +523,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if i_stop is None:
             i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+            i_start:i_stop,
+            self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES,
         ]
         raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
         # add +1 to the inserted locations
@@ -525,7 +542,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if i_stop is None:
             i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
+            i_start:i_stop,
+            self.sysClock_byte : self.sysClock_byte + SYSCLOCK_SIZE_BYTES,
         ]
         raw_uint64 = raw_uint8.view(dtype=np.int64).reshape(-1)
         return raw_uint64
@@ -937,12 +955,14 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # ensure interpolation
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + 4
+                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
             ]
             raw_uint32 = (
                 raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
             )
-            self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
+            self.interpolate_index = np.where(
+                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
+            )[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()
