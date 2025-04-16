@@ -53,7 +53,7 @@ jobs:
       DOWNLOAD_DIR: ${{ github.workspace }}/test_data
     steps:
       - name: Download sdist and wheel artifacts
-        if: matrix.package != 'archive' && matrix.package != 'editable'
+        if: matrix.package != 'archive'
         uses: actions/download-artifact@v4
         with:
           name: dist
@@ -92,9 +92,9 @@ jobs:
         run: python -m pip install archive/archive.tgz
       - name: Install editable
         if: matrix.package == 'editable'
-        # Install test extras separately for editable installs
-        run: |
-          python -m pip install -e .[test]
+        run: pip install -e .
+      - name: Install test extras
+        run: pip install -e .[test]
 
 
       # --- Cache Test Data Step ---
@@ -110,7 +110,7 @@ jobs:
       # --- Download Test Data Step (Conditional) ---
       - name: Download test rec files
         # Only run if cache was not restored
-        if: steps.cache-testdata.outputs.cache-hit != 'true'
+        if: ${{ steps.cache-testdata.outputs.cache-hit != 'true' }}
         env:
           UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
           UCSF_BOX_USER: ${{ secrets.UCSF_BOX_USER }}
