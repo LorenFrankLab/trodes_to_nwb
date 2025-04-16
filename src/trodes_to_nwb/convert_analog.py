@@ -65,7 +65,9 @@ def add_analog_data(
     analog_events.add_timeseries(
         pynwb.TimeSeries(
             name="analog",
-            description=" ".join(analog_channel_ids),
+            description=__merge_row_description(
+                analog_channel_ids
+            ),  # NOTE: matches rec_to_nwb system
             data=data_data_io,
             timestamps=rec_dci.timestamps,
             unit="-1",
@@ -73,6 +75,13 @@ def add_analog_data(
     )
     # add it to the nwb file
     nwbfile.processing["analog"].add(analog_events)
+
+
+def __merge_row_description(row_ids: list[str]) -> str:
+    description = ""
+    for id in row_ids:
+        description += id + "   "
+    return description
 
 
 def get_analog_channel_names(header: ElementTree) -> list[str]:
