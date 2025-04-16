@@ -61,7 +61,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def _source_name(self):
         return self.filename
 
-    def _produce_ephys_channel_ids(self, n_total_channels, n_channels_per_chip):
+    @staticmethod
+    def _produce_ephys_channel_ids(n_total_channels, n_channels_per_chip):
         """Compute the channel ID labels
         The ephys channels in the .rec file are stored in the following order:
         hwChan ID of channel 0 of first chip, hwChan ID of channel 0 of second chip, ..., hwChan ID of channel 0 of Nth chip,
