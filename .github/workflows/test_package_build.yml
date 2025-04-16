@@ -83,13 +83,13 @@ jobs:
       # --- Installation Steps ---
       - name: Install wheel
         if: matrix.package == 'wheel'
-        run: python -m pip install dist/*.whl[test]
+        run: python -m pip install dist/*.whl
       - name: Install sdist
         if: matrix.package == 'sdist'
-        run: python -m pip install dist/*.tar.gz[test]
+        run: python -m pip install dist/*.tar.gz
       - name: Install archive
         if: matrix.package == 'archive'
-        run: python -m pip install archive/archive.tgz[test]
+        run: python -m pip install archive/archive.tgz
       - name: Install editable
         if: matrix.package == 'editable'
         # Install test extras separately for editable installs
