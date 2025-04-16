@@ -78,10 +78,7 @@ def add_analog_data(
 
 
 def __merge_row_description(row_ids: list[str]) -> str:
-    description = ""
-    for id in row_ids:
-        description += id + "   "
-    return description
+    return "   ".join(row_ids) + "   "
 
 
 def get_analog_channel_names(header: ElementTree) -> list[str]:
