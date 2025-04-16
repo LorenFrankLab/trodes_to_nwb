@@ -18,16 +18,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: 3
-      - run: pip install --upgrade build twine
+          python-version: '3.x' # Use '3.x' or specific version like '3.11'
+      - name: Install build dependencies
+        run: pip install --upgrade build twine
       - name: Build sdist and wheel
         run: python -m build
-      - run: twine check dist/*
+      - name: Check built artifacts
+        run: twine check dist/*
       - name: Upload sdist and wheel artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -40,6 +42,7 @@ jobs:
         with:
           name: archive
           path: archive/
+
   test-package:
     runs-on: ubuntu-latest
     needs: [build]
@@ -50,7 +53,7 @@ jobs:
       DOWNLOAD_DIR: ${{ github.workspace }}/test_data
     steps:
       - name: Download sdist and wheel artifacts
-        if: matrix.package != 'archive'
+        if: matrix.package != 'archive' && matrix.package != 'editable'
         uses: actions/download-artifact@v4
         with:
           name: dist
@@ -63,49 +66,83 @@ jobs:
           path: archive/
       - name: Checkout repo
         if: matrix.package == 'editable'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
+
       - name: Update pip
-        run: pip install --upgrade pip
+        run: python -m pip install --upgrade pip
+
+      # --- Installation Steps ---
       - name: Install wheel
         if: matrix.package == 'wheel'
-        run: pip install dist/*.whl
+        run: python -m pip install dist/*.whl[test]
       - name: Install sdist
         if: matrix.package == 'sdist'
-        run: pip install dist/*.tar.gz
+        run: python -m pip install dist/*.tar.gz[test]
       - name: Install archive
         if: matrix.package == 'archive'
-        run: pip install archive/archive.tgz
+        run: python -m pip install archive/archive.tgz[test]
       - name: Install editable
         if: matrix.package == 'editable'
-        run: pip install -e .
-      - name: Install test extras
-        run: pip install trodes_to_nwb[test]
+        # Install test extras separately for editable installs
+        run: |
+          python -m pip install -e .
+          python -m pip install trodes_to_nwb[test]
+
+      # --- Cache Test Data Step ---
+      - name: Cache test data
+        id: cache-testdata
+        uses: actions/cache@v4
+        with:
+          # Path to cache
+          path: ${{ env.DOWNLOAD_DIR }}
+          # Cache key: OS + static string + version number (bump v1 to v2 to invalidate)
+          key: ${{ runner.os }}-testdata-trodes-v1
+
+      # --- Download Test Data Step (Conditional) ---
       - name: Download test rec files
+        # Only run if cache was not restored
+        if: steps.cache-testdata.outputs.cache-hit != 'true'
         env:
           UCSF_BOX_TOKEN: ${{ secrets.UCSF_BOX_TOKEN }}
           UCSF_BOX_USER: ${{ secrets.UCSF_BOX_USER }}
           WEBSITE: ftps://ftp.box.com/trodes_to_nwb_test_data/
         run: |
-          wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P $DOWNLOAD_DIR $WEBSITE
-          tree $DOWNLOAD_DIR
+          echo "Cache miss. Downloading test data..."
+          # Ensure directory exists before downloading
+          mkdir -p ${{ env.DOWNLOAD_DIR }}
+          wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P ${{ env.DOWNLOAD_DIR }} $WEBSITE
+          tree ${{ env.DOWNLOAD_DIR }}
+      - name: Show downloaded files after cache/download
+        run: |
+          echo "Listing contents of DOWNLOAD_DIR:"
+          ls -R ${{ env.DOWNLOAD_DIR }} || echo "DOWNLOAD_DIR is empty or does not exist."
+
+
+      # --- Run Tests ---
       - name: Run tests without coverage
         if: matrix.package != 'editable'
         run: pytest --doctest-modules -v --pyargs trodes_to_nwb
       - name: Run tests with coverage
         if: matrix.package == 'editable'
-        run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
+        run: pytest --cov=trodes_to_nwb --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
+
+      # --- Upload Coverage ---
       - name: Upload coverage reports to Codecov
         if: matrix.package == 'editable'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        # Optional: specify fail_ci_if_error: true
+
   pypi-publish:
     name: Upload release to PyPI
     runs-on: ubuntu-latest
@@ -115,6 +152,7 @@ jobs:
       url: https://pypi.org/p/trodes-to-nwb
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+    # Only run on tagged pushes
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/download-artifact@v4
