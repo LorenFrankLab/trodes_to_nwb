@@ -921,7 +921,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                 ValueError(
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
-
+        # Inherit the original memmap object from the full_io object to conserve virtual memory
         if isinstance(full_io._raw_memmap, InsertedMemmap):
             self._raw_memmap = full_io._raw_memmap._raw_memmap
         else:
@@ -988,7 +988,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # initialize the first row
         # if no previous state, assume first segment. Default to superclass behavior
         analog_multiplexed_data[0] = data[0]
-        if not self.previous_multiplex_state is None:
+        if self.previous_multiplex_state is not None:
             # if previous state, use it to initialize elements of first row not updated in that packet
             ind = np.where(initialize_stream_mask[0])[0]
             analog_multiplexed_data[0][ind] = self.previous_multiplex_state[ind]

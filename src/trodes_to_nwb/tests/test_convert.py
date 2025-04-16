@@ -44,7 +44,7 @@ def test_get_file_info():
 def test_get_included_probe_metadata_paths():
     probes = get_included_probe_metadata_paths()
     assert len(probes) == 9
-    assert [probe.exists() for probe in probes]
+    assert all([probe.exists() for probe in probes])
 
 
 def test_convert_full():
