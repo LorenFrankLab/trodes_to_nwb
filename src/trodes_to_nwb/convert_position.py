@@ -513,6 +513,122 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
     return video_timestamps
 
 
+def _get_position_timestamps_ptp(
+    video_timestamps: pd.DataFrame, logger: logging.Logger
+) -> pd.DataFrame:
+    ptp_systime = np.asarray(video_timestamps.HWTimestamp)
+    # Convert from integer nanoseconds to float seconds
+    ptp_timestamps = pd.Index(ptp_systime / NANOSECONDS_PER_SECOND, name="time")
+    # Check that the PTP timestamps correspond to a time later than 2000, log a warning if not
+    if datetime.datetime.fromtimestamp(ptp_timestamps[0]).year < 2000:
+        logger.warning(
+            "PTP timestamps correspond to a time earlier than 2000. This may be due to a PTP clock reset."
+        )
+
+    video_timestamps = video_timestamps.drop(
+        columns=["HWframeCount", "HWTimestamp"]
+    ).set_index(ptp_timestamps)
+
+    # Ignore positions before the timing pause.
+    pause_mid_ind = (
+        np.nonzero(
+            np.logical_and(
+                np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
+                np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
+            )
+        )[0][0]
+        + 1
+    )
+    video_timestamps = video_timestamps.iloc[pause_mid_ind:]
+    logger.info(
+        "Camera frame rate estimated from MCU timestamps:"
+        f" {1 / np.median(np.diff(video_timestamps.index)):0.1f} frames/s"
+    )
+    return video_timestamps
+
+
+def _get_position_timestamps_no_ptp(
+    rec_dci_timestamps: np.ndarray,
+    video_timestamps: pd.DataFrame,
+    logger: logging.Logger,
+    dio_camera_timestamps: np.ndarray,
+    sample_count: np.ndarray,
+    epoch_interval: list[float],
+    non_repeat_timestamp_labels_id: np.ndarray,
+) -> pd.DataFrame:
+    try:
+        # dio_camera_timestamps are in units of seconds
+        dio_camera_timestamps_ns = dio_camera_timestamps * NANOSECONDS_PER_SECOND
+        pause_mid_time = (
+            find_acquisition_timing_pause(dio_camera_timestamps_ns)
+            / NANOSECONDS_PER_SECOND  # convert to seconds
+        )
+        frame_rate_from_dio = get_framerate(
+            dio_camera_timestamps_ns[dio_camera_timestamps > pause_mid_time]
+        )
+        logger.info(
+            "Camera frame rate estimated from DIO camera ticks:"
+            f" {frame_rate_from_dio:0.1f} frames/s"
+        )
+    except IndexError:
+        pause_mid_time = -1
+
+    frame_count = np.asarray(video_timestamps.HWframeCount)
+
+    epoch_start_ind = np.digitize(epoch_interval[0], rec_dci_timestamps)
+    epoch_end_ind = np.digitize(epoch_interval[1], rec_dci_timestamps)
+    is_valid_camera_time = np.isin(
+        video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
+    )
+
+    camera_systime = rec_dci_timestamps[
+        wrapped_digitize(
+            video_timestamps.index[is_valid_camera_time],
+            sample_count[epoch_start_ind:epoch_end_ind],
+        )
+        + epoch_start_ind
+    ]
+    (
+        dio_camera_timestamps,
+        frame_count,
+        is_valid_camera_time,
+        camera_systime,
+    ) = remove_acquisition_timing_pause_non_ptp(
+        dio_camera_timestamps,
+        frame_count,
+        camera_systime,
+        is_valid_camera_time,
+        pause_mid_time,
+    )
+    video_timestamps = video_timestamps.iloc[is_valid_camera_time]
+    frame_rate_from_camera_systime = get_framerate(camera_systime)
+    logger.info(
+        "Camera frame rate estimated from camera sys time:"
+        f" {frame_rate_from_camera_systime:0.1f} frames/s"
+    )
+    camera_to_mcu_lag = estimate_camera_to_mcu_lag(
+        camera_systime, dio_camera_timestamps, len(non_repeat_timestamp_labels_id)
+    )
+    corrected_camera_systime = []
+    for id in non_repeat_timestamp_labels_id:
+        is_chunk = video_timestamps.non_repeat_timestamp_labels == id
+        corrected_camera_systime.append(
+            correct_timestamps_for_camera_to_mcu_lag(
+                frame_count[is_chunk],
+                camera_systime[is_chunk],
+                camera_to_mcu_lag,
+            )
+        )
+    corrected_camera_systime = np.concatenate(corrected_camera_systime)
+
+    video_timestamps = video_timestamps.set_index(
+        pd.Index(corrected_camera_systime, name="time")
+    )
+    return video_timestamps.groupby(
+        video_timestamps.index
+    ).first()  # TODO: Figure out why duplicate timesteps make it to this point and why this line is necessary
+
+
 def get_position_timestamps(
     position_timestamps_filepath: Path,
     position_tracking_filepath=None | Path,
@@ -522,23 +638,23 @@ def get_position_timestamps(
     ptp_enabled: bool = True,
     epoch_interval: list[float] | None = None,
 ):
-    """Get the timestamps for a position data file. Includes protocol;s for both ptp and non-ptp data.
+    """Get the timestamps for a position data file. Includes protocols for both ptp and non-ptp data.
 
     Parameters
     ----------
     position_timestamps_filepath : Path
         path to the position timestamps file
-    position_tracking_filepath : _type_, optional
-        path to the position tracking file, by default None | Path
-    rec_dci_timestamps : _type_, optional
-        system clock times from the rec file used for non-ptp data, by default None | np.ndarray
-    dio_camera_timestamps : _type_, optional
-        Timestamps of the dio camera ticks used for non-ptp data, by default None | np.ndarray
-    sample_count : _type_, optional
-        trodes timestamps from the rec file used for non-ptp data, by default None | np.ndarray
+    position_tracking_filepath : Path, optional
+        path to the position tracking file, by default None
+    rec_dci_timestamps : np.ndarray, optional
+        system clock times from the rec file used for non-ptp data, by default None
+    dio_camera_timestamps : np.ndarray, optional
+        Timestamps of the dio camera ticks used for non-ptp data, by default None
+    sample_count : np.ndarray, optional
+        trodes timestamps from the rec file used for non-ptp data, by default None
     ptp_enabled : bool, optional
         whether ptp was enabled for position tracking, by default True
-    epoch_interval : list[float] | None, optional
+    epoch_interval : list[float] optional
         the timeinterval for the epoch used for non-ptp data, by default None
 
     Returns
@@ -601,107 +717,17 @@ def get_position_timestamps(
         pass
 
     if ptp_enabled:
-        ptp_systime = np.asarray(video_timestamps.HWTimestamp)
-        # Convert from integer nanoseconds to float seconds
-        ptp_timestamps = pd.Index(ptp_systime / NANOSECONDS_PER_SECOND, name="time")
-        # Check that the PTP timestamps correspond to a time later than 2000, log a warning if not
-        if datetime.datetime.fromtimestamp(ptp_timestamps[0]).year < 2000:
-            logger.warning(
-                "PTP timestamps correspond to a time earlier than 2000. This may be due to a PTP clock reset."
-            )
-
-        video_timestamps = video_timestamps.drop(
-            columns=["HWframeCount", "HWTimestamp"]
-        ).set_index(ptp_timestamps)
-
-        # Ignore positions before the timing pause.
-        pause_mid_ind = (
-            np.nonzero(
-                np.logical_and(
-                    np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
-                    np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
-                )
-            )[0][0]
-            + 1
-        )
-        video_timestamps = video_timestamps.iloc[pause_mid_ind:]
-        logger.info(
-            "Camera frame rate estimated from MCU timestamps:"
-            f" {1 / np.median(np.diff(video_timestamps.index)):0.1f} frames/s"
-        )
-        return video_timestamps
+        return _get_position_timestamps_ptp(video_timestamps, logger)
     else:
-        try:
-            pause_mid_time = (
-                find_acquisition_timing_pause(
-                    dio_camera_timestamps * NANOSECONDS_PER_SECOND
-                )
-                / NANOSECONDS_PER_SECOND
-            )
-            frame_rate_from_dio = get_framerate(
-                dio_camera_timestamps[dio_camera_timestamps > pause_mid_time]
-            )
-            logger.info(
-                "Camera frame rate estimated from DIO camera ticks:"
-                f" {frame_rate_from_dio:0.1f} frames/s"
-            )
-        except IndexError:
-            pause_mid_time = -1
-
-        frame_count = np.asarray(video_timestamps.HWframeCount)
-
-        epoch_start_ind = np.digitize(epoch_interval[0], rec_dci_timestamps)
-        epoch_end_ind = np.digitize(epoch_interval[1], rec_dci_timestamps)
-        is_valid_camera_time = np.isin(
-            video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
-        )
-
-        camera_systime = rec_dci_timestamps[
-            wrapped_digitize(
-                video_timestamps.index[is_valid_camera_time],
-                sample_count[epoch_start_ind:epoch_end_ind],
-            )
-            + epoch_start_ind
-        ]
-        (
+        return _get_position_timestamps_no_ptp(
+            rec_dci_timestamps,
+            video_timestamps,
+            logger,
             dio_camera_timestamps,
-            frame_count,
-            is_valid_camera_time,
-            camera_systime,
-        ) = remove_acquisition_timing_pause_non_ptp(
-            dio_camera_timestamps,
-            frame_count,
-            camera_systime,
-            is_valid_camera_time,
-            pause_mid_time,
+            sample_count,
+            epoch_interval,
+            non_repeat_timestamp_labels_id,
         )
-        video_timestamps = video_timestamps.iloc[is_valid_camera_time]
-        frame_rate_from_camera_systime = get_framerate(camera_systime)
-        logger.info(
-            "Camera frame rate estimated from camera sys time:"
-            f" {frame_rate_from_camera_systime:0.1f} frames/s"
-        )
-        camera_to_mcu_lag = estimate_camera_to_mcu_lag(
-            camera_systime, dio_camera_timestamps, len(non_repeat_timestamp_labels_id)
-        )
-        corrected_camera_systime = []
-        for id in non_repeat_timestamp_labels_id:
-            is_chunk = video_timestamps.non_repeat_timestamp_labels == id
-            corrected_camera_systime.append(
-                correct_timestamps_for_camera_to_mcu_lag(
-                    frame_count[is_chunk],
-                    camera_systime[is_chunk],
-                    camera_to_mcu_lag,
-                )
-            )
-        corrected_camera_systime = np.concatenate(corrected_camera_systime)
-
-        video_timestamps = video_timestamps.set_index(
-            pd.Index(corrected_camera_systime, name="time")
-        )
-        return video_timestamps.groupby(
-            video_timestamps.index
-        ).first()  # TODO: Figure out why duplicate timesteps make it to this point and why this line is necessary
 
 
 def find_camera_dio_channel_per_epoch(
