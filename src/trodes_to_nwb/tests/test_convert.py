@@ -1,6 +1,7 @@
 import os
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from pynwb import NWBHDF5IO
@@ -40,10 +41,10 @@ def test_get_file_info():
         assert Path(file).exists()
 
 
-def test_get_included_probe_metadat_paths():
+def test_get_included_probe_metadata_paths():
     probes = get_included_probe_metadata_paths()
     assert len(probes) == 9
-    assert [probe.exists() for probe in probes]
+    assert all([probe.exists() for probe in probes])
 
 
 def test_convert_full():
@@ -80,6 +81,11 @@ def test_convert_full():
     os.remove(output_file_path)
     os.remove(output_report_path)
     shutil.rmtree(video_directory)
+
+
+def test_convert_full_partial_iterators():
+    with patch("trodes_to_nwb.convert_ephys.MAXIMUM_ITERATOR_SIZE", new=5000):
+        test_convert_full()
 
 
 def test_convert_full_with_inspector_error(mocker):

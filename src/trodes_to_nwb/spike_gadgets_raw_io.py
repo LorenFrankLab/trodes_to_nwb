@@ -921,13 +921,24 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                 ValueError(
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
-
-        raw_memmap = np.memmap(self.filename, mode="r", offset=header_size, dtype="<u1")
-        packet_size = full_io._raw_memmap.shape[1]
-        num_packet = raw_memmap.size // packet_size
-        raw_memmap = raw_memmap[: num_packet * packet_size]
-        self._raw_memmap = raw_memmap.reshape(-1, packet_size)
+        # Inherit the original memmap object from the full_io object to conserve virtual memory
+        if isinstance(full_io._raw_memmap, InsertedMemmap):
+            self._raw_memmap = full_io._raw_memmap._raw_memmap
+        else:
+            self._raw_memmap = full_io._raw_memmap
         self._raw_memmap = self._raw_memmap[start_index:stop_index]
+        # ensure interpolation
+        if self.interpolate_dropped_packets and self.interpolate_index is None:
+            raw_uint8 = self._raw_memmap[
+                :, self._timestamp_byte : self._timestamp_byte + 4
+            ]
+            raw_uint32 = (
+                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            )
+            self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
+                0
+            ]  # find locations of single dropped packets
+            self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)
     def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
@@ -977,7 +988,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # initialize the first row
         # if no previous state, assume first segment. Default to superclass behavior
         analog_multiplexed_data[0] = data[0]
-        if not self.previous_multiplex_state is None:
+        if self.previous_multiplex_state is not None:
             # if previous state, use it to initialize elements of first row not updated in that packet
             ind = np.where(initialize_stream_mask[0])[0]
             analog_multiplexed_data[0][ind] = self.previous_multiplex_state[ind]
