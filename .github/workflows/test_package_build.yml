@@ -128,9 +128,6 @@ jobs:
 
 
       # --- Run Tests ---
-      - name: Run tests without coverage
-        if: matrix.package != 'editable'
-        run: pytest --doctest-modules -v --pyargs trodes_to_nwb
       - name: Run tests with coverage
         if: matrix.package == 'editable'
         run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
