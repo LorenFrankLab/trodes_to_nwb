@@ -62,16 +62,54 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return self.filename
 
     @staticmethod
-    def _produce_ephys_channel_ids(n_total_channels, n_channels_per_chip):
+    def _produce_ephys_channel_ids(
+        n_total_channels: int, n_channels_per_chip: int
+    ) -> list[int]:
         """Compute the channel ID labels
+
         The ephys channels in the .rec file are stored in the following order:
         hwChan ID of channel 0 of first chip, hwChan ID of channel 0 of second chip, ..., hwChan ID of channel 0 of Nth chip,
         hwChan ID of channel 1 of first chip, hwChan ID of channel 1 of second chip, ..., hwChan ID of channel 1 of Nth chip,
         ...
         So if there are 32 channels per chip and 128 channels (4 chips), then the channel IDs are:
         0, 32, 64, 96, 1, 33, 65, 97, ..., 128
-        See also: https://github.com/NeuralEnsemble/python-neo/issues/1215
+
+        Parameters
+        ----------
+        n_total_channels : int
+            Total number of ephys channels recorded.
+        n_channels_per_chip : int
+            Number of channels per headstage chip/amplifier.
+
+        Returns
+        -------
+        list[int]
+            List of hardware channel IDs in the interleaved order as they
+            appear in the data packets. Returns an empty list if
+            `n_total_channels` or `n_channels_per_chip` is 0.
+
+        Raises
+        ------
+        ValueError
+            If `n_total_channels` is not a multiple of `n_channels_per_chip`.
+
+        See Also
+        --------
+        https://github.com/NeuralEnsemble/python-neo/issues/1215 : Discussion
+            on SpikeGadgets channel ordering in Neo.
+
+
+
         """
+        if n_total_channels == 0 or n_channels_per_chip == 0:
+            return []  # Handle edge case of zero channels
+
+        if n_total_channels % n_channels_per_chip != 0:
+            raise ValueError(
+                "Total number of channels must be a multiple of channels per chip "
+                f"({n_total_channels} % {n_channels_per_chip} != 0)"
+            )
+
         x = []
         for k in range(n_channels_per_chip):
             x.append(
