@@ -94,8 +94,8 @@ jobs:
         if: matrix.package == 'editable'
         # Install test extras separately for editable installs
         run: |
-          python -m pip install -e .
-          python -m pip install trodes_to_nwb[test]
+          python -m pip install -e .[test]
+
 
       # --- Cache Test Data Step ---
       - name: Cache test data
@@ -133,7 +133,7 @@ jobs:
         run: pytest --doctest-modules -v --pyargs trodes_to_nwb
       - name: Run tests with coverage
         if: matrix.package == 'editable'
-        run: pytest --cov=trodes_to_nwb --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
+        run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
 
       # --- Upload Coverage ---
       - name: Upload coverage reports to Codecov
