@@ -79,13 +79,11 @@ def get_included_probe_metadata_paths() -> list[Path]:
     probe_metadata_paths : list[Path]
         List of probe metadata paths
     """
-    path = os.path.dirname(os.path.abspath(__file__))
-    probe_metadata_paths = []
-    probe_folder = Path(path + "/probe_metadata")
-    for file in os.listdir(probe_folder):
-        if file.endswith(".yml"):
-            probe_metadata_paths.append(probe_folder / file)
-    return probe_metadata_paths
+    package_dir = Path(__file__).parent.resolve()
+    probe_folder = package_dir / "probe_metadata"
+    return [
+        probe_folder / file for file in probe_folder.iterdir() if file.suffix == ".yml"
+    ]
 
 
 def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:

@@ -4,7 +4,7 @@ a predefined JSON schema to ensure completeness and correctness before NWB conve
 
 import copy
 import datetime
-import os
+from pathlib import Path
 
 import jsonschema
 import yaml
@@ -18,9 +18,7 @@ def _get_nwb_json_schema_path() -> str:
     str
         NWB Schema file Path
     """
-    current_path = os.path.dirname(os.path.abspath(__file__))
-    json_schema_file = "/./nwb_schema.json"
-    return f"{current_path}{os.path.normpath(json_schema_file)}"
+    return str((Path(__file__).parent / "nwb_schema.json").resolve())
 
 
 def _get_json_schema() -> str:

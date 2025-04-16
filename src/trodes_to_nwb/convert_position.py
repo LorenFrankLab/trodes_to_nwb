@@ -5,7 +5,6 @@ and ImageSeries. Includes logic for PTP and non-PTP timestamp alignment.
 
 import datetime
 import logging
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -950,11 +949,15 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
         If the ffmpeg command fails.
 
     """
-    new_file_name = file.replace(".h264", ".mp4")
-    new_file_name = video_directory + "/" + new_file_name.split("/")[-1]
+    new_file_name = Path(video_directory) / Path(file.replace(".h264", ".mp4")).name
+
     logger = logging.getLogger("convert")
-    if os.path.exists(new_file_name):
-        return new_file_name
+    if new_file_name.exists():
+        logger.info(f"Video file {new_file_name} already exists. Skipping conversion.")
+        return str(new_file_name)
+    else:
+        new_file_name = str(new_file_name)
+
     try:
         # Construct the ffmpeg command
         subprocess.run(f"ffmpeg -i {file} {new_file_name}", shell=True)
@@ -971,10 +974,13 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
 def copy_video_to_directory(file: str, video_directory: str) -> str:
     """Copies video file to video directory without conversion"""
-    new_file_name = video_directory + "/" + file.split("/")[-1]
+    new_file_name = Path(video_directory) / Path(file).name
     logger = logging.getLogger("convert")
-    if os.path.exists(new_file_name):
-        return new_file_name
+    if new_file_name.exists():
+        return str(new_file_name)
+    else:
+        new_file_name = str(new_file_name)
+
     try:
         # Construct the ffmpeg command
         subprocess.run(f"cp {file} {new_file_name}", shell=True)
