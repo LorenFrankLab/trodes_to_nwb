@@ -199,7 +199,7 @@ def _create_nwb(
     session_df: pd.DataFrame,
     header_reconfig_path: Path | None = None,
     probe_metadata_paths: list[Path] | None = None,
-    output_dir: str = "/home/stelmo/nwb/raw",
+    output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
     disable_ptp: bool = False,
