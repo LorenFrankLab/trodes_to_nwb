@@ -9,6 +9,7 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
+from typing import Optional
 from xml.etree import ElementTree
 
 import numpy as np
@@ -58,7 +59,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self.selected_streams = selected_streams
         self.interpolate_dropped_packets = interpolate_dropped_packets
 
-    def _source_name(self):
+    def _source_name(self) -> str:
+        """Returns the source file name for this raw IO object.
+
+        Returns
+        -------
+        str: The filename for the current instance.
+        """
         return self.filename
 
     @staticmethod
@@ -460,26 +467,36 @@ class SpikeGadgetsRawIO(BaseRawIO):
         for ann in (bl_ann, seg_ann):
             ann.update(gconf.attrib)
 
-    def _segment_t_start(self, block_index, seg_index):
+    def _segment_t_start(self, block_index: int, seg_index: int) -> float:
         return 0.0
 
-    def _segment_t_stop(self, block_index, seg_index):
+    def _segment_t_stop(self, block_index: int, seg_index: int) -> float:
         size = self._raw_memmap.shape[0]
         t_stop = size / self._sampling_rate
         return t_stop
 
-    def _get_signal_size(self, block_index, seg_index, stream_index):
+    def _get_signal_size(
+        self, block_index: int, seg_index: int, stream_index: int
+    ) -> int:
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             raise ValueError("interpolate_index must be set before calling this")
         size = self._raw_memmap.shape[0]
         return size
 
-    def _get_signal_t_start(self, block_index, seg_index, stream_index):
+    def _get_signal_t_start(
+        self, block_index: int, seg_index: int, stream_index: int
+    ) -> float:
         return 0.0
 
     def _get_analogsignal_chunk(
-        self, block_index, seg_index, i_start, i_stop, stream_index, channel_indexes
-    ):
+        self,
+        block_index: int,
+        seg_index: int,
+        i_start: int,
+        i_stop: int,
+        stream_index: int,
+        channel_indexes: int | np.array | slice | None = None,
+    ) -> np.ndarray:
         stream_id = self.header["signal_streams"][stream_index]["id"]
 
         raw_unit8 = self._raw_memmap[i_start:i_stop]
@@ -530,7 +547,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return raw_unit16
 
-    def get_analogsignal_timestamps(self, i_start, i_stop):
+    def get_analogsignal_timestamps(self, i_start: int, i_stop: int) -> np.ndarray:
         if not self.interpolate_dropped_packets:
             # no interpolation
             raw_uint8 = self._raw_memmap[
@@ -575,7 +592,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             raw_uint32[inserted_locations] += 1
         return raw_uint32
 
-    def get_sys_clock(self, i_start, i_stop):
+    def get_sys_clock(self, i_start: int, i_stop: int) -> np.ndarray:
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
         if i_stop is None:
@@ -588,7 +605,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return raw_uint64
 
     @functools.lru_cache(maxsize=2)
-    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+    def get_analogsignal_multiplexed(
+        self, channel_names: Optional[list[str]] = None
+    ) -> np.ndarray:
         print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
@@ -725,7 +744,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
         return analog_multiplexed_data[padding:]
 
-    def get_digitalsignal(self, stream_id, channel_id):
+    def get_digitalsignal(
+        self, stream_id: int, channel_id: int
+    ) -> tuple[np.ndarray, np.ndarray]:
         # stream_id = self.header["signal_streams"][stream_index]["id"]
 
         # for now, allow only reading the entire dataset
@@ -803,7 +824,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return dio_change_times, change_dir_trim
 
     @functools.lru_cache(maxsize=1)
-    def get_regressed_systime(self, i_start, i_stop=None):
+    def get_regressed_systime(
+        self, i_start: int, i_stop: Optional[int] = None
+    ) -> np.ndarray:
         NANOSECONDS_PER_SECOND = 1e9
         # get trodes timestamp values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
@@ -841,10 +864,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
         print("Interpolate memmap: ", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
 
-    def get_stream_index_from_id(self, stream_id):
+    def get_stream_index_from_id(self, stream_id: int) -> np.ndarray:
         return np.where(self.header["signal_streams"]["id"] == stream_id)[0][0]
 
-    def get_stream_id_from_index(self, stream_index):
+    def get_stream_id_from_index(self, stream_index: int) -> np.ndarray:
         return self.header["signal_streams"]["id"][stream_index]
 
 
@@ -854,7 +877,9 @@ class InsertedMemmap:
     Avoids loading data into memory during np.insert
     """
 
-    def __init__(self, _raw_memmap, inserted_index=[]) -> None:
+    def __init__(self, _raw_memmap, inserted_index: Optional[int] = None) -> None:
+        if inserted_index is None:
+            inserted_index = []
         self._raw_memmap = _raw_memmap
         self.mapped_index = np.arange(self._raw_memmap.shape[0])
         self.mapped_index = np.insert(
@@ -863,7 +888,7 @@ class InsertedMemmap:
         self.inserted_locations = inserted_index + np.arange(len(inserted_index))
         self.shape = (self.mapped_index.size, self._raw_memmap.shape[1])
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int | slice | tuple) -> np.ndarray:
         # request a slice in both time and channel
         if isinstance(index, tuple):
             index_chan = index[1]
@@ -871,7 +896,7 @@ class InsertedMemmap:
         # request a slice in time
         return self._raw_memmap[self.access_coordinates(index)]
 
-    def access_coordinates(self, index):
+    def access_coordinates(self, index: int | slice) -> np.ndarray:
         if isinstance(index, int):
             return self.mapped_index[index]
         # if slice object
@@ -927,7 +952,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         full_io: SpikeGadgetsRawIO,
         start_index: int,
         stop_index: int,
-        previous_multiplex_state: np.ndarray = None,
+        previous_multiplex_state: Optional[np.ndarray] = None,
     ):
         """Initialize a partial SpikeGadgetsRawIO object.
 
@@ -1007,7 +1032,9 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
             self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)
-    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+    def get_analogsignal_multiplexed(
+        self, channel_names: Optional[list[str]] = None
+    ) -> np.ndarray:
         """
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
@@ -1065,7 +1092,9 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
             )
         return analog_multiplexed_data
 
-    def get_digitalsignal(self, stream_id, channel_id):
+    def get_digitalsignal(
+        self, stream_id: int, channel_id: int
+    ) -> tuple[np.ndarray, np.ndarray]:
         dio_change_times, change_dir_trim = super().get_digitalsignal(
             stream_id, channel_id
         )
