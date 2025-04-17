@@ -996,10 +996,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
         print("Interpolate memmap: ", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
 
-    def get_stream_index_from_id(self, stream_id: int) -> np.ndarray:
+    def get_stream_index_from_id(self, stream_id: int) -> int:
         return np.where(self.header["signal_streams"]["id"] == stream_id)[0][0]
 
-    def get_stream_id_from_index(self, stream_index: int) -> np.ndarray:
+    def get_stream_id_from_index(self, stream_index: int) -> int:
         return self.header["signal_streams"]["id"][stream_index]
 
 
