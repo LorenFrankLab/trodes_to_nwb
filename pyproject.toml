@@ -55,3 +55,7 @@ exclude = [".git_archival.txt"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/trodes_to_nwb"]
 exclude = ["src/trodes_to_nwb/data/test_data"]
+
+[tool.coverage.run]
+source = ["src/trodes_to_nwb"]
+omit = ["src/trodes_to_nwb/tests/*"]
