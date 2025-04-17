@@ -130,7 +130,7 @@ jobs:
       # --- Run Tests ---
       - name: Run tests with coverage
         if: matrix.package == 'editable'
-        run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
+        run: pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb --omit='src/trodes_to_nwb/tests/*'
 
       # --- Upload Coverage ---
       - name: Upload coverage reports to Codecov
