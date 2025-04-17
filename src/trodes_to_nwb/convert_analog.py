@@ -10,6 +10,9 @@ from pynwb import NWBFile
 from trodes_to_nwb import convert_rec_header
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 
+DEFAULT_CHUNK_TIME_DIM = 16384
+DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
+
 
 def add_analog_data(
     nwbfile: NWBFile, rec_file_path: list[str], timestamps: np.ndarray = None, **kwargs
@@ -55,7 +58,13 @@ def add_analog_data(
     # by studies by the NWB team.
     # could also add compression here. zstd/blosc-zstd are recommended by the NWB team, but
     # they require the hdf5plugin library to be installed. gzip is available by default.
-    data_data_io = H5DataIO(rec_dci, chunks=(16384, min(len(analog_channel_ids), 32)))
+    data_data_io = H5DataIO(
+        rec_dci,
+        chunks=(
+            DEFAULT_CHUNK_TIME_DIM,
+            min(len(analog_channel_ids), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
+        ),
+    )
 
     # make the objects to add to the nwb file
     nwbfile.create_processing_module(
