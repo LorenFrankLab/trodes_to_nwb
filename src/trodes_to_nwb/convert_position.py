@@ -569,7 +569,7 @@ def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
         nwb_file.processing["behavior"]
         .data_interfaces["behavioral_events"]
         .time_series[dio_camera_name[0]]
-        .timestamps[:]
+        .timestamps
     )
 
 

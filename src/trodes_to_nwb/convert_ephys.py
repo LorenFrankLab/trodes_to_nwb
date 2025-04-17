@@ -25,6 +25,8 @@ DEFAULT_SAMPLING_RATE = 30000  # 30 kHz
 SECONDS_PER_MINUTE = 60
 MAX_ITERATOR_MINUTES = 30
 
+# maximum size of the iterator in samples
+# Just a guess, but should be large enough to not cause issues
 MAXIMUM_ITERATOR_SIZE = int(
     DEFAULT_SAMPLING_RATE * SECONDS_PER_MINUTE * MAX_ITERATOR_MINUTES
 )  # 30 min of data at 30 kHz

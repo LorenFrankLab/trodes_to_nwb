@@ -146,8 +146,6 @@ def test_get_sys_clock(raw_io):
 
 def test_get_regressed_systime(raw_io):
     """Test calculating system time via regression (if sysClock available)."""
-    if not raw_io.sysClock_byte:
-        pytest.skip("SysClock not available for regression test.")
 
     n_samples_to_read = 100
     # Ensure calculation runs without error

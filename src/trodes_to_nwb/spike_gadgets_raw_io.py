@@ -1023,7 +1023,7 @@ class InsertedMemmap:
             The indices where interpolation has occurred. Defaults to an empty array if not provided.
         """
         if inserted_index is None:
-            inserted_index = []
+            inserted_index = np.array([])
         self._raw_memmap = _raw_memmap
         self.mapped_index = np.arange(self._raw_memmap.shape[0])
         self.mapped_index = np.insert(
