@@ -1,3 +1,7 @@
+"""Module for creating and adding epoch intervals (start/stop times) and
+sample count information (mapping Trodes timestamps to system time) to the NWB file.
+"""
+
 import logging
 from typing import List
 
@@ -93,7 +97,7 @@ def add_sample_count(
     )
 
     # get the systime information
-    systime = np.array(rec_dci.timestamps) * 1e9
+    systime = np.array(rec_dci.timestamps) * NANOSECONDS_PER_SECOND
     # get the sample count information
     trodes_sample = np.concatenate(
         [neo_io.get_analogsignal_timestamps(0, None) for neo_io in rec_dci.neo_io]

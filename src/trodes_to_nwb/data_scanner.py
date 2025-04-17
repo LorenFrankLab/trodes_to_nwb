@@ -1,3 +1,8 @@
+"""Scans a directory for Trodes-related data files based on naming conventions
+and valid extensions. Organizes file paths into a pandas DataFrame grouped by
+session information (date, animal, epoch).
+"""
+
 import logging
 from pathlib import Path
 

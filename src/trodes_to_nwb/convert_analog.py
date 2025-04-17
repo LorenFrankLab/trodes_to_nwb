@@ -1,3 +1,5 @@
+"""Module for handling the conversion of ECU analog and headstage sensor data streams from Trodes .rec files to NWB format."""
+
 from xml.etree import ElementTree
 
 import numpy as np
@@ -7,6 +9,9 @@ from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+
+DEFAULT_CHUNK_TIME_DIM = 16384
+DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
 def add_analog_data(
@@ -53,7 +58,13 @@ def add_analog_data(
     # by studies by the NWB team.
     # could also add compression here. zstd/blosc-zstd are recommended by the NWB team, but
     # they require the hdf5plugin library to be installed. gzip is available by default.
-    data_data_io = H5DataIO(rec_dci, chunks=(16384, min(len(analog_channel_ids), 32)))
+    data_data_io = H5DataIO(
+        rec_dci,
+        chunks=(
+            DEFAULT_CHUNK_TIME_DIM,
+            min(len(analog_channel_ids), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
+        ),
+    )
 
     # make the objects to add to the nwb file
     nwbfile.create_processing_module(
@@ -76,10 +87,7 @@ def add_analog_data(
 
 
 def __merge_row_description(row_ids: list[str]) -> str:
-    description = ""
-    for id in row_ids:
-        description += id + "   "
-    return description
+    return "   ".join(row_ids) + "   "
 
 
 def get_analog_channel_names(header: ElementTree) -> list[str]:

@@ -1,7 +1,15 @@
+"""Custom implementation of a Neo RawIO class for reading SpikeGadgets .rec files.
+
+Handles parsing the header, reading continuous signal chunks (ephys, analog, DIO),
+timestamp extraction (Trodes, system clock), and optional interpolation of dropped packets.
+Intended as a temporary solution until official support is available in Neo.
+"""
+
 # TODO use neo.rawio.SpikeGadgetsRawIO instead of this file when it is available in neo
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
+from typing import Optional
 from xml.etree import ElementTree
 
 import numpy as np
@@ -15,6 +23,11 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
+BITS_PER_BYTE = 8
+TIMESTAMP_SIZE_BYTES = 4  # uint32
+SYSCLOCK_SIZE_BYTES = 8  # int64
+EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
+EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -22,43 +35,86 @@ class SpikeGadgetsRawIO(BaseRawIO):
     rawmode = "one-file"
 
     def __init__(
-        self, filename="", selected_streams=None, interpolate_dropped_packets=False
+        self,
+        filename: str = "",
+        selected_streams: Optional[list[str] | str] = None,
+        interpolate_dropped_packets: bool = False,
     ):
         """
-        Class for reading spikegadgets files.
-        Only continuous signals are supported at the moment.
+        Initializes the SpikeGadgetsRawIO class for reading SpikeGadgets .rec files.
 
-        Initialize a SpikeGadgetsRawIO for a single ".rec" file.
-
-        Args:
-            filename: str
-                The filename
-            selected_streams: None, list, str
-                sublist of streams to load/expose to API
-                useful for spikeextractor when one stream only is needed.
-                For instance streams = ['ECU', 'trodes']
-                'trodes' is name for ephy channel (ntrodes)
-            interpolate_dropped_packets: bool
-                If True, interpolates single dropped packets in the analog data.
+        Parameters
+        ----------
+        filename : str, optional
+            The path to the .rec file. Default is an empty string.
+        selected_streams : list of str or str, optional
+            Stream(s) to be loaded. If `None`, loads all available streams. If a string, loads only the specified stream.
+            If a list, loads multiple specified streams.
+        interpolate_dropped_packets : bool, optional
+            If True, enables interpolation for dropped packets in analog data. Default is False.
         """
         BaseRawIO.__init__(self)
         self.filename = filename
         self.selected_streams = selected_streams
         self.interpolate_dropped_packets = interpolate_dropped_packets
 
-    def _source_name(self):
+    def _source_name(self) -> str:
+        """
+        Returns the filename of the current SpikeGadgetsRawIO instance.
+
+        Returns
+        -------
+        str
+            The filename of the associated .rec file.
+        """
         return self.filename
 
-    def _produce_ephys_channel_ids(self, n_total_channels, n_channels_per_chip):
-        """Compute the channel ID labels
+    @staticmethod
+    def _produce_ephys_channel_ids(
+        n_total_channels: int, n_channels_per_chip: int
+    ) -> list[int]:
+        """Computes the hardware channel IDs for ephys data.
+
         The ephys channels in the .rec file are stored in the following order:
         hwChan ID of channel 0 of first chip, hwChan ID of channel 0 of second chip, ..., hwChan ID of channel 0 of Nth chip,
         hwChan ID of channel 1 of first chip, hwChan ID of channel 1 of second chip, ..., hwChan ID of channel 1 of Nth chip,
         ...
         So if there are 32 channels per chip and 128 channels (4 chips), then the channel IDs are:
         0, 32, 64, 96, 1, 33, 65, 97, ..., 128
-        See also: https://github.com/NeuralEnsemble/python-neo/issues/1215
+
+        Parameters
+        ----------
+        n_total_channels : int
+            Total number of ephys channels recorded.
+        n_channels_per_chip : int
+            Number of channels per headstage chip/amplifier.
+
+        Returns
+        -------
+        list[int]
+            List of hardware channel IDs in the interleaved order as they
+            appear in the data packets. Returns an empty list if
+            `n_total_channels` or `n_channels_per_chip` is 0.
+
+        Raises
+        ------
+        ValueError
+            If `n_total_channels` is not a multiple of `n_channels_per_chip`.
+
+        See Also
+        --------
+        https://github.com/NeuralEnsemble/python-neo/issues/1215 : Discussion
+            on SpikeGadgets channel ordering in Neo.
         """
+        if n_total_channels == 0 or n_channels_per_chip == 0:
+            return []  # Handle edge case of zero channels
+
+        if n_total_channels % n_channels_per_chip != 0:
+            raise ValueError(
+                "Total number of channels must be a multiple of channels per chip "
+                f"({n_total_channels} % {n_channels_per_chip} != 0)"
+            )
+
         x = []
         for k in range(n_channels_per_chip):
             x.append(
@@ -70,6 +126,17 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return [item for sublist in x for item in sublist]
 
     def _parse_header(self):
+        """
+        Parses the XML header of the SpikeGadgets .rec file to extract important configuration data.
+
+        This includes system time at creation, sampling rate, number of channels, and other configuration
+        details from the XML metadata.
+
+        Raises
+        ------
+        ValueError
+            If the header XML is missing or invalid.
+        """
         # parse file until "</Configuration>"
         header_size = None
         with open(self.filename, mode="rb") as f:
@@ -130,13 +197,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
-        packet_size += 4
+        packet_size += TIMESTAMP_SIZE_BYTES
         assert (
             "sysTimeIncluded" not in hconf.attrib
         ), "sysTimeIncluded not supported yet"
         # if sysTimeIncluded, then 8-byte system clock is included after timestamp
 
-        packet_size += 2 * num_ephy_channels
+        packet_size += EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels
 
         # read the binary part lazily
         raw_memmap = np.memmap(self.filename, mode="r", offset=header_size, dtype="<u1")
@@ -235,14 +302,17 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
                     self._mask_channels_ids[stream_id].append(channel.attrib["id"])
 
-                    num_bytes = device_bytes[device_name] + int(
+                    num_bytes_offset = device_bytes[device_name] + int(
                         channel.attrib["startByte"]
                     )
                     chan_mask_bytes = np.zeros(packet_size, dtype="bool")
-                    chan_mask_bytes[num_bytes] = True
-                    chan_mask_bytes[num_bytes + 1] = True
+                    chan_mask_bytes[
+                        num_bytes_offset : num_bytes_offset + EPHYS_SAMPLE_SIZE_BYTES
+                    ] = True
                     self._mask_channels_bytes[stream_id].append(chan_mask_bytes)
-                    chan_mask_bits = np.zeros(packet_size * 8, dtype="bool")  # TODO
+                    chan_mask_bits = np.zeros(
+                        packet_size * BITS_PER_BYTE, dtype="bool"
+                    )  # TODO
                     self._mask_channels_bits[stream_id].append(chan_mask_bits)
 
                 elif channel.attrib["dataType"] == "digital":  # handle DIO
@@ -293,7 +363,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     self._mask_channels_bytes[stream_id].append(chan_byte_mask)
 
                     # within the concatenated, masked bytes, mask the bit (flipped order)
-                    chan_bit_mask = np.zeros(8 * 1, dtype="bool")
+                    chan_bit_mask = np.zeros(BITS_PER_BYTE * 1, dtype="bool")
                     chan_bit_mask[int(channel.attrib["bit"])] = True
                     chan_bit_mask = np.flip(chan_bit_mask)
                     self._mask_channels_bits[stream_id].append(chan_bit_mask)
@@ -342,9 +412,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     )
 
                     chan_mask = np.zeros(packet_size, dtype="bool")
-                    num_bytes = packet_size - 2 * num_ephy_channels + 2 * chan_ind
-                    chan_mask[num_bytes] = True
-                    chan_mask[num_bytes + 1] = True
+                    num_bytes_offset = (
+                        packet_size
+                        - (EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels)
+                        + (EPHYS_SAMPLE_SIZE_BYTES * chan_ind)
+                    )
+                    chan_mask[
+                        num_bytes_offset : num_bytes_offset + EPHYS_SAMPLE_SIZE_BYTES
+                    ] = True
                     self._mask_channels_bytes[stream_id].append(chan_mask)
 
                     chan_ind += 1
@@ -401,26 +476,81 @@ class SpikeGadgetsRawIO(BaseRawIO):
         for ann in (bl_ann, seg_ann):
             ann.update(gconf.attrib)
 
-    def _segment_t_start(self, block_index, seg_index):
+    def _segment_t_start(self, block_index: int, seg_index: int) -> float:
         return 0.0
 
-    def _segment_t_stop(self, block_index, seg_index):
+    def _segment_t_stop(self, block_index: int, seg_index: int) -> float:
         size = self._raw_memmap.shape[0]
         t_stop = size / self._sampling_rate
         return t_stop
 
-    def _get_signal_size(self, block_index, seg_index, stream_index):
+    def _get_signal_size(
+        self, block_index: int, seg_index: int, stream_index: int
+    ) -> int:
+        """
+        Returns the size of the signal for a given stream.
+
+        Parameters
+        ----------
+        block_index : int
+            The block index.
+        seg_index : int
+            The segment index.
+        stream_index : int
+            The stream index.
+
+        Returns
+        -------
+        int
+            The size of the signal in the specified block and segment.
+
+        Raises
+        ------
+        ValueError
+            If interpolation index is not set but interpolation is enabled.
+        """
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             raise ValueError("interpolate_index must be set before calling this")
         size = self._raw_memmap.shape[0]
         return size
 
-    def _get_signal_t_start(self, block_index, seg_index, stream_index):
+    def _get_signal_t_start(
+        self, block_index: int, seg_index: int, stream_index: int
+    ) -> float:
         return 0.0
 
     def _get_analogsignal_chunk(
-        self, block_index, seg_index, i_start, i_stop, stream_index, channel_indexes
-    ):
+        self,
+        block_index: int,
+        seg_index: int,
+        i_start: int,
+        i_stop: int,
+        stream_index: int,
+        channel_indexes: Optional[int | np.ndarray | slice] = None,
+    ) -> np.ndarray:
+        """
+        Returns a chunk of the analog signal data from the .rec file.
+
+        Parameters
+        ----------
+        block_index : int
+            The block index.
+        seg_index : int
+            The segment index.
+        i_start : int
+            The start index for the chunk.
+        i_stop : int
+            The stop index for the chunk.
+        stream_index : int
+            The index of the signal stream to be retrieved.
+        channel_indexes : int, np.ndarray, slice or None, optional
+            The specific channel(s) to retrieve from the stream. If `None`, retrieves all channels.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the requested chunk of the analog signal data.
+        """
         stream_id = self.header["signal_streams"][stream_index]["id"]
 
         raw_unit8 = self._raw_memmap[i_start:i_stop]
@@ -471,11 +601,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         return raw_unit16
 
-    def get_analogsignal_timestamps(self, i_start, i_stop):
+    def get_analogsignal_timestamps(self, i_start: int, i_stop: int) -> np.ndarray:
         if not self.interpolate_dropped_packets:
             # no interpolation
             raw_uint8 = self._raw_memmap[
-                i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+                i_start:i_stop,
+                self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES,
             ]
             raw_uint32 = (
                 raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
@@ -486,12 +617,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
             # first call in a interpolation iterator, needs to find the dropped packets
             # has to run through the entire file to find missing packets
             raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + 4
+                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
             ]
             raw_uint32 = (
                 raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
             )
-            self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
+            self.interpolate_index = np.where(
+                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
+            )[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
@@ -500,7 +633,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if i_stop is None:
             i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self._timestamp_byte : self._timestamp_byte + 4
+            i_start:i_stop,
+            self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES,
         ]
         raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
         # add +1 to the inserted locations
@@ -512,19 +646,43 @@ class SpikeGadgetsRawIO(BaseRawIO):
             raw_uint32[inserted_locations] += 1
         return raw_uint32
 
-    def get_sys_clock(self, i_start, i_stop):
+    def get_sys_clock(self, i_start: int, i_stop: int) -> np.ndarray:
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
         if i_stop is None:
             i_stop = self._raw_memmap.shape[0]
         raw_uint8 = self._raw_memmap[
-            i_start:i_stop, self.sysClock_byte : self.sysClock_byte + 8
+            i_start:i_stop,
+            self.sysClock_byte : self.sysClock_byte + SYSCLOCK_SIZE_BYTES,
         ]
         raw_uint64 = raw_uint8.view(dtype=np.int64).reshape(-1)
         return raw_uint64
 
     @functools.lru_cache(maxsize=2)
-    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+    def get_analogsignal_multiplexed(
+        self, channel_names: Optional[list[str]] = None
+    ) -> np.ndarray:
+        """
+        Retrieves multiplexed analog signal data.
+
+        If `channel_names` is provided, it retrieves data for the specified channels.
+        Otherwise, it fetches all multiplexed channels.
+
+        Parameters
+        ----------
+        channel_names : list of str, optional
+            A list of channel names to retrieve. If `None`, fetches all channels.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the multiplexed analog signal data.
+
+        Raises
+        ------
+        ValueError
+            If any specified `channel_names` are not found in the file.
+        """
         print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
@@ -661,7 +819,28 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
         return analog_multiplexed_data[padding:]
 
-    def get_digitalsignal(self, stream_id, channel_id):
+    def get_digitalsignal(
+        self, stream_id: int, channel_id: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Retrieves the digital signal changes for a given stream and channel.
+
+        This method returns the timestamps and the change direction (0 to 1 or 1 to 0) for the specified channel in the stream.
+
+        Parameters
+        ----------
+        stream_id : int
+            The ID of the stream to retrieve the signal from.
+        channel_id : int
+            The ID of the channel within the stream.
+
+        Returns
+        -------
+        tuple of np.ndarray
+            A tuple containing:
+            - An array of timestamps when the signal changed.
+            - An array of the change direction (0 or 1) for each timestamp.
+        """
         # stream_id = self.header["signal_streams"][stream_index]["id"]
 
         # for now, allow only reading the entire dataset
@@ -739,7 +918,27 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return dio_change_times, change_dir_trim
 
     @functools.lru_cache(maxsize=1)
-    def get_regressed_systime(self, i_start, i_stop=None):
+    def get_regressed_systime(
+        self, i_start: int, i_stop: Optional[int] = None
+    ) -> np.ndarray:
+        """
+        Retrieves the regressed system time based on the Trodes timestamp and the system clock.
+
+        This method performs a linear regression between the Trodes timestamps and the system clock
+        to adjust the timestamps to the system time.
+
+        Parameters
+        ----------
+        i_start : int
+            The start index for the time range.
+        i_stop : int, optional
+            The stop index for the time range. If `None`, uses the full available range.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the adjusted system timestamps.
+        """
         NANOSECONDS_PER_SECOND = 1e9
         # get trodes timestamp values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
@@ -761,7 +960,27 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
     @functools.lru_cache(maxsize=1)
-    def get_systime_from_trodes_timestamps(self, i_start, i_stop=None):
+    def get_systime_from_trodes_timestamps(
+        self, i_start: int, i_stop: Optional[int] = None
+    ) -> np.ndarray:
+        """
+        Retrieves system time based on Trodes timestamps.
+
+        This method computes the system time by using the Trodes timestamps
+        and the system time at creation.
+
+        Parameters
+        ----------
+        i_start : int
+            The start index for the time range.
+        i_stop : int, optional
+            The stop index for the time range. If `None`, uses the full available range.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the computed system time values.
+        """
         MILLISECONDS_PER_SECOND = 1e3
         # get values
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
@@ -777,10 +996,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
         print("Interpolate memmap: ", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
 
-    def get_stream_index_from_id(self, stream_id):
+    def get_stream_index_from_id(self, stream_id: int) -> int:
         return np.where(self.header["signal_streams"]["id"] == stream_id)[0][0]
 
-    def get_stream_id_from_index(self, stream_index):
+    def get_stream_id_from_index(self, stream_index: int) -> int:
         return self.header["signal_streams"]["id"][stream_index]
 
 
@@ -790,7 +1009,21 @@ class InsertedMemmap:
     Avoids loading data into memory during np.insert
     """
 
-    def __init__(self, _raw_memmap, inserted_index=[]) -> None:
+    def __init__(
+        self, _raw_memmap: np.ndarray, inserted_index: Optional[np.ndarray] = None
+    ) -> None:
+        """
+        Initializes an InsertedMemmap object to handle slices into an interpolated memmap.
+
+        Parameters
+        ----------
+        _raw_memmap : np.ndarray
+            The raw memory-mapped data to be accessed.
+        inserted_index : np.ndarray, optional
+            The indices where interpolation has occurred. Defaults to an empty array if not provided.
+        """
+        if inserted_index is None:
+            inserted_index = np.array([])
         self._raw_memmap = _raw_memmap
         self.mapped_index = np.arange(self._raw_memmap.shape[0])
         self.mapped_index = np.insert(
@@ -799,7 +1032,20 @@ class InsertedMemmap:
         self.inserted_locations = inserted_index + np.arange(len(inserted_index))
         self.shape = (self.mapped_index.size, self._raw_memmap.shape[1])
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int | slice | tuple) -> np.ndarray:
+        """
+        Retrieves data from the memory-mapped array based on the given index or slice.
+
+        Parameters
+        ----------
+        index : int, slice or tuple
+            The index or slice for time and/or channel selection.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the selected data.
+        """
         # request a slice in both time and channel
         if isinstance(index, tuple):
             index_chan = index[1]
@@ -807,7 +1053,20 @@ class InsertedMemmap:
         # request a slice in time
         return self._raw_memmap[self.access_coordinates(index)]
 
-    def access_coordinates(self, index):
+    def access_coordinates(self, index: int | slice) -> np.ndarray:
+        """
+        Returns the coordinates of the memory-mapped data based on the provided index or slice.
+
+        Parameters
+        ----------
+        index : int or slice
+            The index or slice to select coordinates.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array of coordinates for the selected index or slice.
+        """
         if isinstance(index, int):
             return self.mapped_index[index]
         # if slice object
@@ -863,7 +1122,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         full_io: SpikeGadgetsRawIO,
         start_index: int,
         stop_index: int,
-        previous_multiplex_state: np.ndarray = None,
+        previous_multiplex_state: Optional[np.ndarray] = None,
     ):
         """Initialize a partial SpikeGadgetsRawIO object.
 
@@ -930,18 +1189,22 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # ensure interpolation
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + 4
+                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
             ]
             raw_uint32 = (
                 raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
             )
-            self.interpolate_index = np.where(np.diff(raw_uint32) == 2)[
+            self.interpolate_index = np.where(
+                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
+            )[
                 0
             ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)
-    def get_analogsignal_multiplexed(self, channel_names=None) -> np.ndarray:
+    def get_analogsignal_multiplexed(
+        self, channel_names: Optional[list[str]] = None
+    ) -> np.ndarray:
         """
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
@@ -999,7 +1262,28 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
             )
         return analog_multiplexed_data
 
-    def get_digitalsignal(self, stream_id, channel_id):
+    def get_digitalsignal(
+        self, stream_id: int, channel_id: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Retrieves the digital signal changes for a given stream and channel.
+
+        This method returns the timestamps and the change direction (0 to 1 or 1 to 0) for the specified channel in the stream.
+
+        Parameters
+        ----------
+        stream_id : int
+            The ID of the stream to retrieve the signal from.
+        channel_id : int
+            The ID of the channel within the stream.
+
+        Returns
+        -------
+        tuple of np.ndarray
+            A tuple containing:
+            - An array of timestamps when the signal changed.
+            - An array of the change direction (0 or 1) for each timestamp.
+        """
         dio_change_times, change_dir_trim = super().get_digitalsignal(
             stream_id, channel_id
         )
