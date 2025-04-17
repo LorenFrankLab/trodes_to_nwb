@@ -8,6 +8,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,7 +27,7 @@ DEFAULT_MAX_PTP_PAUSE_S = (
 )
 
 
-def find_wrap_point(t):
+def find_wrap_point(t: np.ndarray) -> Optional[int]:
     """
     Finds the point at which the timestamps wrap around due to overflow.
     Returns None if no wrap point is found
@@ -36,8 +37,8 @@ def find_wrap_point(t):
         Array of timestamps
     Returns
     -------
-    wrap_point : int
-        Index of the wrap point
+    wrap_point : int or None
+        Index of the wrap point or None if no wrap point is found
     """
     wrap_point = None
     rng = [0, len(t) - 1]
@@ -54,9 +55,9 @@ def find_wrap_point(t):
 
 
 def wrapped_digitize(
-    x,
-    bins,
-):
+    x: np.ndarray,
+    bins: np.ndarray,
+) -> np.ndarray:
     """Digitize a location with timestamps that wrap around due to overflow.
 
     Parameters
@@ -137,7 +138,7 @@ def parse_dtype(fieldstr: str) -> np.dtype:
     return np.dtype(typearr)
 
 
-def read_trodes_datafile(filename: Path) -> dict:
+def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
     """
     Read trodes binary.
 
@@ -148,8 +149,9 @@ def read_trodes_datafile(filename: Path) -> dict:
 
     Returns
     -------
-    dict
-        A dictionary containing the settings and data from the trodes binary file.
+    dict or None
+        A dictionary containing the settings and data from the trodes binary file,
+        or None if an error occurs (e.g., file not found).
 
     Raises
     ------
@@ -196,9 +198,19 @@ def read_trodes_datafile(filename: Path) -> dict:
         raise
 
 
-def convert_datafile_to_pandas(datafile) -> pd.DataFrame:
+def convert_datafile_to_pandas(datafile: Dict[str, Any]) -> pd.DataFrame:
     """Takes the output of read_trodes_datafile and converts it to a pandas dataframe.
     Added for changes identified in numpy 2.2.2
+
+    Parameters
+    ----------
+    datafile : Dict[str, Any]
+        The data file dictionary containing the data to convert.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame containing the converted data.
     """
     return pd.DataFrame(
         {key: np.squeeze(datafile["data"][key]) for key in datafile["data"].dtype.names}
@@ -225,8 +237,8 @@ def get_framerate(timestamps: np.ndarray) -> float:
 
 def find_acquisition_timing_pause(
     timestamps: np.ndarray,
-    min_duration: float = 0.4,
-    max_duration: float = 1.0,
+    min_duration: float = DEFAULT_MIN_PTP_PAUSE_S,
+    max_duration: float = DEFAULT_MAX_PTP_PAUSE_S,
     n_search: int = 100,
 ) -> float:
     """
@@ -247,6 +259,11 @@ def find_acquisition_timing_pause(
     -------
     pause_mid_time : float
         The midpoint time of the timing pause in nanoseconds.
+
+    Raises
+    ------
+    IndexError
+        If no valid timing pause is found within the search window.
 
     """
     timestamps = np.asarray(timestamps)
@@ -307,15 +324,15 @@ def detect_repeat_timestamps(timestamps: np.ndarray) -> np.ndarray:
     np.ndarray
         Boolean array indicating whether each timestamp is repeated.
     """
+    if len(timestamps) < 2:
+        return np.array([False] * len(timestamps), dtype=bool)
+    # Detect where current timestamp is <= previous timestamp
     return np.insert(timestamps[:-1] >= timestamps[1:], 0, False)
-
-
-import numpy as np
 
 
 def detect_trodes_time_repeats_or_frame_jumps(
     trodes_time: np.ndarray, frame_count: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Detects if a Trodes time index repeats, indicating that the Trodes clock has frozen
     due to headstage disconnects. Also detects large frame jumps.
@@ -369,7 +386,7 @@ def detect_trodes_time_repeats_or_frame_jumps(
 
 def estimate_camera_time_from_mcu_time(
     position_timestamps: np.ndarray, mcu_timestamps: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
 
     Parameters
@@ -394,6 +411,24 @@ def estimate_camera_time_from_mcu_time(
 def estimate_camera_to_mcu_lag(
     camera_systime: np.ndarray, dio_systime: np.ndarray, n_breaks: int = 0
 ) -> float:
+    """
+    Estimate lag between camera frame system time and DIO trigger system time.
+
+    Parameters
+    ----------
+    camera_systime : np.ndarray
+        System timestamps (nanoseconds) of camera frames.
+    dio_systime : np.ndarray
+        System timestamps (nanoseconds) of corresponding DIO events.
+    n_breaks : int, optional
+        Number of detected breaks/discontinuities in the data. If 0, uses median lag.
+        If > 0, uses lag from the first pair of points (less robust). Default is 0.
+
+    Returns
+    -------
+    float
+        Estimated lag in nanoseconds. Positive means camera time is later than DIO time.
+    """
     logger = logging.getLogger("convert")
     if n_breaks == 0:
         dio_systime = dio_systime[: len(camera_systime)]
@@ -414,35 +449,32 @@ def remove_acquisition_timing_pause_non_ptp(
     camera_systime: np.ndarray,
     is_valid_camera_time: np.ndarray,
     pause_mid_time: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Remove acquisition timing pause non-PTP.
+    Removes data points occurring before a detected acquisition timing pause.
+    Used in non-PTP alignment. Operates on timestamps in seconds.
 
     Parameters
     ----------
     dio_systime : np.ndarray
-        Digital I/O system time.
+        Digital I/O system time (seconds).
     frame_count : np.ndarray
-        Frame count.
+        Frame count corresponding to `camera_systime` entries.
     camera_systime : np.ndarray
-        Camera system time.
+        Camera system time (seconds) corresponding to valid position frames.
     is_valid_camera_time : np.ndarray
-        Boolean array indicating whether the camera time is valid.
+        Boolean array indicating which *original* position frames correspond to `camera_systime`.
     pause_mid_time : float
-        Midpoint time of the pause.
+        Midpoint time of the pause (seconds). Data before this time is removed.
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-        A tuple containing the following arrays:
-        - dio_systime : np.ndarray
-            Digital I/O system time after removing the pause.
-        - frame_count : np.ndarray
-            Frame count after removing the pause.
-        - is_valid_camera_time : np.ndarray
-            Boolean array indicating whether the camera time is valid after removing the pause.
-        - camera_systime : np.ndarray
-            Camera system time after removing the pause.
+    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+        Filtered versions of the input arrays:
+        - dio_systime : np.ndarray (seconds)
+        - frame_count : np.ndarray (frames)
+        - is_valid_camera_time : np.ndarray (boolean mask relative to original position data)
+        - camera_systime : np.ndarray (seconds)
     """
     dio_systime = dio_systime[dio_systime > pause_mid_time]
     frame_count = frame_count[is_valid_camera_time][camera_systime > pause_mid_time]
@@ -453,18 +485,67 @@ def remove_acquisition_timing_pause_non_ptp(
 
 
 def correct_timestamps_for_camera_to_mcu_lag(
-    frame_count: np.ndarray, camera_systime: np.ndarray, camera_to_mcu_lag: np.ndarray
-) -> np.ndarray:
+    frame_count: np.ndarray,  # units = frames
+    camera_systime: np.ndarray,  # units = nanoseconds
+    camera_to_mcu_lag: float,  # units = nanoseconds
+) -> np.ndarray:  # returns units = nanoseconds
+    """
+    Corrects camera system timestamps using linear regression against frame counts,
+    accounting for estimated lag relative to DIO triggers.
+
+    Parameters
+    ----------
+    frame_count : np.ndarray
+        Hardware frame counts corresponding to `camera_systime`.
+    camera_systime : np.ndarray
+        Estimated camera system timestamps (nanoseconds) before final correction.
+    camera_to_mcu_lag : float
+        Estimated lag (nanoseconds) between camera frame time and DIO trigger time.
+
+    Returns
+    -------
+    np.ndarray
+        Corrected camera system timestamps (nanoseconds) based on linear fit.
+    """
     regression_result = linregress(frame_count, camera_systime - camera_to_mcu_lag)
     corrected_camera_systime = (
         regression_result.intercept + frame_count * regression_result.slope
     )
-    # corrected_camera_systime /= NANOSECONDS_PER_SECOND
 
     return corrected_camera_systime
 
 
-def find_camera_dio_channel(nwb_file):
+def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
+    """
+    Finds the timestamp data for the camera DIO channel within an NWB file's
+    behavioral events. Assumes a single channel name contains "camera ticks".
+
+    Parameters
+    ----------
+    nwb_file : NWBFile
+        The NWBFile object to search within.
+
+    Returns
+    -------
+    np.ndarray
+        The timestamps (in seconds) of the camera DIO channel.
+
+    Raises
+    ------
+    ValueError
+        If zero or multiple DIO channels containing "camera ticks" are found,
+        or if the necessary processing modules/interfaces are missing.
+    KeyError
+        If 'behavior' processing module or 'behavioral_events' interface is missing.
+    """
+    try:
+        behavior_module = nwb_file.processing["behavior"]
+        behavioral_events = behavior_module.data_interfaces["behavioral_events"]
+    except KeyError as e:
+        raise KeyError(
+            f"Missing required NWB structure: {e}. Ensure 'behavior' module and 'behavioral_events' interface exist."
+        ) from e
+
     dio_camera_name = [
         key
         for key in nwb_file.processing["behavior"]
@@ -474,48 +555,85 @@ def find_camera_dio_channel(nwb_file):
     ]
     if len(dio_camera_name) > 1:
         raise ValueError(
-            "Multiple camera dio channels found by name. Not implemented for multiple cameras without PTP yet."
+            f"Multiple camera DIO channels found by name ('camera ticks'): {dio_camera_name}. "
+            "Processing supports only one such channel for non-PTP alignment."
         )
 
     if len(dio_camera_name) == 0:
         raise ValueError(
-            "No camera dio channel found by name. Check metadata YAML. Name must contain 'camera ticks'"
+            "No camera DIO channel found by name containing 'camera ticks'. "
+            "Check channel names in NWB file or metadata YAML. Required for non-PTP alignment."
         )
 
     return (
         nwb_file.processing["behavior"]
         .data_interfaces["behavioral_events"]
         .time_series[dio_camera_name[0]]
-        .timestamps
+        .timestamps[:]
     )
 
 
 def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
     """
-    Get video timestamps.
+    Reads hardware timestamps from a .cameraHWSync file and returns them in seconds.
 
     Parameters
     ----------
     video_timestamps_filepath : Path
-        Path to the video timestamps file.
+        Path to the .cameraHWSync file.
 
     Returns
     -------
     np.ndarray
-        An array of video timestamps.
+        An array of video timestamps in seconds. Returns empty array if file reading fails.
+
+    Raises
+    ------
+    KeyError
+        If the expected 'HWTimestamp' field is missing in the data file.
     """
-    # Get video timestamps
     video_timestamps = read_trodes_datafile(video_timestamps_filepath)["data"]
-    video_timestamps = (
-        np.squeeze(video_timestamps["HWTimestamp"]).astype(np.float64)
-        / NANOSECONDS_PER_SECOND
-    )
-    return video_timestamps
+    try:
+        return (
+            np.squeeze(video_timestamps["HWTimestamp"]).astype(np.float64)
+            / NANOSECONDS_PER_SECOND
+        )
+    except KeyError:
+        raise KeyError(
+            "'HWTimestamp' field missing in the data file. Ensure the file is formatted correctly."
+        )
 
 
 def _get_position_timestamps_ptp(
     video_timestamps: pd.DataFrame, logger: logging.Logger
 ) -> pd.DataFrame:
+    """
+    Processes video timestamps using PTP logic. Sets index to PTP time (seconds)
+    and removes initial frames before the timing pause.
+
+    Parameters
+    ----------
+    video_timestamps_df : pd.DataFrame
+        DataFrame containing 'HWTimestamp' (nanoseconds) and other columns like 'HWframeCount'.
+        Index is typically Trodes time (sample count).
+    logger : logging.Logger
+        Logger instance.
+
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame indexed by PTP time in seconds, with initial pause frames removed.
+
+    Raises
+    ------
+    KeyError
+        If 'HWTimestamp' column is missing from the input DataFrame.
+    """
+    if "HWTimestamp" not in video_timestamps.columns:
+        raise KeyError(
+            "'HWTimestamp' column missing from input DataFrame for PTP processing."
+        )
+
     ptp_systime = np.asarray(video_timestamps.HWTimestamp)
     # Convert from integer nanoseconds to float seconds
     ptp_timestamps = pd.Index(ptp_systime / NANOSECONDS_PER_SECOND, name="time")
@@ -540,10 +658,17 @@ def _get_position_timestamps_ptp(
         + 1
     )
     video_timestamps = video_timestamps.iloc[pause_mid_ind:]
-    logger.info(
-        "Camera frame rate estimated from MCU timestamps:"
-        f" {1 / np.median(np.diff(video_timestamps.index)):0.1f} frames/s"
-    )
+    if len(video_timestamps.index) > 1:
+        frame_rate = 1 / np.median(np.diff(video_timestamps.index))
+        logger.info(
+            f"Camera frame rate estimated from PTP timestamps (after pause removal):"
+            f" {frame_rate:.1f} frames/s"
+        )
+    else:
+        logger.warning(
+            "Less than 2 timestamps remain after PTP pause removal; cannot estimate frame rate."
+        )
+
     return video_timestamps
 
 
@@ -556,6 +681,39 @@ def _get_position_timestamps_no_ptp(
     epoch_interval: list[float],
     non_repeat_timestamp_labels_id: np.ndarray,
 ) -> pd.DataFrame:
+    """Processes video timestamps using non-PTP logic (alignment via DIO triggers).
+
+    Parameters
+    ----------
+    rec_dci_timestamps : np.ndarray
+        System clock times from the rec file used for non-PTP data.
+    video_timestamps : pd.DataFrame
+        DataFrame containing 'HWTimestamp' (nanoseconds) and other columns like 'HWframeCount'.
+    logger : logging.Logger
+        Logger instance.
+    dio_camera_timestamps : np.ndarray
+        Timestamps of the dio camera ticks used for non-PTP data.
+    sample_count : np.ndarray
+        Trodes timestamps from the rec file used for non-PTP data.
+    epoch_interval : list[float]
+        The time interval for the epoch used for non-PTP data.
+    non_repeat_timestamp_labels_id : np.ndarray
+        Array of unique IDs for non-repeating timestamps.
+
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame indexed by camera system time in seconds, with initial pause frames removed.
+
+    Raises
+    ------
+    KeyError
+        If 'HWTimestamp' column is missing from the input DataFrame.
+    IndexError
+        If no valid timing pause is found within the search window.
+    ValueError
+        If the length of dio_camera_timestamps does not match the length of video_timestamps.
+    """
     try:
         # dio_camera_timestamps are in units of seconds
         dio_camera_timestamps_ns = dio_camera_timestamps * NANOSECONDS_PER_SECOND
@@ -631,12 +789,12 @@ def _get_position_timestamps_no_ptp(
 
 def get_position_timestamps(
     position_timestamps_filepath: Path,
-    position_tracking_filepath=None | Path,
-    rec_dci_timestamps=None | np.ndarray,
-    dio_camera_timestamps=None | np.ndarray,
-    sample_count=None | np.ndarray,
+    position_tracking_filepath: Optional[Path] = None,
+    rec_dci_timestamps: Optional[np.ndarray] = None,  # units = seconds
+    dio_camera_timestamps: Optional[np.ndarray] = None,  # units = seconds
+    sample_count: Optional[np.ndarray] = None,  # units = samples
     ptp_enabled: bool = True,
-    epoch_interval: list[float] | None = None,
+    epoch_interval: Optional[List[float]] = None,  # units = seconds
 ):
     """Get the timestamps for a position data file. Includes protocols for both ptp and non-ptp data.
 
@@ -733,30 +891,31 @@ def get_position_timestamps(
 def find_camera_dio_channel_per_epoch(
     nwb_file: NWBFile, epoch_start: float, epoch_end: float
 ):
-    """Find the camera dio channel for a given epoch.
-    Searches through dio channels with "camera ticks" in the name.
-    Selects first one with at least 100 ticks in the epoch.
+    """
+    Find the camera DIO channel timestamps relevant for a given epoch.
+    Searches through DIO channels with "camera ticks" in the name.
+    Selects first one with at least 100 ticks within the epoch interval.
 
     Parameters
     ----------
     nwb_file : NWBFile
-        The NWBFile to find the dio channel in.
+        The NWBFile to find the DIO channel in.
     epoch_start : float
-        timestamp of the start of the epoch
+        Timestamp (seconds) of the start of the epoch.
     epoch_end : float
-        timestamp of the end of the epoch
+        Timestamp (seconds) of the end of the epoch.
 
     Returns
     -------
     dio_camera_timestamps : np.ndarray
-        The dio timestamps for the camera restricted to the epoch of interest
+        The DIO timestamps (seconds) for the selected camera channel, restricted to the epoch.
 
     Raises
     ------
     ValueError
-        Error if dio's  are not added to the nwbfile
-    ValueError
-        Error if no camera dio channel is found
+        If no suitable camera DIO channel is found (either missing, multiple with insufficient ticks, or none with "camera ticks").
+    KeyError
+        If the 'behavior' processing module or 'behavioral_events' interface is missing.
     """
     dio_camera_list = [
         key
@@ -786,11 +945,10 @@ def add_position(
     metadata: dict,
     session_df: pd.DataFrame,
     ptp_enabled: bool = True,
-    rec_dci_timestamps: np.ndarray | None = None,
-    sample_count: np.ndarray | None = None,
-):
-    """
-    Add position data to an NWBFile.
+    rec_dci_timestamps: Optional[np.ndarray] = None,
+    sample_count: Optional[np.ndarray] = None,
+) -> None:
+    """Add position data to an NWBFile.
 
     Parameters
     ----------
@@ -961,25 +1119,27 @@ def add_position(
 
 def convert_h264_to_mp4(file: str, video_directory: str) -> str:
     """
-    Converts h264 file to mp4 file using ffmpeg.
+    Converts an H.264 file to MP4 format using ffmpeg.
+    Assumes ffmpeg is installed and accessible in the system path.
 
     Parameters
     ----------
-    file : str
-        The path to the input h264 file.
+    input_file : str
+        The path to the input H.264 file.
     video_directory : str
-        Where to save the output mp4 file.
+        The directory where the output MP4 file should be saved.
 
     Returns
     -------
     str
-        The path to the output mp4 file.
+        The path to the output MP4 file.
 
     Raises
     ------
     subprocess.CalledProcessError
         If the ffmpeg command fails.
-
+    OSError
+        If the video directory cannot be created.
     """
     new_file_name = Path(video_directory) / Path(file.replace(".h264", ".mp4")).name
 
@@ -1005,7 +1165,28 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
 
 def copy_video_to_directory(file: str, video_directory: str) -> str:
-    """Copies video file to video directory without conversion"""
+    """
+    Copies a video file to the specified directory using system's copy command.
+
+    Parameters
+    ----------
+    input_file : str
+        The path to the input video file.
+    video_directory : str
+        The directory where the video file should be copied.
+
+    Returns
+    -------
+    str
+        The path to the copied video file in the target directory.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the copy command fails.
+    OSError
+        If the video directory cannot be created.
+    """
     new_file_name = Path(video_directory) / Path(file).name
     logger = logging.getLogger("convert")
     if new_file_name.exists():
@@ -1027,11 +1208,37 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
 def add_associated_video_files(
     nwb_file: NWBFile,
-    metadata: dict,
+    metadata: Dict[str, Any],
     session_df: pd.DataFrame,
     video_directory: str,
     convert_video: bool = False,
-):
+) -> None:
+    """
+    Adds associated video files mentioned in metadata as ImageSeries to the NWB file.
+    Copies or converts video files to the specified video directory.
+
+    Parameters
+    ----------
+    nwb_file : NWBFile
+        The NWBFile object to add video data to.
+    metadata : dict
+        Metadata dictionary containing 'associated_video_files' list.
+        Each item in the list should be a dict with 'name', 'camera_id', 'task_epochs'.
+    session_df : pd.DataFrame
+        DataFrame linking files to epochs, used to find video file paths and HWSync paths.
+    video_directory : str
+        Directory where video files will be copied or converted to.
+    convert_video : bool, optional
+        If True, convert H.264 videos to MP4 using ffmpeg.
+        If False (default), copy original video files.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a video file cannot be found in session_df.
+    ValueError
+        If no cameraHWSync file is found for a given epoch.
+    """
     # make processing module for video files
     nwb_file.create_processing_module(
         name="video_files", description="Contains all associated video files data"
@@ -1096,4 +1303,3 @@ def add_associated_video_files(
         raise KeyError(f"Missing video metadata for epoch {epoch}")
 
     nwb_file.processing["video_files"].add(video)
-    return
