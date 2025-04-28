@@ -300,9 +300,9 @@ def _interpret_DIO_mask(
 
     Example
     -------
-    >>> interpret_DIO_mask(9) # 1001 in binary -> Ports 1 and 4
+    >>> _interpret_DIO_mask(9) # 1001 in binary -> Ports 1 and 4
     [1, 4]
-    >>> interpret_DIO_mask(65536) # 2^16 -> Port 17
+    >>> _interpret_DIO_mask(65536) # 2^16 -> Port 17
     [17]
     """
     if pd.isna(DIO_state_value) or DIO_state_value == 0:
@@ -367,19 +367,19 @@ class StateScriptLogProcessor:
 
     Example Usage
     -------------
-    >>> # Load from file
-    >>> processor = StateScriptLogProcessor.from_file("path/to/session.stateScriptLog")
-    >>> # Assuming 'external_sync_times' is a numpy array of timestamps (in seconds)
-    >>> # corresponding to the log event "DIO Pin 8 going UP"
-    >>> processor.calculate_time_offset(
-    ...     external_reference_times=external_sync_times,
-    ...     log_event_type="ts_str_int",
-    ...     log_event_conditions={"text": "UP", "value": 8}
-    ... )
-    >>> # Get the processed DataFrame with synchronized timestamps
-    >>> df = processor.get_events_dataframe(apply_offset=True)
-    >>> if df is not None:
-    ...     print(df[['timestamp_sync', 'type', 'text', 'value']].head())
+    # Load from file
+    processor = StateScriptLogProcessor.from_file("path/to/session.stateScriptLog")
+    # Assuming 'external_sync_times' is a numpy array of timestamps (in seconds)
+    # corresponding to the log event "DIO Pin 8 going UP"
+    processor.calculate_time_offset(
+         external_reference_times=external_sync_times,
+         log_event_type="ts_str_int",
+         log_event_conditions={"text": "UP", "value": 8}
+     )
+    # Get the processed DataFrame with synchronized timestamps
+    df = processor.get_events_dataframe(apply_offset=True)
+    if df is not None:
+         print(df[['timestamp_sync', 'type', 'text', 'value']].head())
     """
 
     MILLISECONDS_PER_SECOND = 1000
