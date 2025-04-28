@@ -904,12 +904,14 @@ class StateScriptLogProcessor:
                 "value2": "active_DIO_outputs_bitmask",
             }
         )
-        df["active_DIO_inputs"] = df["active_DIO_inputs_bitmask"].apply(
-            lambda mask: _interpret_DIO_mask(mask, max_DIOs)
-        )
-        df["active_DIO_outputs"] = df["active_DIO_outputs_bitmask"].apply(
-            lambda mask: _interpret_DIO_mask(mask, max_DIOs)
-        )
+        if "active_DIO_inputs" in df.columns:
+            df["active_DIO_inputs"] = df["active_DIO_inputs_bitmask"].apply(
+                lambda mask: _interpret_DIO_mask(mask, max_DIOs)
+            )
+        if "active_DIO_outputs" in df.columns:
+            df["active_DIO_outputs"] = df["active_DIO_outputs_bitmask"].apply(
+                lambda mask: _interpret_DIO_mask(mask, max_DIOs)
+            )
 
         # --- Timestamp Processing ---
         # Ensure 'timestamp' column exists and convert to numeric/int
