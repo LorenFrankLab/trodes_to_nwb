@@ -904,11 +904,11 @@ class StateScriptLogProcessor:
                 "value2": "active_DIO_outputs_bitmask",
             }
         )
-        if "active_DIO_inputs" in df.columns:
+        if "active_DIO_inputs_bitmask" in df.columns:
             df["active_DIO_inputs"] = df["active_DIO_inputs_bitmask"].apply(
                 lambda mask: _interpret_DIO_mask(mask, max_DIOs)
             )
-        if "active_DIO_outputs" in df.columns:
+        if "active_DIO_outputs_bitmask" in df.columns:
             df["active_DIO_outputs"] = df["active_DIO_outputs_bitmask"].apply(
                 lambda mask: _interpret_DIO_mask(mask, max_DIOs)
             )
