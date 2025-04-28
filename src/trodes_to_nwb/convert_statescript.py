@@ -1023,101 +1023,166 @@ class StateScriptLogProcessor:
         trial_start_terms: List[str],
         trial_end_terms: List[str],
         time_column: str = "timestamp_sync",
-    ) -> List[Dict[str, Any]]:
+    ) -> pd.DataFrame:
         """
-        Segments events from a StateScript log DataFrame into trials.
+        Segments events from the processed StateScript log DataFrame into trials.
+
+        Identifies trial boundaries based on the presence of specified start and end
+        terms within the 'text' column of the `processed_events_df`.
 
         Parameters
         ----------
         trial_start_terms : List[str]
             List of strings found in the 'text' column that mark the start of a trial.
+            The event containing the start term *is* the start of the trial.
         trial_end_terms : List[str]
             List of strings found in the 'text' column that mark the end of a trial.
+            The event containing the end term *is* the end of the trial.
             Can overlap with trial_start_terms.
         time_column : str, optional
-            The name of the column to use for time ranges ('timestamp_sync' or
-            'trodes_timestamp_sec'), by default 'timestamp_sync'.
+            The name of the time column in `processed_events_df` to use for
+            reporting trial start and end times. Common choices are 'timestamp_sync'
+            (if offset calculated) or 'trodes_timestamp_sec'. Defaults to 'timestamp_sync'.
 
         Returns
         -------
-        List[Dict[str, Any]]
-            A list where each dictionary represents a trial. Each trial dictionary
-            contains at least 'start_time' and 'end_time'. Further analysis
-            (like finding input/output changes within the trial) would typically
-            be done separately using these time ranges to filter events_df.
+        pd.DataFrame
+            A DataFrame where each row represents a detected trial. Columns include:
+            - 'start_time': The timestamp (from `time_column`) of the event marking the trial start.
+            - 'stop_time': The timestamp (from `time_column`) of the event marking the trial end.
+            - 'status': String indicating if the trial was 'complete' or 'incomplete'
+                      (if the log ended before an end term was found).
+            Returns an empty DataFrame if no trials are found or if the required
+            columns ('text', `time_column`) are missing from `processed_events_df`.
 
         Notes
         -----
-        - This implementation assumes trials are defined by text messages.
-        - It handles cases where start/end terms overlap.
+        - Requires `processed_events_df` to be generated first (e.g., by calling
+          `get_events_dataframe`). If it's None, this method will attempt to generate it
+          with default settings (apply_offset=True, exclude_comments_unknown=True).
+        - Assumes trials are sequential and non-overlapping based on the first occurrence
+          of start/end terms.
+        - Handles cases where start/end terms overlap (an event can mark both the end
+          of one trial and the start of the next).
+        - Warns if a start term is found while already in a trial (restarts the trial).
+        - Warns if the log ends while a trial is in progress.
         """
-        events_df = self.processed_events_df
-        if events_df is None:
-            print("Error: No processed events DataFrame available.")
-            return []
+        # Attempt to generate the df if it doesn't exist
+        if self.processed_events_df is None:
+            print(
+                "Warning: processed_events_df not found. Generating with default settings."
+            )
+            self.get_events_dataframe()  # Use defaults: apply_offset=True, exclude=True
+
+        events_df = self.processed_events_df  # Use the potentially newly generated df
+
+        # Check if DataFrame is valid and contains necessary columns
+        if events_df is None or events_df.empty:
+            print("Error: No processed events DataFrame available to segment.")
+            return pd.DataFrame(
+                columns=["start_time", "stop_time", "status"]
+            )  # Return empty DF
 
         if "text" not in events_df.columns or time_column not in events_df.columns:
-            print(f"Error: DataFrame must contain 'text' and '{time_column}' columns.")
-            return []
+            print(
+                f"Error: DataFrame must contain 'text' and '{time_column}' columns for segmentation."
+            )
+            return pd.DataFrame(
+                columns=["start_time", "stop_time", "status"]
+            )  # Return empty DF
 
-        trials = []
+        # Lists to store data for the final DataFrame
+        start_times = []
+        stop_times = []
+        statuses = []
+
         current_trial_start_time = None
         in_trial = False
+        last_valid_time = (
+            events_df[time_column].dropna().iloc[-1]
+            if not events_df[time_column].dropna().empty
+            else None
+        )
 
-        # Iterate through the DataFrame rows
+        # Iterate through the DataFrame rows (index is line_num)
         for index, row in events_df.iterrows():
             message = row["text"]  # Check the 'text' column
             current_time = row[time_column]
 
-            if pd.isna(message) or pd.isna(current_time):
-                continue  # Skip rows with missing text or time
+            # Skip rows with missing time in the specified column or missing text
+            if pd.isna(current_time) or pd.isna(message):
+                continue
 
-            found_end_term = any(term in message for term in trial_end_terms)
-            found_start_term = any(term in message for term in trial_start_terms)
+            # Ensure message is treated as string for 'in' check
+            message_str = str(message)
+
+            # Check if the current message contains any start or end terms
+            # Use a generator expression for slightly better efficiency
+            found_end_term = any(term in message_str for term in trial_end_terms)
+            found_start_term = any(term in message_str for term in trial_start_terms)
 
             # --- End Trial Logic ---
-            # If we are currently in a trial and find an end term
+            # If we are currently in a trial AND find an end term
             if in_trial and found_end_term:
-                # Finalize the previous trial
-                trials.append(
-                    {
-                        "start_time": current_trial_start_time,
-                        "end_time": current_time,
-                        # Add trial index or other basic info if needed
-                    }
-                )
+                # Finalize the previous trial by adding its data to the lists
+                start_times.append(current_trial_start_time)
+                stop_times.append(current_time)
+                statuses.append("complete")
+
                 in_trial = False
-                current_trial_start_time = None  # Reset start time
+                current_trial_start_time = (
+                    None  # Reset start time for the next potential trial
+                )
 
             # --- Start Trial Logic ---
-            # If we find a start term (potentially the same event as the end term)
+            # If we find a start term (this check happens AFTER potential end logic,
+            # allowing an event to end a trial and immediately start the next one)
             if found_start_term:
-                # If we weren't in a trial, start a new one
+                # If we were NOT previously in a trial, this starts a new one
                 if not in_trial:
                     in_trial = True
                     current_trial_start_time = current_time
-                # If we *were* already in a trial (e.g., two start terms back-to-back
-                # without an end term), you might choose to log a warning or
-                # implicitly end the previous one here and start a new one.
-                # This example restarts the trial timer.
+                # If we *were* already in a trial (e.g., two start terms without an end term),
+                # log a warning and restart the trial timer from the current event.
                 else:
                     print(
-                        f"Warning: Found start term '{message}' at {current_time} while already in a trial started at {current_trial_start_time}. Restarting trial."
+                        f"Warning (Line {index}): Found start term '{message_str}' at {current_time} "
+                        f"while already in a trial started at {current_trial_start_time}. Restarting trial timer."
                     )
+                    # Effectively ends the previous (implicit) trial and starts new one
                     current_trial_start_time = current_time
 
-        # Handle case where log ends while still in a trial
+        # --- Handle Incomplete Trial at End of Log ---
+        # If the loop finishes and we are still marked as 'in_trial'
         if in_trial:
             print(
-                f"Warning: Log ended while still in a trial started at {current_trial_start_time}."
+                f"Warning: Log processing ended while still in a trial that started at {current_trial_start_time}. "
+                f"Marking as incomplete."
             )
-            # Optionally add the incomplete trial
-            trials.append(
-                {
-                    "start_time": current_trial_start_time,
-                    "end_time": events_df[time_column].iloc[-1],  # Use last event time
-                    "status": "incomplete",
-                }
+            # Add the incomplete trial to the lists
+            start_times.append(current_trial_start_time)
+            # Use the time of the last valid event in the time column as the end time
+            stop_times.append(
+                last_valid_time if last_valid_time is not None else np.nan
             )
+            statuses.append("incomplete")
 
-        return trials
+        # --- Create Final DataFrame ---
+        # Construct the DataFrame from the collected lists
+        trials_df = pd.DataFrame(
+            {"start_time": start_times, "stop_time": stop_times, "status": statuses}
+        )
+
+        # Ensure correct dtypes (start/end times should match time_column, status is object)
+        if not trials_df.empty:
+            trials_df["start_time"] = trials_df["start_time"].astype(
+                events_df[time_column].dtype
+            )
+            trials_df["stop_time"] = trials_df["stop_time"].astype(
+                events_df[time_column].dtype
+            )
+            trials_df["status"] = trials_df["status"].astype(
+                "object"
+            )  # String/object type
+
+        return trials_df
