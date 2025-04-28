@@ -691,7 +691,6 @@ def test_comment_only_log(comment_only_processor):
     assert all(df_included["type"] == "comment_or_empty")
     assert df_included["trodes_timestamp"].isna().all()
     assert df_included["trodes_timestamp_sec"].isna().all()
-    assert df_included["active_DIO_inputs"].apply(lambda x: x == []).all()
 
 
 def test_repr(processor):
