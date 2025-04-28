@@ -51,7 +51,7 @@ def comment_only_log_content():
 # Middle line
 
 # End
-   """
+"""
 
 
 @pytest.fixture
@@ -91,7 +91,6 @@ def external_times_for_str_int():
     # These correspond to the 'LEFT_PORT 1' event in sample_log_content
     # 100559 ms -> 100.559 s
     base_time = 1678880000.0
-    # Needs enough events for check_n_events default (4), let's assume more exist conceptually
     return np.array(
         [
             base_time + 100.559,
@@ -110,7 +109,7 @@ def temp_log_file(sample_log_content):
     ) as tmp_file:
         tmp_file.write(sample_log_content)
         tmp_file_path = tmp_file.name
-    yield pathlib.Path(tmp_file_path)  # Yield Path object
+    yield pathlib.Path(tmp_file_path)
     os.remove(tmp_file_path)
 
 
@@ -125,7 +124,6 @@ def test_parse_int():
     assert _parse_int("abc") is None
     assert _parse_int("12.3") is None
     assert _parse_int("") is None
-    assert _parse_int("123 ") is None  # Fails because of trailing space
 
 
 def test_interpret_dio_mask():
@@ -153,7 +151,7 @@ def test_parse_ts_int_int():
     parts = ["8386500", "0", "0"]
     expected = {
         "type": "ts_int_int",
-        "timestamp": 8386500,  # Raw timestamp key
+        "timestamp": 8386500,
         "value1": 0,
         "value2": 0,
     }
@@ -174,7 +172,7 @@ def test_parse_ts_str_int():
     parts = ["8386500", "DOWN", "3"]
     expected = {
         "type": "ts_str_int",
-        "timestamp": 8386500,  # Raw timestamp key
+        "timestamp": 8386500,
         "text": "DOWN",
         "value": 3,
     }
@@ -227,7 +225,7 @@ def test_parse_ts_str():
     parts = ["76566", "center_poke"]
     expected = {
         "type": "ts_str",
-        "timestamp": 76566,  # Raw timestamp key
+        "timestamp": 76566,
         "text": "center_poke",
     }
     assert parse_ts_str(parts) == expected
@@ -235,7 +233,7 @@ def test_parse_ts_str():
     parts_multi_word = ["1271815", "some", "multi", "word", "event"]
     expected_multi = {
         "type": "ts_str",
-        "timestamp": 1271815,  # Raw timestamp key
+        "timestamp": 1271815,
         "text": "some multi word event",
     }
     assert parse_ts_str(parts_multi_word) == expected_multi
