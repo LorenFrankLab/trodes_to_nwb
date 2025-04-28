@@ -149,8 +149,8 @@ def parse_ts_str_equals_int(parts: list) -> Optional[Dict[str, Any]]:
     # Check length and presence of '=' in the correct position
     if len(parts) == 4 and parts[2] == "=":
         timestamp = _parse_int(parts[0])
-        value = _parse_int(parts[-1])  # Expect integer value only
-        text = parts[3]
+        text = parts[1]
+        value = _parse_int(parts[3])  # Expect integer value only
 
         # Check if timestamp and value were successfully parsed as integers
         if timestamp is not None and value is not None:
