@@ -618,7 +618,7 @@ class StateScriptLogProcessor:
         # Iterate through all parsed raw events
         for event in self.raw_events:
             # Check if the event type matches and it has a timestamp
-            if event.get("type") == event_type and "trodes_timestamp" in event:
+            if event.get("type") == event_type and "timestamp" in event:
                 # Check if all specified conditions are met for this event
                 match = all(
                     event.get(key) == value for key, value in conditions.items()
