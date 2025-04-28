@@ -9,7 +9,7 @@ from pynwb.behavior import BehavioralEvents
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
-def _get_channel_name_map(metadata: dict) -> dict[str, str]:
+def _get_channel_name_map(metadata: dict) -> dict[str, dict[str, str]]:
     """Parses behavioral events metadata from the yaml file
 
     Parameters
