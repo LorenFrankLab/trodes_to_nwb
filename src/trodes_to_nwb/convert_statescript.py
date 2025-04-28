@@ -1,0 +1,1123 @@
+import pathlib
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+
+import numpy as np
+import pandas as pd
+
+from .convert_dios import _get_channel_name_map as _get_dio_channel_name_map
+
+T_StateScriptLogProcessor = TypeVar(
+    "T_StateScriptLogProcessor", bound="StateScriptLogProcessor"
+)
+
+
+def _parse_int(s: str) -> Optional[int]:
+    """Attempts to parse a string as an integer.
+
+    Parameters
+    ----------
+    s : str
+        Input string.
+
+    Returns
+    -------
+    Optional[int]
+        The parsed integer, or None if parsing fails.
+
+    Raises
+    ------
+    ValueError
+        If the string cannot be converted to an integer.
+    """
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+def parse_ts_int_int(parts: list) -> Optional[Dict[str, Any]]:
+    """Parses lines with <timestamp_int> <int> <int> structure.
+
+    This pattern typically represents a timestamp followed by two integer values.
+    These integers are bitwise masks or state values, often used for logging
+    DIO states or other binary values.
+
+    Example:
+        8386500 0 0 -> {'ts': 8386500, 'value1': 0, 'value2': 0}
+        1817158 128 512 -> {'ts': 1817158, 'value1': 128, 'value2': 512}
+        76566 65536 0 -> {'ts': 76566, 'value1': 65536, 'value2': 0}
+
+    Parameters
+    ----------
+    parts : list
+        A list of strings obtained by splitting a log line by whitespace.
+        Expected to contain exactly 3 parts for this pattern.
+
+    Returns
+    -------
+    Optional[Dict[str, Any]]
+        A dictionary containing the parsed data:
+        {'type': 'ts_int_int', 'timestamp': int, 'value1': int, 'value2': int}
+        if the line matches the expected structure and all parts are valid integers.
+        Returns None otherwise.
+    """
+    if len(parts) == 3:
+        # Attempt to parse all three parts as integers
+        timestamp, val1, val2 = [_parse_int(part) for part in parts]
+
+        # Check if all parsing attempts were successful
+        if timestamp is not None and val1 is not None and val2 is not None:
+            return {
+                "type": "ts_int_int",
+                "timestamp": timestamp,
+                "value1": val1,
+                "value2": val2,
+            }
+
+
+def parse_ts_str_int(parts: list) -> Optional[Dict[str, Any]]:
+    """Parses log lines structured as: <timestamp_int> <str> <int>.
+
+    This pattern consists of a timestamp, a string, and a final
+    integer value. Often used for logging state changes associated
+    with an identifier (e.g., DIO pin state).
+
+    Example:
+        8386500 DOWN 3  -> {'ts': 8386500, 'text': 'DOWN', 'value': 3}
+
+    Interpretation: At timestamp 8386500, the state associated with
+    identifier 3 changed to 'DOWN'.
+
+    Parameters
+    ----------
+    parts : list
+        A list of strings obtained by splitting a log line by whitespace.
+        Expected to contain exactly 3 parts for this pattern.
+
+    Returns
+    -------
+    Optional[Dict[str, Any]]
+        A dictionary containing the parsed data:
+        {'type': 'ts_str_int', 'timestamp': int, 'text': str, 'value': int}
+        if the line matches the structure (int, non-int string, int).
+        Returns None otherwise.
+    """
+    if len(parts) == 3:
+        # Parse the first and third parts as integers
+        timestamp = _parse_int(parts[0])
+        text_part = parts[1]  # Middle part is expected to be text
+        val_int = _parse_int(parts[2])
+
+        # Check conditions: timestamp and value are ints, text part is not an int
+        if (
+            timestamp is not None
+            and _parse_int(text_part) is None
+            and val_int is not None
+        ):
+            return {
+                "type": "ts_str_int",
+                "timestamp": timestamp,
+                "text": text_part,
+                "value": val_int,
+            }
+
+
+def parse_ts_str_equals_int(parts: list) -> Optional[Dict[str, Any]]:
+    """Parses log lines structured as: <timestamp_int> <str> = <int>.
+
+    This pattern includes a timestamp, followed by one or more strings forming a label,
+    an equals sign, and a final integer value. Used for logging named integer variables.
+
+    Example Log Lines:
+        3610855 totRewards = 70 -> {'ts': 3610855, 'text': 'totRewards', 'value': 70}
+        100078 counter_handlePoke = 1 -> {'ts': 100078, 'text': 'counter_handlePoke', 'value': 1}
+
+    Parameters
+    ----------
+    parts : list
+        A list of strings obtained by splitting a log line by whitespace.
+        Expected to contain 4 parts, with '=' as the second part.
+
+    Returns
+    -------
+    Optional[Dict[str, Any]]
+        A dictionary containing the parsed data:
+        {'type': 'ts_str_equals_int', 'timestamp': int, 'text': str, 'value': int}
+        if the line matches the expected structure (int, string, '=', int).
+        Returns None otherwise.
+    """
+    # Check length and presence of '=' in the correct position
+    if len(parts) == 4 and parts[2] == "=":
+        timestamp = _parse_int(parts[0])
+        value = _parse_int(parts[-1])  # Expect integer value only
+        text = parts[3]
+
+        # Check if timestamp and value were successfully parsed as integers
+        if timestamp is not None and value is not None:
+            return {
+                "type": "ts_str_equals_int",
+                "timestamp": timestamp,
+                "text": text,
+                "value": value,
+            }
+
+
+def parse_ts_str(parts: list) -> Optional[Dict[str, Any]]:
+    """Parses log lines structured as: <timestamp_int> <str...>.
+
+    This pattern represents a timestamp followed by one or more string parts,
+    where the first string part after the timestamp is *not* parseable as an integer.
+    Often used for logging timestamped events or messages.
+
+    Example Log Lines:
+        1678886401 LOCKEND -> {'ts': 1678886401, 'text': 'LOCKEND'}
+        76566 center_poke initiated -> {'ts': 76566, 'text': 'center_poke initiated'}
+
+    Parameters
+    ----------
+    parts : list
+        A list of strings obtained by splitting a log line by whitespace.
+        Expected to contain at least 2 parts.
+
+    Returns
+    -------
+    Optional[Dict[str, Any]]
+        A dictionary containing the parsed data:
+        {'type': 'ts_str', 'timestamp': int, 'text': str}
+        if the line matches the structure (int, non-int string, [optional strings...]).
+        'text' contains the joined string parts after the timestamp.
+        Returns None otherwise.
+    """
+    # Check minimum length
+    if len(parts) >= 2:
+        timestamp = _parse_int(parts[0])
+        # Check if the second part is parseable as an integer
+        first_word_is_int = _parse_int(parts[1]) is not None
+
+        # Proceed only if timestamp is valid AND the second part is NOT an integer
+        if timestamp is not None and not first_word_is_int:
+            # Join all parts after the timestamp
+            text_part = " ".join(parts[1:])
+            return {"type": "ts_str", "timestamp": timestamp, "text": text_part}
+
+
+def parse_statescript_line(line: str, line_num: int = 0) -> Optional[Dict[str, Any]]:
+    """Attempts to parse a single StateScript log line using a set of parsers.
+
+    It tries parsing the line against known structures in a specific order
+    of precedence to handle potentially overlapping patterns:
+    1. `<ts> <str> = <int>` ('ts_str_equals_int')
+    2. `<ts> <int> <int>` ('ts_int_int')
+    3. `<ts> <str> <int>` ('ts_str_int', where <str> is not an int)
+    4. `<ts> <str...>` ('ts_str', where first <str> is not an int)
+
+    Lines starting with '#' or empty lines are marked as 'comment_or_empty'.
+    Lines that do not match any known pattern are marked as 'unknown'.
+
+    Parameters
+    ----------
+    line : str
+        A single line (string) from the StateScript log file.
+    line_num : int, optional
+        The line number in the file (for reference), by default 0.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary describing the parsed line. It always contains:
+        - 'type': A string indicating the matched pattern
+                  ('ts_str_equals_int', 'ts_int_int', 'ts_str_int', 'ts_str',
+                   'comment_or_empty', 'unknown').
+        - 'raw_line': The original input line string.
+        For successfully parsed types, it includes additional keys like
+        'timestamp', 'text', 'value', 'value1', 'value2' as appropriate.
+    """
+    line = line.strip()
+
+    # Handle comments and empty lines first
+    if not line or line.startswith("#"):
+        return {
+            "type": "comment_or_empty",
+            "raw_line": line,
+            "line_num": line_num,
+            "timestamp": None,
+        }
+
+    # Define the parsing functions in order of desired precedence
+    # More specific patterns should come before more general ones
+    parsers = [
+        parse_ts_str_equals_int,
+        parse_ts_int_int,
+        parse_ts_str_int,
+        parse_ts_str,
+    ]
+    parts = line.split()  # Split line into parts based on whitespace
+
+    # Iterate through parsers and return the first successful match
+    for parser in parsers:
+        parsed = parser(parts)
+        if parsed:
+            # Add the original line to the parsed result
+            parsed["raw_line"] = line
+            parsed["line_num"] = line_num  # Include line number for reference
+            return parsed
+
+    return {
+        "type": "unknown",
+        "raw_line": line,
+        "line_num": line_num,
+        "timestamp": None,
+    }
+
+
+def _interpret_DIO_mask(
+    DIO_state_value: Optional[int], max_DIOs: int = 32
+) -> List[int]:
+    """
+    Interprets an integer value as a bitmask representing active DIOs.
+    Assumes a 1-based DIO numbering system (e.g., bit 0 corresponds to DIO 1).
+
+    For example, if there are 32 DIOs, the integer value 9 (binary 1001)
+    indicates that DIOs 1 and 4 are active (bits 0 and 3 are set).
+
+    If there are 16 DIOs, the integer value 65536 (binary 10000000000000000)
+    indicates that DIO 17 is active (bit 16 is set).
+
+
+    Parameters
+    ----------
+    DIO_state_value : Optional[int]
+        The integer value representing the combined state of multiple ports.
+        Handles None or pandas NA values.
+    max_DIOs : int, optional
+        The maximum port number to check (bits 0 to max_DIOs-1), by default 32.
+
+    Returns
+    -------
+    List[int]
+        A sorted list of 1-based port numbers that are active (bit is set).
+        Returns an empty list if the value is 0, None, or NA.
+
+    Example
+    -------
+    >>> interpret_DIO_mask(9) # 1001 in binary -> Ports 1 and 4
+    [1, 4]
+    >>> interpret_DIO_mask(65536) # 2^16 -> Port 17
+    [17]
+    """
+    if pd.isna(DIO_state_value) or DIO_state_value == 0:
+        return []
+
+    # Ensure value is treated as an integer after NA check
+    try:
+        DIO_state_value = int(DIO_state_value)
+    except (ValueError, TypeError):
+        # Should not happen if input is from Int64Dtype column after NA check,
+        # but included for robustness if called directly with invalid input.
+        return []
+
+    # Create bit masks for positions 0 to max_DIOs-1
+    # E.g., [1, 2, 4, 8, ...]
+    bit_masks = np.left_shift(1, np.arange(max_DIOs))
+
+    # Check which bits are set in the input value using bitwise AND
+    active_bits_mask = np.bitwise_and(DIO_state_value, bit_masks) > 0
+
+    # Get the 0-based indices (bit positions) where bits are active
+    active_indices = np.where(active_bits_mask)[0]
+
+    # Convert 0-based indices to 1-based DIO numbers and return as a list
+    active_ports = (active_indices + 1).tolist()
+
+    # np.where returns sorted indices, so list is already sorted
+    return active_ports
+
+
+# -- Main Class for Processing StateScript Logs --
+class StateScriptLogProcessor:
+    """Processes StateScript log content, handling parsing and time alignment.
+
+    This class reads StateScript log data (either from a file or a string),
+    parses each line into a structured format, converts integer timestamps
+    (assumed to be milliseconds) into seconds, and optionally calculates
+    a time offset to align the log timestamps with an external reference time
+    source (e.g., synchronization pulses recorded by another system).
+
+    Attributes
+    ----------
+    log_content : str
+        The raw string content of the log file.
+    source_description : str
+        Information about where the log content came from (e.g., file path).
+    raw_events : List[Dict[str, Any]]
+        List of dictionaries, one per parsed line from the log content
+        (including comments/unknown lines). Generated by `parse_raw_events`.
+        Timestamps in this list are raw integers from the log.
+    processed_events_df : Optional[pd.DataFrame]
+        DataFrame containing structured event data, typically excluding
+        comments and unknown lines. Generated by `get_events_dataframe`.
+        Includes 'trodes_timestamp_sec' (float, seconds) converted from raw
+        timestamps, and potentially 'timestamp_sync' (float, seconds) if
+        time offset is calculated and applied.
+    time_offset : Optional[float]
+        The calculated time offset in seconds, representing the difference:
+        (external_reference_time_sec - trodes_timestamp_sec).
+        Set by `calculate_time_offset`. If calculated, adding this offset
+        to 'trodes_timestamp_sec' yields the synchronized time ('timestamp_sync').
+
+    Example Usage
+    -------------
+    >>> # Load from file
+    >>> processor = StateScriptLogProcessor.from_file("path/to/session.stateScriptLog")
+    >>> # Assuming 'external_sync_times' is a numpy array of timestamps (in seconds)
+    >>> # corresponding to the log event "DIO Pin 8 going UP"
+    >>> processor.calculate_time_offset(
+    ...     external_reference_times=external_sync_times,
+    ...     log_event_type="ts_str_int",
+    ...     log_event_conditions={"text": "UP", "value": 8}
+    ... )
+    >>> # Get the processed DataFrame with synchronized timestamps
+    >>> df = processor.get_events_dataframe(apply_offset=True)
+    >>> if df is not None:
+    ...     print(df[['timestamp_sync', 'type', 'text', 'value']].head())
+    """
+
+    MILLISECONDS_PER_SECOND = 1000
+
+    log_content: str
+    source_description: str
+    raw_events: List[Dict[str, Any]]
+    processed_events_df: Optional[pd.DataFrame]
+    time_offset: Optional[float]
+
+    def __init__(self, log_content: str, source_info: str = "from string"):
+        """Initializes the processor with log content and source information.
+
+        Parameters
+        ----------
+        log_content : str
+            The entire content of the state script log as a single string.
+        source_info : str, optional
+            A description of the log content's source (e.g., file path, identifier).
+            Defaults to "from string".
+        """
+        self.log_content = log_content
+        self.source_description = source_info
+
+        # Initialize attributes that will be populated by methods
+        self.raw_events = []
+        self.processed_events_df = None
+        self.time_offset = None
+
+    @classmethod
+    def from_file(
+        cls: Type[T_StateScriptLogProcessor],
+        file_path: Union[str, pathlib.Path],
+    ) -> T_StateScriptLogProcessor:
+        """Creates a StateScriptLogProcessor instance by reading a log file.
+
+        Parameters
+        ----------
+        file_path : Union[str, pathlib.Path]
+            The path to the StateScript log file.
+
+        Returns
+        -------
+        T_StateScriptLogProcessor
+            An instance of the StateScriptLogProcessor initialized with the
+            content of the specified file.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file specified by `file_path` does not exist.
+        IOError
+            If an error occurs during file reading (e.g., permissions).
+        UnicodeDecodeError
+            If the file cannot be decoded using UTF-8 encoding (with fallback).
+        """
+        file_path = pathlib.Path(file_path)  # Ensure Path object for consistency
+        source_info = f"from file: {file_path}"
+        try:
+            # Read the file content. Using 'surrogateescape' allows reading
+            # potentially mixed/invalid encodings, preserving problematic bytes.
+            # UTF-8 is a common default for logs.
+            content = file_path.read_text(encoding="utf-8", errors="surrogateescape")
+            # Create and return an instance of the class
+            return cls(log_content=content, source_info=source_info)
+        except FileNotFoundError:
+            print(f"Error: File not found at {file_path}")
+            raise  # Re-raise to signal failure
+        except IOError as e:
+            print(f"Error reading file at {file_path}: {e}")
+            raise  # Re-raise
+        except UnicodeDecodeError as e:
+            print(f"Error decoding file {file_path} using utf-8: {e}")
+            print("Consider checking file encoding if errors persist.")
+            raise  # Re-raise
+        except Exception as e:
+            print(f"Unexpected error reading file {file_path}: {e}")
+            raise
+
+    def __repr__(self) -> str:
+        """Provides a concise, unambiguous string representation of the processor.
+
+        Includes information about the source, parsing status, number of raw events,
+        time offset status, and DataFrame generation status.
+
+        Returns
+        -------
+        str
+            String representation of the StateScriptLogProcessor instance.
+        """
+        cls_name = self.__class__.__name__
+        source = self.source_description
+
+        # Describe parsing status
+        if not self.raw_events:
+            parse_status = "not parsed"
+            num_raw = ""
+        else:
+            parse_status = "parsed"
+            num_raw = f", raw_events={len(self.raw_events)}"
+
+        # Describe time offset status
+        offset_status = (
+            f"offset={self.time_offset:.4f}s"
+            if self.time_offset is not None
+            else "no offset calculated"
+        )
+
+        # Describe DataFrame status
+        df_status = (
+            "DataFrame generated"
+            if self.processed_events_df is not None
+            else "DataFrame not generated"
+        )
+
+        return f"<{cls_name}(source='{source}', status={parse_status}{num_raw}, {offset_status}, {df_status})>"
+
+    def _repr_html_(self) -> str:
+        """Generates an HTML representation for display in Jupyter/IPython.
+
+        Provides a more visually structured overview of the processor's state,
+        including source, parsing status, offset, DataFrame status, and a
+        preview of the DataFrame if generated.
+
+        Returns
+        -------
+        str
+            HTML string representing the StateScriptLogProcessor instance.
+        """
+        cls_name = self.__class__.__name__
+        # Use getattr for robustness in case attributes haven't been set yet
+        source = getattr(self, "source_description", "source info missing")
+        raw_events_list = getattr(self, "raw_events", [])  # Default to empty list
+        df_val = getattr(self, "processed_events_df", None)
+        offset_val = getattr(self, "time_offset", None)
+
+        # Build status strings based on attribute values
+        if not raw_events_list:
+            parse_status = "<strong>Status:</strong> Not Parsed"
+            num_raw_str = ""
+        else:
+            parse_status = "<strong>Status:</strong> Parsed"
+            num_raw_str = f" ({len(raw_events_list)} raw entries)"
+
+        offset_status = (
+            f"<strong>Time Offset:</strong> {offset_val:.4f}s"
+            if offset_val is not None
+            else "<strong>Time Offset:</strong> Not Calculated"
+        )
+        df_status = (
+            "<strong>DataFrame:</strong> Generated"
+            if df_val is not None
+            else "<strong>DataFrame:</strong> Not Generated"
+        )
+
+        # Basic HTML structure and styling
+        html = f"""
+        <div style="border: 1px solid #ccc; padding: 10px; margin: 5px; font-family: sans-serif; line-height: 1.4;">
+            <h4>{cls_name}</h4>
+            <p><strong>Source:</strong> {source}</p>
+            <p>{parse_status}{num_raw_str}</p>
+            <p>{offset_status}</p>
+            <p>{df_status}</p>
+        """
+
+        # Add DataFrame preview if it exists and is not empty
+        if df_val is not None and not df_val.empty:
+            html += "<h5>DataFrame Preview (first 5 rows):</h5>"
+            try:
+                # Generate HTML table from DataFrame head
+                html += df_val.head().to_html(
+                    index=False,  # Don't include DataFrame index
+                    border=0,  # No table border
+                    justify="left",  # Align text left
+                    classes="dataframe-preview",  # Add a class for potential CSS styling
+                )
+            except Exception as e:
+                html += f"<p><em>Error generating DataFrame HTML preview: {e}</em></p>"
+        elif df_val is not None and df_val.empty:
+            html += "<p><em>(DataFrame is empty)</em></p>"
+
+        html += "</div>"
+        return html
+
+    def parse_raw_events(self) -> List[Dict[str, Any]]:
+        """Parses the loaded log content line by line.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            The list of parsed event dictionaries stored in `self.raw_events`.
+            Each dictionary represents one line from the log.
+        """
+        lines = self.log_content.splitlines()
+        # Use list comprehension for concise parsing of all lines
+        self.raw_events = [
+            parse_statescript_line(line, line_num)
+            for line_num, line in enumerate(lines)
+        ]
+        return self.raw_events
+
+    def _find_reference_events(
+        self, event_type: str, conditions: Dict[str, Any]
+    ) -> pd.DataFrame:
+        """Internal helper to find specific log events for time alignment.
+
+        Filters the `self.raw_events` list to find events matching the specified
+        `event_type` and satisfying all key-value pairs in `conditions`.
+        Converts the integer timestamp (assumed to be milliseconds) of matching
+        events to seconds (float) and stores it in a 'trodes_timestamp_sec' column.
+
+        Parameters
+        ----------
+        event_type : str
+            The required 'type' field of the events to find
+            (e.g., 'ts_str_int', 'ts_int_int').
+        conditions : Dict[str, Any]
+            A dictionary where keys are field names within the event dictionary
+            (e.g., 'text', 'value', 'value1') and values are the required values
+            for an event to be considered a match.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the matching events. Includes the original
+            'timestamp' (int, milliseconds), the calculated 'trodes_timestamp_sec'
+            (float, seconds), and the fields specified in `conditions`.
+            The DataFrame is sorted by 'trodes_timestamp_sec'.
+            Returns an empty DataFrame if no matching events are found.
+        """
+        # Ensure raw events are parsed first if not already done
+        if not self.raw_events:
+            self.parse_raw_events()
+
+        matching_events = []
+        # Iterate through all parsed raw events
+        for event in self.raw_events:
+            # Check if the event type matches and it has a timestamp
+            if event.get("type") == event_type and "trodes_timestamp" in event:
+                # Check if all specified conditions are met for this event
+                match = all(
+                    event.get(key) == value for key, value in conditions.items()
+                )
+                if match:
+                    matching_events.append(event)
+
+        # If no matches were found, return an empty DataFrame with expected columns
+        if not matching_events:
+            # Define columns for the empty DataFrame for consistency
+            cols = ["trodes_timestamp", "trodes_timestamp_sec"] + list(
+                conditions.keys()
+            )
+            # Ensure other relevant columns from potential matches are also defined
+            potential_value_cols = ["value", "value1", "value2", "text"]
+            for vc in potential_value_cols:
+                if vc not in cols:
+                    cols.append(vc)
+            return pd.DataFrame(columns=cols)
+
+        # Create DataFrame from the list of matching event dictionaries
+        df = pd.DataFrame(matching_events)
+
+        # Convert timestamp (assumed ms) to seconds (float)
+        df["trodes_timestamp_sec"] = (
+            df["timestamp"].astype(float) / self.MILLISECONDS_PER_SECOND
+        )
+        # Ensure original timestamp remains integer
+        df["timestamp"] = df["timestamp"].astype(int)
+
+        # Attempt to cast condition columns to appropriate types (e.g., int)
+        # This improves consistency if values were parsed as strings initially
+        for key, value in conditions.items():
+            if key in df.columns:
+                try:
+                    if isinstance(value, int):
+                        # Convert column to numeric, then integer (handles potential errors)
+                        df[key] = pd.to_numeric(df[key], errors="coerce").astype(int)
+                    # Add elif for float, bool etc. if needed
+                except (ValueError, TypeError):
+                    # Ignore casting errors if conversion isn't possible
+                    pass
+
+        # Sort by time and reset index
+        return df.sort_values("trodes_timestamp_sec")
+
+    def calculate_time_offset(
+        self,
+        external_reference_times: np.ndarray,
+        log_event_type: str,
+        log_event_conditions: Dict[str, Any],
+        match_threshold: float = 0.1,
+        check_n_events: int = 4,
+    ) -> Optional[float]:
+        """Calculates the time offset between log events and external timestamps.
+
+        This method aligns timestamps (in seconds) of specific events found
+        in the log (`log_event_type` with `log_event_conditions`) against a
+        provided sorted array of `external_reference_times` (also in seconds).
+        It assumes both sets of timestamps correspond to the same sequence of
+        real-world events (e.g., synchronization pulses).
+
+        The offset is determined by finding the constant difference
+        (`offset = external_time - log_time`) that minimizes the timing
+        discrepancy between the first `check_n_events` corresponding events
+        in both sequences.
+
+        IMPORTANT: If `external_reference_times` represent Unix time (seconds
+        since 1970-01-01 UTC), the calculated offset will align the log's
+        timestamps (`trodes_timestamp_sec`) to Unix time. The resulting
+        `timestamp_sync` column in the DataFrame will then also be in Unix time.
+
+        Parameters
+        ----------
+        external_reference_times : np.ndarray
+            A 1D numpy array of timestamps (float, in seconds) from the external
+            reference system. This array *must* be sorted in ascending order.
+            If using for Unix time alignment, these must be Unix timestamps.
+        log_event_type : str
+            The 'type' of log event to use as the reference points within the log
+            (e.g., 'ts_str_int', 'ts_int_int').
+        log_event_conditions : Dict[str, Any]
+            Dictionary specifying the exact conditions to identify the reference
+            log events (e.g., {'text': 'UP', 'value': 8} for a pin state change).
+        match_threshold : float, optional
+            The maximum acceptable cumulative absolute difference (in seconds)
+            between the matched `check_n_events` pairs (log vs. external) for
+            an offset to be considered valid. Defaults to 0.1 seconds.
+        check_n_events : int, optional
+            The number of initial events from both sequences to use for calculating
+            the mismatch and finding the best offset. Defaults to 4. A higher
+            number increases robustness against spurious events but requires more
+            matching events to be present.
+
+        Returns
+        -------
+        Optional[float]
+            The calculated time offset in seconds (`external_time_sec - log_time_sec`).
+            Adding this offset to `trodes_timestamp_sec` synchronizes the log time
+            to the external reference time. Returns `None` if a satisfactory
+            offset (below `match_threshold`) cannot be found, or if insufficient
+            events are available in either the log or the external references.
+            If successful, updates `self.time_offset` with the calculated value.
+        """
+        # Find the timestamps of the reference events within the log
+        log_reference_df = self._find_reference_events(
+            log_event_type, log_event_conditions
+        )
+
+        # Check if enough log events were found
+        if log_reference_df.empty or len(log_reference_df) < check_n_events:
+            print(
+                f"Warning: Not enough reference events found in log matching "
+                f"type='{log_event_type}', conditions={log_event_conditions}. "
+                f"Need at least {check_n_events}, found {len(log_reference_df)}."
+            )
+            self.time_offset = None  # Ensure offset is None if calculation fails
+            return None
+
+        # Extract log event times (in seconds) and ensure external times are a sorted numpy array
+        sc_times_sec = log_reference_df["trodes_timestamp_sec"].to_numpy()
+        # Ensure external times are numpy array and sorted (as required by algorithm)
+        dio_times_sec = np.sort(np.asarray(external_reference_times))
+
+        # Check if enough external reference times were provided
+        if len(dio_times_sec) < check_n_events:
+            print(
+                f"Warning: Not enough external reference timestamps provided "
+                f"({len(dio_times_sec)}), need at least {check_n_events} for matching."
+            )
+            self.time_offset = None  # Ensure offset is None
+            return None
+
+        # --- Offset Calculation Logic ---
+        # This section iterates through potential starting alignments between
+        # the external times and the first log time, calculates the total mismatch
+        # for the first 'check_n_events', and finds the offset minimizing this mismatch.
+
+        best_offset = None
+        min_mismatch = float("inf")
+
+        # Iterate through possible starting points in the external times array
+        # We only need to check starting alignments where enough subsequent external times exist
+        # for the check_n_events comparison.
+        # We test aligning sc_times_sec[0] with each dio_times_sec[event_idx]
+        for event_idx in range(len(dio_times_sec) - check_n_events + 1):
+            # Calculate the potential offset based on the first log event and current external event
+            potential_offset = dio_times_sec[event_idx] - sc_times_sec[0]
+            current_mismatch = 0.0
+
+            # Simple check: Calculate mismatch using the *next consecutive* N events
+            # This assumes no missing events in *either* stream within the checked range.
+            # If events can be missing, a more complex alignment (like Needleman-Wunsch
+            # or checking nearest neighbors) might be needed. This simpler approach
+            # is often sufficient if the sync signals are reliable.
+            mismatch_found = False
+            for i in range(check_n_events):
+                # Calculate the expected external time for the i-th log event using the potential offset
+                projected_dio_time = sc_times_sec[i] + potential_offset
+                # Calculate the absolute difference with the corresponding i-th external time
+                # (relative to the starting event_idx)
+                diff = abs(dio_times_sec[event_idx + i] - projected_dio_time)
+                current_mismatch += diff
+
+                # Optimization: If mismatch already exceeds threshold or current best, stop early
+                if (
+                    current_mismatch >= match_threshold
+                    and current_mismatch >= min_mismatch
+                ):
+                    mismatch_found = True  # Signal that this offset is not viable
+                    break  # Stop checking further events for this offset
+
+            # If loop completed without early exit and this offset has lower mismatch
+            if not mismatch_found and current_mismatch < min_mismatch:
+                min_mismatch = current_mismatch
+                best_offset = potential_offset
+
+        # After checking all potential alignments, evaluate the result
+        if best_offset is not None and min_mismatch < match_threshold:
+            print(
+                f"Time offset calculation successful.\n"
+                f"  Best Offset: {best_offset:.4f} s (External Time - Log Time)\n"
+                f"  Lowest Mismatch: {min_mismatch:.4f} s (summed abs diff over {check_n_events} events)\n"
+                f"  Threshold: {match_threshold:.4f} s"
+            )
+            self.time_offset = best_offset  # Store the successful offset
+            return self.time_offset
+        else:
+            # Report failure if no offset met the threshold
+            print(
+                f"Warning: Could not find a suitable time offset.\n"
+                f"  Minimum mismatch found: {min_mismatch:.4f} s (using {check_n_events} events)\n"
+                f"  Match threshold: {match_threshold:.4f} s\n"
+                f"  Troubleshooting: Check if reference events match, increase threshold, "
+                f"or verify external timestamps."
+            )
+            self.time_offset = None  # Ensure offset is None on failure
+            return None
+
+    def get_events_dataframe(
+        self,
+        apply_offset: bool = True,
+        exclude_comments_unknown: bool = True,
+        max_DIOs: int = 32,
+    ) -> pd.DataFrame:
+        """Constructs and returns a pandas DataFrame from the parsed log events.
+
+        Parameters
+        ----------
+        apply_offset : bool, optional
+            If True (default), and a `time_offset` has been calculated, add the
+            'timestamp_sync' column to the DataFrame. If False, or if no offset
+            is available, this column is omitted.
+        exclude_comments_unknown : bool, optional
+            If True (default), lines parsed as 'comment_or_empty' or 'unknown'
+            are excluded from the DataFrame. If False, all entries from
+            `raw_events` are included (potentially useful for debugging parsing).
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the structured event data. Columns are:
+            - 'trodes_timestamp' (int, ms since start of recording)
+            - 'trodes_timestamp_sec' (float, seconds since start of recording)
+            - `timestamp_sync` (float, seconds)
+            - 'raw_line' (str)
+            - 'type' (str)
+            - 'text' (str)
+            - 'value' (int, if pattern `text = value`, type 'ts_str_equals_int')
+            - 'active_DIO_inputs_bitmask' (int, from 'ts_int_int')
+            - 'active_DIO_outputs_bitmask' (int, from 'ts_int_int')
+            - 'active_DIO_inputs' (list of int)
+            - 'active_DIO_outputs' (list of int)
+
+            Returns an empty DataFrame if no valid events are found after filtering.
+        """
+        # Ensure raw events are available
+        if not self.raw_events:
+            self.parse_raw_events()
+            if not self.raw_events:
+                print("Warning: Log content yielded no raw events.")
+                self.processed_events_df = pd.DataFrame()  # Store empty df
+                return self.processed_events_df
+
+        # Determine which event types to filter out
+        if exclude_comments_unknown:
+            exclude_types = ("comment_or_empty", "unknown")
+            filtered_events = [
+                event
+                for event in self.raw_events
+                if event.get("type") not in exclude_types
+            ]
+        else:
+            # Include all event types if not excluding
+            filtered_events = self.raw_events
+
+        # Handle case where filtering leaves no events
+        if not filtered_events:
+            print("Warning: No valid events remain after filtering.")
+            self.processed_events_df = pd.DataFrame()  # Store empty df
+            return self.processed_events_df
+
+        # Define a preferred column order for better readability
+        # Include all potential columns generated by the parsers + derived columns
+        preferred_column_order = [
+            "line_num",  # Line number in the original log
+            "raw_line",  # Original line content
+            "type",  # Type of parsed line pattern
+            "trodes_timestamp",  # trodes integer timestamp (ms since start)
+            "trodes_timestamp_sec",  # trodes timestamp converted to seconds
+            "timestamp_sync",  # Synchronized timestamp (if calculated)
+            "text",  # Text part (from ts_str, ts_str_int, ts_str_equals_int)
+            "value",  # Integer value after equals (from ts_str_int, ts_str_equals_int)
+            "active_DIO_inputs_bitmask",  # DIO input bitmask (from ts_int_int)
+            "active_DIO_outputs_bitmask",  # DIO output bitmask (from ts_int_int)
+        ]
+
+        # Create DataFrame. Pandas handles missing columns gracefully.
+        df = pd.DataFrame(filtered_events).rename(
+            columns={
+                "timestamp": "trodes_timestamp",
+                "value1": "active_DIO_inputs_bitmask",
+                "value2": "active_DIO_outputs_bitmask",
+            }
+        )
+        df["active_DIO_inputs"] = df["active_DIO_inputs_bitmask"].apply(
+            lambda mask: _interpret_DIO_mask(mask, max_DIOs)
+        )
+        df["active_DIO_outputs"] = df["active_DIO_outputs_bitmask"].apply(
+            lambda mask: _interpret_DIO_mask(mask, max_DIOs)
+        )
+
+        # --- Timestamp Processing ---
+        # Ensure 'timestamp' column exists and convert to numeric/int
+        if "trodes_timestamp" in df.columns:
+            # Coerce errors to NaN, fill NaN with 0, then convert to integer
+            df["trodes_timestamp"] = (
+                pd.to_numeric(df["trodes_timestamp"], errors="coerce")
+                .fillna(pd.NA)
+                .astype(pd.Int64Dtype())
+            )
+            # Calculate timestamp in seconds
+            df["trodes_timestamp_sec"] = (
+                df["trodes_timestamp"].astype(float) / self.MILLISECONDS_PER_SECOND
+            )
+        else:
+            # Add empty columns if trodes_timestamp was missing (e.g., only comments)
+            print(
+                "Warning: 'trodes_timestamp' column not found in parsed data. Timestamp columns will be empty."
+            )
+            df["trodes_timestamp"] = pd.NA
+            df["trodes_timestamp_sec"] = np.nan
+
+        # Apply time offset if requested and available
+        if apply_offset:
+            if self.time_offset is not None:
+                if "trodes_timestamp_sec" in df.columns:
+                    df["timestamp_sync"] = df["trodes_timestamp_sec"] + self.time_offset
+                else:
+                    df["timestamp_sync"] = (
+                        np.nan
+                    )  # Cannot calculate if trodes_timestamp_sec is missing
+            else:
+                # Warning if offset applied but not calculated
+                print(
+                    "Warning: Time offset application requested, but offset has not "
+                    "been calculated or was unsuccessful. 'timestamp_sync' column omitted."
+                )
+                # Ensure the column doesn't exist if it wasn't created
+                if "timestamp_sync" in df.columns:
+                    df = df.drop(columns=["timestamp_sync"])
+
+        # --- Data Type Consolidation ---
+        # Standardize types for common data columns if they exist
+        int_cols = [
+            "value",
+            "active_DIO_inputs_bitmask",
+            "active_DIO_outputs_bitmask",
+        ]
+        text_cols = ["text"]
+
+        for col in int_cols:
+            if col in df.columns:
+                # Convert to numeric (allowing NaNs), then use nullable Int64 type
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype(
+                    pd.Int64Dtype()
+                )
+
+        for col in text_cols:
+            if col in df.columns:
+                # Ensure text columns are object type (string) and
+                # fill potential float NaNs with pandas NA
+                df[col] = df[col].astype(str).replace("nan", pd.NA).astype("object")
+
+        # Reorder columns according to preference, keeping only existing columns
+        existing_cols_in_order = [
+            col for col in preferred_column_order if col in df.columns
+        ]
+        # Add any remaining columns not in the preferred list (e.g., from 'unknown' type)
+        other_cols = [col for col in df.columns if col not in existing_cols_in_order]
+        final_column_order = existing_cols_in_order + other_cols
+        df = df[final_column_order]
+
+        # Store the final DataFrame and return it
+        self.processed_events_df = df.set_index("line_num")
+        return self.processed_events_df
+
+    def get_events_by_type(
+        self,
+        apply_offset: bool = True,
+        exclude_comments_unknown: bool = True,
+    ) -> List[pd.DataFrame]:
+        """Groups the events in the DataFrame by their 'type' column.
+        This method first generates the DataFrame using `get_events_dataframe`
+        and then groups the events by their 'type' column. Each group is
+        returned as a separate DataFrame, excluding the 'type' column.
+        This allows for easy access to events of the same type for further
+        analysis or processing.
+
+        Parameters
+        ----------
+        apply_offset : bool, optional
+            If True (default), applies the time offset to the DataFrame.
+            If False, the DataFrame will contain raw timestamps.
+        exclude_comments_unknown : bool, optional
+            If True (default), excludes comment and unknown lines from the DataFrame.
+            If False, all lines are included, which may be useful for debugging.
+        Returns
+        -------
+        List[pd.DataFrame]
+            A list of DataFrames, each corresponding to a unique event type.
+            Each DataFrame contains the events of that type, excluding the 'type' column.
+        """
+        df = self.get_events_dataframe(
+            apply_offset=apply_offset,
+            exclude_comments_unknown=exclude_comments_unknown,
+        )
+        return [group.drop(columns=["type"]) for _, group in df.groupby("type")]
+
+    def segment_into_trials(
+        self,
+        trial_start_terms: List[str],
+        trial_end_terms: List[str],
+        time_column: str = "timestamp_sync",
+    ) -> List[Dict[str, Any]]:
+        """
+        Segments events from a StateScript log DataFrame into trials.
+
+        Parameters
+        ----------
+        trial_start_terms : List[str]
+            List of strings found in the 'text' column that mark the start of a trial.
+        trial_end_terms : List[str]
+            List of strings found in the 'text' column that mark the end of a trial.
+            Can overlap with trial_start_terms.
+        time_column : str, optional
+            The name of the column to use for time ranges ('timestamp_sync' or
+            'trodes_timestamp_sec'), by default 'timestamp_sync'.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            A list where each dictionary represents a trial. Each trial dictionary
+            contains at least 'start_time' and 'end_time'. Further analysis
+            (like finding input/output changes within the trial) would typically
+            be done separately using these time ranges to filter events_df.
+
+        Notes
+        -----
+        - This implementation assumes trials are defined by text messages.
+        - It handles cases where start/end terms overlap.
+        """
+        events_df = self.processed_events_df
+        if events_df is None:
+            print("Error: No processed events DataFrame available.")
+            return []
+
+        if "text" not in events_df.columns or time_column not in events_df.columns:
+            print(f"Error: DataFrame must contain 'text' and '{time_column}' columns.")
+            return []
+
+        trials = []
+        current_trial_start_time = None
+        in_trial = False
+
+        # Iterate through the DataFrame rows
+        for index, row in events_df.iterrows():
+            message = row["text"]  # Check the 'text' column
+            current_time = row[time_column]
+
+            if pd.isna(message) or pd.isna(current_time):
+                continue  # Skip rows with missing text or time
+
+            found_end_term = any(term in message for term in trial_end_terms)
+            found_start_term = any(term in message for term in trial_start_terms)
+
+            # --- End Trial Logic ---
+            # If we are currently in a trial and find an end term
+            if in_trial and found_end_term:
+                # Finalize the previous trial
+                trials.append(
+                    {
+                        "start_time": current_trial_start_time,
+                        "end_time": current_time,
+                        # Add trial index or other basic info if needed
+                    }
+                )
+                in_trial = False
+                current_trial_start_time = None  # Reset start time
+
+            # --- Start Trial Logic ---
+            # If we find a start term (potentially the same event as the end term)
+            if found_start_term:
+                # If we weren't in a trial, start a new one
+                if not in_trial:
+                    in_trial = True
+                    current_trial_start_time = current_time
+                # If we *were* already in a trial (e.g., two start terms back-to-back
+                # without an end term), you might choose to log a warning or
+                # implicitly end the previous one here and start a new one.
+                # This example restarts the trial timer.
+                else:
+                    print(
+                        f"Warning: Found start term '{message}' at {current_time} while already in a trial started at {current_trial_start_time}. Restarting trial."
+                    )
+                    current_trial_start_time = current_time
+
+        # Handle case where log ends while still in a trial
+        if in_trial:
+            print(
+                f"Warning: Log ended while still in a trial started at {current_trial_start_time}."
+            )
+            # Optionally add the incomplete trial
+            trials.append(
+                {
+                    "start_time": current_trial_start_time,
+                    "end_time": events_df[time_column].iloc[-1],  # Use last event time
+                    "status": "incomplete",
+                }
+            )
+
+        return trials
