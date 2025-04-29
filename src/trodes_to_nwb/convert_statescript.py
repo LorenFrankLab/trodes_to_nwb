@@ -191,6 +191,7 @@ def parse_ts_str_equals_int(parts: list) -> Optional[Dict[str, Any]]:
     ----------
     parts : list
         A list of strings obtained by splitting a log line by whitespace.
+        Expected to contain 4 parts, with '=' as the third part.
 
     Returns
     -------
