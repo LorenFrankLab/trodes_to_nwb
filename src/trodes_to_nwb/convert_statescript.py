@@ -710,8 +710,9 @@ class StateScriptLogProcessor:
                 try:
                     if isinstance(value, int):
                         # Convert column to numeric, then integer (handles potential errors)
-                        df[key] = pd.to_numeric(df[key], errors="coerce").astype(int)
-                    # Add elif for float, bool etc. if needed
+                        df[key] = pd.to_numeric(df[key], errors="coerce").astype(
+                            pd.Int64Dtype()
+                        )
                 except (ValueError, TypeError):
                     # Ignore casting errors if conversion isn't possible
                     pass
