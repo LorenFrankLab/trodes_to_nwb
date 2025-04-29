@@ -878,6 +878,7 @@ class StateScriptLogProcessor:
         self,
         apply_offset: bool = True,
         exclude_comments_unknown: bool = True,
+        exclude_int_int: bool = True,
         max_DIOs: int = 32,
     ) -> pd.DataFrame:
         """Constructs and returns a pandas DataFrame from the parsed log events.
@@ -892,6 +893,14 @@ class StateScriptLogProcessor:
             If True (default), lines parsed as 'comment_or_empty' or 'unknown'
             are excluded from the DataFrame. If False, all entries from
             `raw_events` are included (potentially useful for debugging parsing).
+        exclude_int_int : bool, optional
+            If True (default), lines parsed as 'ts_int_int' are excluded from
+            the DataFrame. These are often used for DIO state changes and may not
+            be relevant for most analyses.
+        max_DIOs : int, optional
+            The maximum number of DIOs to consider when interpreting bitmasks
+            for active DIO inputs/outputs. Default is 32. This is used to
+            determine the number of bits to check in the bitmask values.
 
         Returns
         -------
@@ -920,16 +929,15 @@ class StateScriptLogProcessor:
                 return self.processed_events_df
 
         # Determine which event types to filter out
+        exclude_types = []
         if exclude_comments_unknown:
-            exclude_types = ("comment_or_empty", "unknown")
-            filtered_events = [
-                event
-                for event in self.raw_events
-                if event.get("type") not in exclude_types
-            ]
-        else:
-            # Include all event types if not excluding
-            filtered_events = self.raw_events
+            exclude_types += ["comment_or_empty", "unknown"]
+        if exclude_int_int:
+            exclude_types += ["ts_int_int"]
+
+        filtered_events = [
+            event for event in self.raw_events if event.get("type") not in exclude_types
+        ]
 
         # Handle case where filtering leaves no events
         if not filtered_events:
