@@ -395,7 +395,7 @@ def test_find_reference_events(processor):
     assert ref_df_none.empty
     assert isinstance(ref_df_none, pd.DataFrame)  # Should still return DF
     # Check expected columns exist even if empty
-    assert "timestamp" in ref_df_none.columns
+    assert "trodes_timestamp" in ref_df_none.columns
     assert "trodes_timestamp_sec" in ref_df_none.columns
     assert "text" in ref_df_none.columns  # From conditions
 
@@ -470,6 +470,8 @@ def test_calculate_time_offset_fail_mismatch(processor, external_times):
     # Shift external times enough to exceed default threshold (0.1) on
     # the second event
     shifted_external_times = external_times
+    # External times are not a good stable reference
+    # because the second one is shifted
     shifted_external_times[1] += 0.2  # Shift the second time by 0.2 seconds
     offset = processor.calculate_time_offset(
         external_reference_times=shifted_external_times,
