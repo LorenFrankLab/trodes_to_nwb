@@ -878,7 +878,7 @@ class StateScriptLogProcessor:
         self,
         apply_offset: bool = True,
         exclude_comments_unknown: bool = True,
-        exclude_int_int: bool = True,
+        exclude_int_int: bool = False,
         max_DIOs: int = 32,
     ) -> pd.DataFrame:
         """Constructs and returns a pandas DataFrame from the parsed log events.
@@ -894,7 +894,7 @@ class StateScriptLogProcessor:
             are excluded from the DataFrame. If False, all entries from
             `raw_events` are included (potentially useful for debugging parsing).
         exclude_int_int : bool, optional
-            If True (default), lines parsed as 'ts_int_int' are excluded from
+            If True, lines parsed as 'ts_int_int' are excluded from
             the DataFrame. These are often used for DIO state changes and may not
             be relevant for most analyses.
         max_DIOs : int, optional
