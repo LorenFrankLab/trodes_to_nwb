@@ -467,9 +467,10 @@ def test_calculate_time_offset_fail_not_enough_external(processor):
 
 def test_calculate_time_offset_fail_mismatch(processor, external_times):
     """Test offset calculation failure due to exceeding mismatch threshold."""
-    # Shift external times enough to exceed default threshold (0.1) over 2 events
-    # Shift each by 0.06 -> total diff = 0.06 + 0.06 = 0.12 > 0.1
-    shifted_external_times = external_times + 0.06
+    # Shift external times enough to exceed default threshold (0.1) on
+    # the second event
+    shifted_external_times = external_times
+    shifted_external_times[1] += 0.2  # Shift the second time by 0.2 seconds
     offset = processor.calculate_time_offset(
         external_reference_times=shifted_external_times,
         log_event_type="ts_int_int",
