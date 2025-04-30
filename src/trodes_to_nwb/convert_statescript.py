@@ -126,7 +126,7 @@ def parse_ts_int_int(parts: list) -> Optional[Dict[str, Any]]:
             "timestamp": part[0],
             "value1": part[1],
             "value2": part[2],
-            }
+        }
 
 
 def parse_ts_str_int(parts: list) -> Optional[Dict[str, Any]]:
