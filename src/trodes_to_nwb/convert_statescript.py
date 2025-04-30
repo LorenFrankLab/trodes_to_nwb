@@ -99,8 +99,6 @@ def parse_ts_int_int(parts: list) -> Optional[Dict[str, Any]]:
 
     Example:
         8386500 0 0 -> {'ts': 8386500, 'value1': 0, 'value2': 0}
-        1817158 128 512 -> {'ts': 1817158, 'value1': 128, 'value2': 512}
-        76566 65536 0 -> {'ts': 76566, 'value1': 65536, 'value2': 0}
 
     Parameters
     ----------
