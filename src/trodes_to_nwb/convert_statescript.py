@@ -116,17 +116,18 @@ def parse_ts_int_int(parts: list) -> Optional[Dict[str, Any]]:
         if the line matches the expected structure and all parts are valid integers.
         Returns None otherwise.
     """
-    if len(parts) == 3:
-        # Attempt to parse all three parts as integers
-        timestamp, val1, val2 = [_parse_int(part) for part in parts]
+    if len(parts) != 3:
+        return
+    # Attempt to parse all three parts as integers
+    int_parts = [_parse_int(part) for part in parts]
 
-        # Check if all parsing attempts were successful
-        if timestamp is not None and val1 is not None and val2 is not None:
-            return {
-                "type": "ts_int_int",
-                "timestamp": timestamp,
-                "value1": val1,
-                "value2": val2,
+    # Check if all parsing attempts were successful
+    if all([part is not None for part in int_parts]):
+        return {
+            "type": "ts_int_int",
+            "timestamp": part[0],
+            "value1": part[1],
+            "value2": part[2],
             }
 
 
