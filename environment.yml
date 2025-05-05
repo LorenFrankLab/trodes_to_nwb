@@ -20,4 +20,5 @@ dependencies:
 - pip
 - pip:
     - ndx-franklab-novela
+    - ndx-optogenetics
     - neo>=0.13.4
