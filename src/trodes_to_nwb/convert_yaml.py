@@ -30,7 +30,8 @@ from trodes_to_nwb import __version__
 
 
 def load_metadata(
-    metadata_path: str, probe_metadata_paths: list[str]
+    metadata_path: str,
+    device_metadata_paths: list[str],
 ) -> tuple[dict, list[dict]]:
     """loads metadata files as dictionaries
 
@@ -38,13 +39,14 @@ def load_metadata(
     ----------
     metadata_path : str
         path to file made by yaml generator
-    probe_metadata_paths : list[str]
-        list of paths to yaml files with information on probe types
+    device_metadata_paths : list[str]
+        list of paths to yaml files with information on standard devices (e.g. probes,
+        optical fibers, viruses)
 
     Returns
     -------
     tuple[dict, list[dict]]
-        the yaml generator metadata and list of probe metadatas
+        the yaml generator metadata and list of device metadatas
     """
     metadata = None
     with open(metadata_path, "r") as stream:
@@ -56,17 +58,17 @@ def load_metadata(
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
         logger.exception("".join(metadata_errors))
-    probe_metadata = []
-    for path in probe_metadata_paths:
+    device_metadata = []
+    for path in device_metadata_paths:
         with open(path, "r") as stream:
-            probe_metadata.append(yaml.safe_load(stream))
+            device_metadata.append(yaml.safe_load(stream))
     if not metadata["associated_files"] is None:
         for file in metadata["associated_files"]:
             file["task_epochs"] = [file["task_epochs"]]
     if not metadata["associated_video_files"] is None:
         for file in metadata["associated_video_files"]:
             file["task_epochs"] = [file["task_epochs"]]
-    return metadata, probe_metadata
+    return metadata, device_metadata
 
 
 def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:

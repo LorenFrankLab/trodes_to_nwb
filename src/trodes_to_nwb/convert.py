@@ -6,7 +6,6 @@ and final NWB file writing and validation.
 """
 
 import logging
-import os
 from pathlib import Path
 
 import nwbinspector
@@ -72,18 +71,16 @@ def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
     return logger
 
 
-def get_included_probe_metadata_paths() -> list[Path]:
+def get_included_device_metadata_paths() -> list[Path]:
     """Get the included probe metadata paths
     Returns
     -------
-    probe_metadata_paths : list[Path]
+    device_metadata_paths : list[Path]
         List of probe metadata paths
     """
     package_dir = Path(__file__).parent.resolve()
-    probe_folder = package_dir / "probe_metadata"
-    return [
-        probe_folder / file for file in probe_folder.iterdir() if file.suffix == ".yml"
-    ]
+    device_folder = package_dir / "device_metadata"
+    return device_folder.rglob("*.yml")
 
 
 def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
@@ -107,7 +104,7 @@ def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
 def create_nwbs(
     path: Path,
     header_reconfig_path: Path | None = None,
-    probe_metadata_paths: list[Path] | None = None,
+    device_metadata_paths: list[Path] | None = None,
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
@@ -124,8 +121,8 @@ def create_nwbs(
         Path to the SpikeGadgets data file.
     header_reconfig_path : Path, optional
         Path to the header reconfiguration file, by default None.
-    probe_metadata_paths : list[Path], optional
-        List of paths to the probe metadata files, by default None.
+    device_metadata_paths : list[Path], optional
+        List of paths to the device metadata files, by default None.
     output_dir : str, optional
         Output directory for the NWB files, by default "/stelmo/nwb/raw".
     video_directory : str, optional
@@ -147,8 +144,8 @@ def create_nwbs(
         path = Path(path)
 
     # provide the included probe metadata files if none are provided
-    if probe_metadata_paths is None:
-        probe_metadata_paths = get_included_probe_metadata_paths()
+    if device_metadata_paths is None:
+        device_metadata_paths = get_included_device_metadata_paths()
 
     file_info = get_file_info(path)
 
@@ -164,7 +161,7 @@ def create_nwbs(
                     session,
                     session_df,
                     header_reconfig_path,
-                    probe_metadata_paths,
+                    device_metadata_paths,
                     output_dir,
                     video_directory,
                     convert_video,
@@ -191,7 +188,7 @@ def create_nwbs(
                 session,
                 session_df,
                 header_reconfig_path,
-                probe_metadata_paths,
+                device_metadata_paths,
                 output_dir,
                 video_directory,
                 convert_video,
@@ -203,7 +200,7 @@ def _create_nwb(
     session: tuple[str, str, str],
     session_df: pd.DataFrame,
     header_reconfig_path: Path | None = None,
-    probe_metadata_paths: list[Path] | None = None,
+    device_metadata_paths: list[Path] | None = None,
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
@@ -241,8 +238,8 @@ def _create_nwb(
         metadata_filepaths = metadata_filepaths[0]
     logger.info(f"\tmetadata_filepath: {metadata_filepaths}")
 
-    metadata, probe_metadata = load_metadata(
-        metadata_filepaths, probe_metadata_paths=probe_metadata_paths
+    metadata, device_metadata = load_metadata(
+        metadata_filepaths, device_metadata_paths=device_metadata_paths
     )
 
     logger.info("CREATING HARDWARE MAPS")
@@ -266,7 +263,7 @@ def _create_nwb(
     add_tasks(nwb_file, metadata)
     add_associated_files(nwb_file, metadata)
     add_electrode_groups(
-        nwb_file, metadata, probe_metadata, hw_channel_map, ref_electrode_map
+        nwb_file, metadata, device_metadata, hw_channel_map, ref_electrode_map
     )
     add_header_device(nwb_file, rec_header)
     add_associated_video_files(
@@ -274,7 +271,7 @@ def _create_nwb(
     )
 
     logger.info("ADDING EPHYS DATA")
-    ### add rec file data ###
+    # add rec file data
     map_row_ephys_data_to_row_electrodes_table = list(
         range(len(nwb_file.electrodes))
     )  # TODO: Double check this
@@ -297,7 +294,7 @@ def _create_nwb(
         neo_io=rec_dci.neo_io,
     )
     logger.info("ADDING POSITION")
-    ### add position ###
+    # add position
     if disable_ptp:
         ptp_enabled = False
     else:
