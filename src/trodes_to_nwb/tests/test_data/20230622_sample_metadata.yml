@@ -374,7 +374,6 @@ electrode_groups:
     targeted_y: 2.2
     targeted_z: 3.3
     units: mm
-
 ntrode_electrode_group_channel_map:
   - ntrode_id: 1
     electrode_group_id: 0
@@ -632,3 +631,41 @@ ntrode_electrode_group_channel_map:
       "1": 1
       "2": 2
       "3": 3
+opto_excitation_source:
+  - name: Omicron LuxX+ Blue
+    model_name: Omicron LuxX+ 488-100
+    description: Laser for optogenetic stimulation
+    wavelength_in_nm: 488.0
+    power_in_W: 0.077
+    intensity_in_W_per_m2: 10000000000.0
+virus_injection:
+  - name: Injection 1
+    description: Viral injection for optogenetic stimulation
+    hemisphere: right
+    location: CA1
+    ap_in_mm: 0.0
+    ml_in_mm: 0.0
+    dv_in_mm: 0.0
+    roll_in_deg: 0.0
+    pitch_in_deg: 0.0
+    yaw_in_deg: 0.0
+    reference: Bregma at the cortical surface
+    virus_name: "demo_virus_1"
+    titer_in_vg_per_ml: 1000000000.0
+    volume_in_uL: 0.45
+    volume_in_ul: 100.0
+optical_fiber:
+  - name: Fiber 1
+    hardware_name: demo fiber device
+    implanted_fiber_description: "optogenetic fiber in CA1"
+    location: CA1
+    hemisphere: "right"
+    ap_in_mm: 0.0
+    ml_in_mm: 0.0
+    dv_in_mm: 0.0
+    roll_in_deg: 0.0
+    pitch_in_deg: 0.0
+    yaw_in_deg: 0.0
+    reference: Bregma at the cortical surface
+optogenetic_stimulation_software: fs-gui
+
