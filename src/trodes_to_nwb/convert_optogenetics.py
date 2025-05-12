@@ -6,7 +6,6 @@ from ndx_optogenetics import (
     OpticalFiber,
     OpticalFiberLocationsTable,
     OpticalFiberModel,
-    OptogeneticEpochsTable,
     OptogeneticExperimentMetadata,
     OptogeneticVirus,
     OptogeneticViruses,
@@ -33,7 +32,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
         [
             x in metadata
             for x in [
-                "optogenetic_experiment",
+                # "optogenetic_experiment",
                 "virus_injection",
                 "opto_excitation_source",
                 "optical_fiber",
@@ -41,19 +40,28 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
             ]
         ]
     ):
+        print("missing optogenetic metadata")
         # TODO Log lack of metadata
         return
 
     # Add optogenetic experiment metadata
 
     virus, virus_injection = make_virus_injecton(
-        nwbfile, metadata.get("virus_injection"), device_metadata
+        metadata.get("virus_injection"), device_metadata
     )
+    excitation_metadata = metadata.get("opto_excitation_source")
+    if len(excitation_metadata) > 1:
+        raise ValueError(
+            "Multiple optogenetic sources are not supported. "
+            "Please provide a single optogenetic source "
+            "or submit request for new feature."
+        )
+    excitation_metadata = excitation_metadata[0]
     excitation_source = make_optogenetic_source(
-        nwbfile, metadata.get("opto_excitation_source"), device_metadata
+        nwbfile, excitation_metadata, device_metadata
     )
     fiber_table = make_optical_fiber(
-        nwbfile, metadata.get("optical_fiber"), excitation_source
+        nwbfile, metadata.get("optical_fiber"), excitation_source, device_metadata
     )
 
     # add them combined metadata to the nwb file

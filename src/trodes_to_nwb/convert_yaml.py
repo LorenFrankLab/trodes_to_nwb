@@ -222,7 +222,8 @@ def add_electrode_groups(
             contact_side_numbering=probe_meta["contact_side_numbering"],
             contact_size=probe_meta["contact_size"],
         )
-        # make the electrode group with the probe (Do it here so have electrodeGroup object to reference when making electrodes)
+        # make the electrode group with the probe (Do it here so have
+        # electrodeGroup object to reference when making electrodes)
         e_group = NwbElectrodeGroup(
             name=str(egroup_metadata["id"]),
             description=egroup_metadata["description"],
