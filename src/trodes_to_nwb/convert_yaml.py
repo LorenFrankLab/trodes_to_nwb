@@ -205,7 +205,7 @@ def add_electrode_groups(
         # find the probe corresponding to the device type
         probe_meta = None
         for test_meta in probe_metadata:
-            if test_meta["probe_type"] == egroup_metadata["device_type"]:
+            if test_meta.get("probe_type", None) == egroup_metadata["device_type"]:
                 probe_meta = test_meta
                 break
         if probe_meta is None:
