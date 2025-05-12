@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 
 from ndx_optogenetics import (
     ExcitationSource,
@@ -142,7 +142,7 @@ def make_optical_fiber(
 
 
 def make_virus_injecton(
-    virus_injection_metadata: dict,
+    virus_injection_metadata_list: List[dict], device_metadata: List[dict]
 ) -> Tuple[OptogeneticViruses, OptogeneticVirusInjections]:
     """
     Add virus injection data to the NWB file.
@@ -152,54 +152,69 @@ def make_virus_injecton(
     virus_injection_metadata : dict
         Metadata containing information about the virus injection.
     """
-    # get virus "device"
-    virus_metadata = get_virus_device(
-        virus_name := virus_injection_metadata["virus_name"]
-    )
-    # make the virus object
-    virus = OptogeneticVirus(
-        name=virus_name,
-        construct_name=virus_metadata["construct_name"],
-        description=virus_metadata["description"],
-        manufacturer=virus_metadata["manufacturer"],
-        titer_in_vg_per_ml=virus_injection_metadata["titer_in_vg_per_ml"],
-    )
-    optogenetic_viruses = OptogeneticViruses(optogenetic_virus=[virus])
-    # validation
-    hemisphere = virus_injection_metadata["hemisphere"].lower()
-    if hemisphere not in ["left", "right"]:
-        raise ValueError(
-            f"Invalid hemisphere '{hemisphere}' in virus injection metadata. "
-            "Expected 'left' or 'right'."
+    included_viruses = {}
+    injections_list = []
+    for virus_injection_metadata in virus_injection_metadata_list:
+        # get virus "device"
+        virus_name = virus_injection_metadata["virus_name"]
+        if virus_name in included_viruses:
+            virus = included_viruses[virus_name]
+        else:
+            virus_metadata = get_virus_device(
+                virus_name,
+                device_metadata=device_metadata,
+            )
+            # make the virus object
+            virus = OptogeneticVirus(
+                name=virus_name,
+                construct_name=virus_metadata["construct_name"],
+                description=virus_metadata["description"],
+                manufacturer=virus_metadata["manufacturer"],
+                titer_in_vg_per_ml=virus_injection_metadata["titer_in_vg_per_ml"],
+            )
+            included_viruses[virus_name] = virus
+
+        # validation
+        hemisphere = virus_injection_metadata["hemisphere"].lower()
+        if hemisphere not in ["left", "right"]:
+            raise ValueError(
+                f"Invalid hemisphere '{hemisphere}' in virus injection metadata. "
+                "Expected 'left' or 'right'."
+            )
+
+        # make the injection object referencing the virus
+        virus_injection = OptogeneticVirusInjection(
+            name=virus_injection_metadata["name"],
+            description=virus_injection_metadata["description"],
+            hemisphere=hemisphere,
+            location=virus_injection_metadata["location"],
+            ap_in_mm=virus_injection_metadata["ap_in_mm"],
+            ml_in_mm=virus_injection_metadata["ml_in_mm"],
+            dv_in_mm=virus_injection_metadata["dv_in_mm"],
+            roll_in_deg=virus_injection_metadata["roll_in_deg"],
+            pitch_in_deg=virus_injection_metadata["pitch_in_deg"],
+            yaw_in_deg=virus_injection_metadata["yaw_in_deg"],
+            reference=virus_injection_metadata["reference"],
+            virus=virus,
+            volume_in_uL=virus_injection_metadata["volume_in_uL"],
         )
-
-    # make the injection object referencing the virus
-    virus_injection = OptogeneticVirusInjection(
-        name=virus_injection_metadata["name"],
-        description=virus_injection_metadata["description"],
-        hemisphere=hemisphere,
-        location=virus_injection_metadata["location"],
-        ap_in_mm=virus_injection_metadata["ap_in_mm"],
-        ml_in_mm=virus_injection_metadata["ml_in_mm"],
-        dv_in_mm=virus_injection_metadata["dv_in_mm"],
-        roll_in_deg=virus_injection_metadata["roll_in_deg"],
-        pitch_in_deg=virus_injection_metadata["pitch_in_deg"],
-        yaw_in_deg=virus_injection_metadata["yaw_in_deg"],
-        reference=virus_injection_metadata["reference"],
-        virus=virus,
-        volume_in_uL=virus_injection_metadata["volume_in_uL"],
+        injections_list.append(virus_injection)
+    # make the compiled objects
+    optogenetic_viruses = OptogeneticViruses(
+        optogenetic_virus=list(included_viruses.values())
     )
-
     optogenetic_virus_injections = OptogeneticVirusInjections(
-        optogenetic_virus_injections=[virus_injection]
+        optogenetic_virus_injections=injections_list
     )
 
     return optogenetic_viruses, optogenetic_virus_injections
 
 
-def get_virus_device(virus_name) -> dict:
-    # TODO: Implement this function to retrieve the virus device information
-    return {}
+def get_virus_device(virus_name, device_metadata) -> dict:
+    for device in device_metadata:
+        if device.get("virus_name", None) == virus_name:
+            return device
+    raise ValueError(f"Virus with name '{virus_name}' not found in device metadata.")
 
 
 def get_fiber_device(fiber_name) -> dict:
