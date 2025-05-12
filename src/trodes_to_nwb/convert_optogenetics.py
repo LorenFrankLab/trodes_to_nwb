@@ -16,7 +16,7 @@ from ndx_optogenetics import (
 from pynwb import NWBFile
 
 
-def add_optogenetics(nwbfile: NWBFile, metadata: dict):
+def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dict]):
     """
     Add optogenetics data to the NWB file.
 
@@ -26,6 +26,8 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict):
         The NWB file to which the optogenetics data will be added.
     metadata : dict
         Metadata containing information about the optogenetics data.
+    device_metadata : list
+        List of dictionaries containing metadata for devices used in the experiment.
     """
     if not all(
         [
@@ -33,7 +35,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict):
             for x in [
                 "optogenetic_experiment",
                 "virus_injection",
-                "optogenetic_source",
+                "opto_excitation_source",
                 "optical_fiber",
                 "optogenetic_stimulation_software",
             ]
@@ -45,10 +47,10 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict):
     # Add optogenetic experiment metadata
 
     virus, virus_injection = make_virus_injecton(
-        nwbfile, metadata.get("virus_injection")
+        nwbfile, metadata.get("virus_injection"), device_metadata
     )
     excitation_source = make_optogenetic_source(
-        nwbfile, metadata.get("optogenetic_source")
+        nwbfile, metadata.get("opto_excitation_source"), device_metadata
     )
     fiber_table = make_optical_fiber(
         nwbfile, metadata.get("optical_fiber"), excitation_source
@@ -66,9 +68,11 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict):
 
 
 def make_optogenetic_source(
-    nwbfile: NWBFile, source_metadata: dict
+    nwbfile: NWBFile, source_metadata: dict, device_metadata: List[dict]
 ) -> ExcitationSource:
-    model_metadata = get_optogenetic_source_device(source_metadata["model_name"])
+    model_metadata = get_optogenetic_source_device(
+        source_metadata["model_name"], device_metadata
+    )
     excitation_source_model = ExcitationSourceModel(
         name=source_metadata["model_name"],
         description=model_metadata["description"],
@@ -199,6 +203,7 @@ def make_virus_injecton(
             volume_in_uL=virus_injection_metadata["volume_in_uL"],
         )
         injections_list.append(virus_injection)
+
     # make the compiled objects
     optogenetic_viruses = OptogeneticViruses(
         optogenetic_virus=list(included_viruses.values())
@@ -222,6 +227,10 @@ def get_fiber_device(fiber_name) -> dict:
     return {}
 
 
-def get_optogenetic_source_device(source_name) -> dict:
-    # TODO: Implement this function to retrieve the optogenetic source device information
-    return {}
+def get_optogenetic_source_device(source_name, device_metadata) -> dict:
+    for device in device_metadata:
+        if device.get("model_name", None) == source_name:
+            return device
+    raise ValueError(
+        f"Optogenetic source with name '{source_name}' not found in device metadata."
+    )
