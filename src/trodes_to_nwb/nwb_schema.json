@@ -458,7 +458,7 @@
                         "U",
                         "O"
                     ],
-                    "description": "Gender of animal model/patient"
+                    "description": "Sex of animal model/patient"
                 },
                 "species": {
                     "$id": "#root/subject/species",
