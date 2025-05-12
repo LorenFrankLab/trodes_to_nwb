@@ -94,53 +94,60 @@ def make_optogenetic_source(
 
 def make_optical_fiber(
     nwbfile: NWBFile,
-    fiber_metadata: dict,
+    fiber_metadata_list: dict,
     excitation_source: ExcitationSource,
+    device_metadata: List[dict],
 ) -> OpticalFiber:
-    # get device metadata
-    fiber_model_metadata = get_fiber_device(fiber_metadata["name"])
-    # make the fiber objects
-    optical_fiber_model = OpticalFiberModel(
-        name=fiber_metadata[
-            "name"
-        ],  # TODO: decide if should differentiate name and model name
-        description=fiber_model_metadata["description"],
-        fiber_name=fiber_model_metadata["fiber_name"],
-        fiber_model=fiber_model_metadata["fiber_model"],
-        manufacturer=fiber_model_metadata["manufacturer"],
-        numerical_aperture=fiber_model_metadata["numerical_aperture"],
-        core_diameter_in_um=fiber_model_metadata["core_diameter_in_um"],
-        active_length_in_mm=fiber_model_metadata["active_length_in_mm"],
-        ferrule_name=fiber_model_metadata["ferrule_name"],
-        ferrule_diameter_in_mm=fiber_model_metadata["ferrule_diameter_in_mm"],
-    )
-
-    optical_fiber = OpticalFiber(
-        name=fiber_metadata["name"],
-        model=optical_fiber_model,
-    )
-    # add the fiber devices to the NWB file
-    nwbfile.add_device(optical_fiber_model)
-    nwbfile.add_device(optical_fiber)
-
     # make the locations table
     optical_fiber_locations_table = OpticalFiberLocationsTable(
         description="Information about implanted optical fiber locations",
-        reference=fiber_metadata["reference"],
+        reference=fiber_metadata_list[0]["reference"],
     )
-    optical_fiber_locations_table.add_row(
-        implanted_fiber_description=fiber_metadata["description"],
-        location=fiber_metadata["location"],
-        hemisphere=fiber_metadata["hemisphere"],
-        ap_in_mm=fiber_metadata["ap_in_mm"],
-        ml_in_mm=fiber_metadata["ml_in_mm"],
-        dv_in_mm=fiber_metadata["dv_in_mm"],
-        roll_in_deg=fiber_metadata["roll_in_deg"],
-        pitch_in_deg=fiber_metadata["pitch_in_deg"],
-        yaw_in_deg=fiber_metadata["yaw_in_deg"],
-        excitation_source=excitation_source,
-        optical_fiber=optical_fiber,
-    )
+    added_fiber_models = {}
+    for fiber_metadata in fiber_metadata_list:
+        model_name = fiber_metadata["hardware_name"]
+        if model_name in added_fiber_models:
+            optical_fiber_model = added_fiber_models[model_name]
+        else:
+            # get device metadata
+            fiber_model_metadata = get_fiber_device(model_name, device_metadata)
+            # make the fiber objects
+            optical_fiber_model = OpticalFiberModel(
+                name=fiber_metadata["hardware_name"],
+                description=fiber_model_metadata["description"],
+                fiber_name=fiber_model_metadata["hardware_name"],
+                fiber_model=fiber_model_metadata["fiber_model"],
+                manufacturer=fiber_model_metadata["manufacturer"],
+                numerical_aperture=fiber_model_metadata["numerical_aperture"],
+                core_diameter_in_um=fiber_model_metadata["core_diameter_in_um"],
+                active_length_in_mm=fiber_model_metadata["active_length_in_mm"],
+                ferrule_name=fiber_model_metadata["ferrule_name"],
+                ferrule_diameter_in_mm=fiber_model_metadata["ferrule_diameter_in_mm"],
+            )
+            added_fiber_models[model_name] = optical_fiber_model
+            nwbfile.add_device(optical_fiber_model)
+
+        # make the fiber object
+        optical_fiber = OpticalFiber(
+            name=fiber_metadata["name"],
+            model=optical_fiber_model,
+        )
+        # add the fiber to the NWB file
+        nwbfile.add_device(optical_fiber)
+        # add the fiber to the locations table
+        optical_fiber_locations_table.add_row(
+            implanted_fiber_description=fiber_metadata["implanted_fiber_description"],
+            location=fiber_metadata["location"],
+            hemisphere=fiber_metadata["hemisphere"],
+            ap_in_mm=fiber_metadata["ap_in_mm"],
+            ml_in_mm=fiber_metadata["ml_in_mm"],
+            dv_in_mm=fiber_metadata["dv_in_mm"],
+            roll_in_deg=fiber_metadata["roll_in_deg"],
+            pitch_in_deg=fiber_metadata["pitch_in_deg"],
+            yaw_in_deg=fiber_metadata["yaw_in_deg"],
+            excitation_source=excitation_source,
+            optical_fiber=optical_fiber,
+        )
 
     return optical_fiber_locations_table
 
@@ -222,9 +229,13 @@ def get_virus_device(virus_name, device_metadata) -> dict:
     raise ValueError(f"Virus with name '{virus_name}' not found in device metadata.")
 
 
-def get_fiber_device(fiber_name) -> dict:
-    # TODO: Implement this function to retrieve the fiber device information
-    return {}
+def get_fiber_device(fiber_name, device_metadata) -> dict:
+    for device in device_metadata:
+        if device.get("hardware_name", None) == fiber_name:
+            return device
+    raise ValueError(
+        f"Optical fiber model with name '{fiber_name}' not found in device metadata."
+    )
 
 
 def get_optogenetic_source_device(source_name, device_metadata) -> dict:
