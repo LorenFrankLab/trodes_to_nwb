@@ -1,0 +1,5 @@
+model_name : Omicron LuxX+ 488-100
+description : Laser for optogenetic stimulation
+manufacturer : Omicron
+illumination_type : laser
+wavelength_range_in_nm : [488.0, 488.0]
