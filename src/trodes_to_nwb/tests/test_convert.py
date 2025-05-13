@@ -94,7 +94,7 @@ def test_convert_full_with_inspector_error(mocker):
 
     mocker.patch("trodes_to_nwb.convert.add_subject", do_nothing)
 
-    probe_metadata = [data_path / "tetrode_12.5.yml"]
+    device_metadata = get_included_device_metadata_paths()
 
     video_directory = data_path / "temp_video_directory_full_convert"
     if not os.path.exists(video_directory):
@@ -103,7 +103,7 @@ def test_convert_full_with_inspector_error(mocker):
     exclude_reconfig_yaml = str(data_path / "20230622_sample_metadataProbeReconfig.yml")
     create_nwbs(
         path=data_path,
-        probe_metadata_paths=probe_metadata,
+        device_metadata_paths=device_metadata,
         output_dir=str(data_path),
         n_workers=1,
         query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
