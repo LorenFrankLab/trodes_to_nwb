@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Tuple
 
 from ndx_optogenetics import (
@@ -253,3 +254,193 @@ def get_optogenetic_source_device(source_name, device_metadata) -> dict:
     raise ValueError(
         f"Optogenetic source with name '{source_name}' not found in device metadata."
     )
+
+
+def add_optogenetic_epochs(
+    nwbfile: NWBFile,
+    metadata: dict,
+    file_dir: str = "",
+):
+    """
+    Add optogenetic epochs to the NWB file.
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        The NWB file to which the optogenetic epochs will be added.
+    metadata : dict
+        Metadata containing information about the optogenetic epochs.
+    file_dir : str, optional
+        Directory appended to the file path given in the metadata. Default is empty string.
+    """
+
+    opto_epochs_metadata = metadata.get("fs_gui_yamls", [])
+    if len(opto_epochs_metadata) == 0:
+        print("No optogenetic epochs found in metadata.")
+        return
+
+    from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
+
+    opto_epochs_table = FrankLabOptogeneticEpochsTable(
+        name="optogenetic_epochs",
+        description="Metadata about optogenetic stimulation parameters per epoch",
+    )
+
+    for fs_gui_metadata in opto_epochs_metadata:
+        new_rows = compile_opto_entries(
+            fs_gui_metadata=fs_gui_metadata,
+            nwbfile=nwbfile,
+            file_dir=file_dir,
+        )
+        for row in new_rows:
+            opto_epochs_table.add_row(**row)
+
+    nwbfile.add_time_intervals(opto_epochs_table)
+
+
+def compile_opto_entries(
+    fs_gui_metadata: dict,
+    nwbfile: NWBFile,
+    file_dir: str = "",
+) -> List[dict]:
+    """
+    Compile an entry for the optogenetic epochs table.
+
+    Parameters
+    ----------
+    opto_epoch_metadata : dict
+        Metadata containing information about the optogenetic epochs.
+    nwbfile : NWBFile
+        The NWB file to which the optogenetic epochs will be added.
+    file_dir : str, optional
+        Directory appended to the file path given in the metadata. Default is empty string.
+
+    Returns
+    -------
+    List[dict]
+        A list of dictionaries containing the compiled entries for the optogenetic epochs table.
+    """
+    import yaml
+
+    # load the fs_gui yaml
+    fs_gui_path = Path(file_dir) / fs_gui_metadata["name"]
+    protocol_metadata = None
+    with open(fs_gui_path, "r") as stream:
+        protocol_metadata = yaml.safe_load(stream)
+    protocol_metadata = {
+        x["instance_id"]: x for x in protocol_metadata["nodes"]
+    }  # dictionary of instance_ids to matadata
+
+    # Find the opto metadata item
+    opto_metadata = [
+        x
+        for x in protocol_metadata.values()
+        if x["type_id"] == "trodes-digital-pulse-action-type"
+    ]
+    if len(opto_metadata) == 0:
+        raise ValueError(f"No opto metadata found in {fs_gui_path}")
+    if len(opto_metadata) > 1:
+        raise ValueError(f"More than one opto metadata found in {fs_gui_path}")
+    opto_metadata = opto_metadata[0]
+
+    epoch_df = nwbfile.epochs.to_dataframe()
+
+    new_rows = []
+    # make a new row entry for each epoch this protocol was run
+    for epoch in fs_gui_metadata["epochs"]:
+        # info about the stimulus and epoch
+        epoch_dict = dict(
+            pulse_length_in_ms=opto_metadata["pulseLength"],
+            number_pulses_per_pulse_train=opto_metadata["nPulses"],
+            period_in_ms=opto_metadata["sequencePeriod"],
+            number_trains=opto_metadata["nOutputTrains"],
+            intertrain_interval_in_ms=opto_metadata["trainInterval"],
+            power_in_mW=fs_gui_metadata["power_in_mW"],
+            stimulation_on=True,
+            start_time=epoch_df.start_time.values[
+                epoch - 1
+            ],  # get from nwbfile for epoch
+            stop_time=epoch_df.stop_time.values[epoch - 1],
+            epoch_name=epoch_df.tags.values[epoch - 1][0],
+            epoch_number=epoch,
+            convenience_code=opto_metadata["nickname"],
+            epoch_type="optogenetic",  # get from nwb file epoch
+        )
+        # info about the trigger condition
+        trigger_id = opto_metadata["trigger_id"]["data"]["value"]
+        trigger_metadata = protocol_metadata[trigger_id]
+        trigger_dict = dict(
+            ripple_filter_on=False,
+            ripple_filter_num_above_threshold=-1,
+            ripple_filter_threshold_sd=-1,
+            ripple_filter_lockout_period_in_samples=-1,
+            theta_filter_on=False,
+            theta_filter_lockout_period_in_samples=-1,
+            theta_filter_phase_in_deg=-1,
+            theta_filter_reference_ntrode=-1,
+        )
+        # ripple trigger
+        if "ripple" in trigger_metadata["type_id"]:
+            trigger_dict["ripple_filter_on"] = True
+            trigger_dict["ripple_filter_num_above_threshold"] = trigger_metadata[
+                "n_above_threshold"
+            ]
+            trigger_dict["ripple_filter_threshold_sd"] = trigger_metadata[
+                "sd_threshold"
+            ]
+            trigger_dict["ripple_filter_lockout_period_in_samples"] = opto_metadata[
+                "lockout_time"
+            ]
+        # theta trigger
+        elif "theta" in trigger_metadata["type_id"]:
+            trigger_dict["theta_filter_on"] = True
+            trigger_dict["theta_filter_lockout_period_in_samples"] = opto_metadata[
+                "lockout_time"
+            ]
+            trigger_dict["theta_filter_phase_in_deg"] = trigger_metadata[
+                "theta_filter_degrees"
+            ]
+            trigger_dict["theta_filter_reference_ntrode"] = trigger_metadata[
+                "reference_ntrode"
+            ]
+
+        # conditions for trigger activation (can be multiple)
+        condition_dict = {}
+
+        def get_condition_ids(metadata_dict):
+            condition_ids = []
+            if "children" in metadata_dict:
+                for child in metadata_dict["children"]:
+                    condition_ids.extend(get_condition_ids(child))
+            else:
+                condition_ids.append(metadata_dict["data"]["value"])
+            return condition_ids
+
+        condition_ids = get_condition_ids(opto_metadata["condition_id"])
+        # condition_ids = [
+        #     x["data"]["value"] for x in opto_metadata["condition_id"]["children"]
+        # ]  # id values for applied conditions
+        for condition_id in condition_ids:
+            condition_metadata = protocol_metadata[condition_id]
+
+            if condition_metadata["type_id"] == "geometry-filter-type":
+                # raise NotImplementedError(f"Geometry filter not implemented yet")
+                # logger.warning(
+                #     f"Geometry filter not implemented yet. "
+                #     f"Skipping condition with id {condition_id}"
+                # )
+                continue
+
+            elif condition_metadata["type_id"] == "speed-filter-type":
+                condition_dict["speed_filter_on"] = True
+                condition_dict["speed_filter_threshold"] = condition_metadata[
+                    "threshold"
+                ]
+                condition_dict["speed_filter_on_above_threshold"] = condition_metadata[
+                    "threshold_above"
+                ]
+
+        # compile row
+        row = {**epoch_dict, **trigger_dict, **condition_dict}
+        new_rows.append(row)
+    return new_rows

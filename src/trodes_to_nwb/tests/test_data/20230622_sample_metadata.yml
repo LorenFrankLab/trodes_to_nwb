@@ -668,4 +668,13 @@ optical_fiber:
     yaw_in_deg: 0.0
     reference: Bregma at the cortical surface
 optogenetic_stimulation_software: fs-gui
+fs_gui_yamls:
+  - name: fsgui_theta_trigger.yaml
+    epochs:
+      - 1
+    power_in_mW: 77
+  - name: fsgui_ripple_trigger.yaml
+    epochs:
+      - 2
+    power_in_mW: 77
 
