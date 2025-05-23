@@ -673,8 +673,10 @@ fs_gui_yamls:
     epochs:
       - 1
     power_in_mW: 77
+    dio_output_name: Light_1
   - name: fsgui_ripple_trigger.yaml
     epochs:
       - 2
     power_in_mW: 77
+    dio_output_name: Light_1
 
