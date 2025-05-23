@@ -412,7 +412,7 @@ def compile_opto_entries(
 
         def get_condition_ids(metadata_dict):
             condition_ids = []
-            if "children" in metadata_dict:
+            if len(metadata_dict["children"]):
                 for child in metadata_dict["children"]:
                     condition_ids.extend(get_condition_ids(child))
             else:
@@ -420,9 +420,6 @@ def compile_opto_entries(
             return condition_ids
 
         condition_ids = get_condition_ids(opto_metadata["condition_id"])
-        # condition_ids = [
-        #     x["data"]["value"] for x in opto_metadata["condition_id"]["children"]
-        # ]  # id values for applied conditions
         for condition_id in condition_ids:
             condition_metadata = protocol_metadata[condition_id]
 
