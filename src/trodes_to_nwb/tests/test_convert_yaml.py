@@ -72,7 +72,7 @@ def test_acq_device_creation():
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
     devices = nwb_file.devices
     assert len(devices) == 1
-    name = f"dataacq_device0"
+    name = "dataacq_device0"
     assert devices[name].system == "SpikeGadgets"
     assert devices[name].amplifier == "Intan"
     assert devices[name].adc_circuit == "Intan"
