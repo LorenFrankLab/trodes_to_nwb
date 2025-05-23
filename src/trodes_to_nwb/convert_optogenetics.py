@@ -364,7 +364,10 @@ def compile_opto_entries(
             epoch_name=epoch_df.tags.values[epoch - 1][0],
             epoch_number=epoch,
             convenience_code=opto_metadata["nickname"],
-            epoch_type="optogenetic",  # get from nwb file epoch
+            epoch_type="optogenetic",
+            stimulus_signal=nwbfile.processing["behavior"]["behavioral_events"][
+                fs_gui_metadata["dio_output_name"]
+            ],
         )
         # info about the trigger condition
         trigger_id = opto_metadata["trigger_id"]["data"]["value"]
