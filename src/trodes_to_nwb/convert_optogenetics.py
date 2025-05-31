@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Tuple
 
+import numpy as np
 from ndx_optogenetics import (
     ExcitationSource,
     ExcitationSourceModel,
@@ -420,15 +421,14 @@ def compile_opto_entries(
             return condition_ids
 
         condition_ids = get_condition_ids(opto_metadata["condition_id"])
+        geometry_filter_metadata_list = []
         for condition_id in condition_ids:
             condition_metadata = protocol_metadata[condition_id]
 
             if condition_metadata["type_id"] == "geometry-filter-type":
-                # raise NotImplementedError(f"Geometry filter not implemented yet")
-                # logger.warning(
-                #     f"Geometry filter not implemented yet. "
-                #     f"Skipping condition with id {condition_id}"
-                # )
+                # all geometry filters must be compiled at once per epoch
+                # log this one and add with rest at the end
+                geometry_filter_metadata_list.append(condition_metadata)
                 continue
 
             elif condition_metadata["type_id"] == "speed-filter-type":
@@ -440,7 +440,84 @@ def compile_opto_entries(
                     "threshold_above"
                 ]
 
+        geometry_dict = compile_geometry_filters(geometry_filter_metadata_list)
+
         # compile row
-        row = {**epoch_dict, **trigger_dict, **condition_dict}
+        row = {**epoch_dict, **trigger_dict, **condition_dict, **geometry_dict}
         new_rows.append(row)
     return new_rows
+
+
+def compile_geometry_filters(geometry_filter_metadata_list: List[str]) -> dict:
+    if len(geometry_filter_metadata_list) == 0:
+        return {}
+
+    geometry_dict = {"spatial_filter_on": True}
+    geometry_file_path = geometry_filter_metadata_list[0]["trackgeometry"]["filename"]
+    target_zones = [
+        x["trackgeometry"]["zone_id"] for x in geometry_filter_metadata_list
+    ]
+    geometry_zones_info = get_geometry_zones_info(geometry_file_path, target_zones)
+
+    n_nodes = [len(data["nodes_x"]) for data in geometry_zones_info.values()]
+    max_nodes = max(n_nodes)
+
+    node_data = -1 * np.ones((len(geometry_zones_info), max_nodes, 2))
+    n_pixels_x = geometry_filter_metadata_list[0]["cameraWidth"]
+    n_pixels_y = geometry_filter_metadata_list[0]["cameraHeight"]
+    for i, zone_id in enumerate(target_zones):
+        nodes_x = np.array(geometry_zones_info[zone_id]["nodes_x"])
+        nodes_y = np.array(geometry_zones_info[zone_id]["nodes_y"])
+        node_data[i, : len(nodes_x), 0] = nodes_x * n_pixels_x
+        node_data[i, : len(nodes_y), 1] = nodes_y * n_pixels_y
+
+    geometry_dict["spatial_filter_nodes"] = node_data
+
+    return geometry_dict
+
+
+def get_geometry_zones_info(geometry_file_path, target_zones):
+    """
+    Extracts zone information from a geometry file for specified zones.
+
+    Parameters:
+    - geometry_file_path: Path to the geometry file.
+    - target_zones: List of zone IDs to extract information for.
+
+    Returns:
+    - A dictionary with zone IDs as keys and their respective node relative coordinates.
+    """
+    zones = {i: {} for i in target_zones}
+    import os
+
+    if not os.path.exists(geometry_file_path):
+        try:
+            from trodes_to_nwb.tests.utils import data_path
+
+            geometry_file_path = Path(data_path) / Path(geometry_file_path).name
+            os.path.exists(geometry_file_path)
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Geometry file {geometry_file_path} not found. "
+                "Please check the path and try again."
+            ) from e
+
+    with open(geometry_file_path, "r", encoding="utf-8") as f:
+        zone_id = None
+        for line in f:
+            if line.startswith("Zone id:"):
+                zone_id = int(line.split(":")[1].strip())
+                continue
+            if zone_id is None or zone_id not in target_zones:
+                continue
+
+            if line.startswith("nodes_x"):
+                nodes_x = [float(x) for x in line.split(":")[1].strip().split(" ")]
+                zones[zone_id]["nodes_x"] = nodes_x
+                continue
+            if line.startswith("nodes_y"):
+                nodes_y = [float(x) for x in line.split(":")[1].strip().split(" ")]
+                zones[zone_id]["nodes_y"] = nodes_y
+                continue
+
+    return zones

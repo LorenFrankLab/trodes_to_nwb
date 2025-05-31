@@ -47,7 +47,7 @@ nodes:
   nickname: running zone
   source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
   trackgeometry:
-    filename: /home/xulu/Xulu/Behavior/Geometry/hexmaze_zones_running_area.trackgeometry
+    filename: fsgui_geometry.trackgeometry
     zone_id: 56
   cameraWidth: 1292
   cameraHeight: 964
