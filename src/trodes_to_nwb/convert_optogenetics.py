@@ -287,6 +287,7 @@ def add_optogenetic_epochs(
         description="Metadata about optogenetic stimulation parameters per epoch",
     )
 
+    # loop through each fsgui script, which can apply to multiple epochs
     for fs_gui_metadata in opto_epochs_metadata:
         new_rows = compile_opto_entries(
             fs_gui_metadata=fs_gui_metadata,
@@ -410,16 +411,6 @@ def compile_opto_entries(
 
         # conditions for trigger activation (can be multiple)
         condition_dict = {}
-
-        def get_condition_ids(metadata_dict):
-            condition_ids = []
-            if len(metadata_dict["children"]):
-                for child in metadata_dict["children"]:
-                    condition_ids.extend(get_condition_ids(child))
-            else:
-                condition_ids.append(metadata_dict["data"]["value"])
-            return condition_ids
-
         condition_ids = get_condition_ids(opto_metadata["condition_id"])
         geometry_filter_metadata_list = []
         for condition_id in condition_ids:
@@ -439,9 +430,27 @@ def compile_opto_entries(
                 condition_dict["speed_filter_on_above_threshold"] = condition_metadata[
                     "threshold_above"
                 ]
-
         geometry_dict = compile_geometry_filters(geometry_filter_metadata_list)
 
+        # add camera information if speed or spatial filter is on
+        if "speed_filter_on" in condition_dict or "spatial_filter_on" in geometry_dict:
+            print("ADDING CAMERA INFO")
+            if (camera_id := fs_gui_metadata.get("camera_id", None)) is None:
+                raise ValueError(
+                    "Camera ID not found in metadata. "
+                    "Please provide a camera_id for speed or spatial filters."
+                )
+            camera_name = f"camera_device {camera_id}"
+            camera_device = nwbfile.devices.get(camera_name, None)
+            if camera_device is None:
+                raise ValueError(
+                    f"Camera device '{camera_name}' not found in NWB file. "
+                    "Please ensure the camera is defined in the metadata yaml."
+                )
+            condition_dict["spatial_filter_cameras"] = [camera_device]
+            condition_dict["spatial_filter_cameras_cm_per_pixel"] = [
+                camera_device.meters_per_pixel * 100
+            ]
         # compile row
         row = {**epoch_dict, **trigger_dict, **condition_dict, **geometry_dict}
         new_rows.append(row)
@@ -521,3 +530,23 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
                 continue
 
     return zones
+
+
+def get_condition_ids(metadata_dict: dict) -> List[str]:
+    """
+    Recursively extracts condition IDs from a metadata dictionary.
+
+    Args:
+        metadata_dict (dict): A dictionary containing metadata, which may
+        include nested children.
+    Returns:
+        List[str]: A list of condition IDs extracted from the metadata. Corresponds
+        to the extracted keys in the protocol_metadata
+    """
+    condition_ids = []
+    if len(metadata_dict["children"]):
+        for child in metadata_dict["children"]:
+            condition_ids.extend(get_condition_ids(child))
+    else:
+        condition_ids.append(metadata_dict["data"]["value"])
+    return condition_ids
