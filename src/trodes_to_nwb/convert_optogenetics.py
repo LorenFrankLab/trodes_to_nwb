@@ -93,9 +93,9 @@ def make_optogenetic_source(
     excitation_source = ExcitationSource(
         name=source_metadata["name"],
         model=excitation_source_model,
-        wavelength_in_nm=source_metadata["wavelength_in_nm"],
-        power_in_W=source_metadata["power_in_W"],
-        intensity_in_W_per_m2=source_metadata["intensity_in_W_per_m2"],
+        wavelength_in_nm=float(source_metadata["wavelength_in_nm"]),
+        power_in_W=float(source_metadata["power_in_W"]),
+        intensity_in_W_per_m2=float(source_metadata["intensity_in_W_per_m2"]),
     )
     nwbfile.add_device(excitation_source_model)
     nwbfile.add_device(excitation_source)
@@ -191,7 +191,9 @@ def make_virus_injecton(
                 construct_name=virus_metadata["construct_name"],
                 description=virus_metadata["description"],
                 manufacturer=virus_metadata["manufacturer"],
-                titer_in_vg_per_ml=virus_injection_metadata["titer_in_vg_per_ml"],
+                titer_in_vg_per_ml=float(
+                    virus_injection_metadata["titer_in_vg_per_ml"]
+                ),
             )
             included_viruses[virus_name] = virus
 
@@ -209,12 +211,12 @@ def make_virus_injecton(
             description=virus_injection_metadata["description"],
             hemisphere=hemisphere,
             location=virus_injection_metadata["location"],
-            ap_in_mm=virus_injection_metadata["ap_in_mm"],
-            ml_in_mm=virus_injection_metadata["ml_in_mm"],
-            dv_in_mm=virus_injection_metadata["dv_in_mm"],
-            roll_in_deg=virus_injection_metadata["roll_in_deg"],
-            pitch_in_deg=virus_injection_metadata["pitch_in_deg"],
-            yaw_in_deg=virus_injection_metadata["yaw_in_deg"],
+            ap_in_mm=float(virus_injection_metadata["ap_in_mm"]),
+            ml_in_mm=float(virus_injection_metadata["ml_in_mm"]),
+            dv_in_mm=(virus_injection_metadata["dv_in_mm"]),
+            roll_in_deg=(virus_injection_metadata["roll_in_deg"]),
+            pitch_in_deg=(virus_injection_metadata["pitch_in_deg"]),
+            yaw_in_deg=(virus_injection_metadata["yaw_in_deg"]),
             reference=virus_injection_metadata["reference"],
             virus=virus,
             volume_in_uL=virus_injection_metadata["volume_in_uL"],
@@ -335,9 +337,7 @@ def compile_opto_entries(
 
     # Find the opto metadata item
     opto_metadata = [
-        x
-        for x in protocol_metadata.values()
-        if x["type_id"] == "trodes-digital-pulse-action-type"
+        x for x in protocol_metadata.values() if "action-type" in x["type_id"]
     ]
     if len(opto_metadata) == 0:
         raise ValueError(f"No opto metadata found in {fs_gui_path}")
@@ -352,11 +352,21 @@ def compile_opto_entries(
     for epoch in fs_gui_metadata["epochs"]:
         # info about the stimulus and epoch
         epoch_dict = dict(
-            pulse_length_in_ms=opto_metadata["pulseLength"],
-            number_pulses_per_pulse_train=opto_metadata["nPulses"],
-            period_in_ms=opto_metadata["sequencePeriod"],
-            number_trains=opto_metadata["nOutputTrains"],
-            intertrain_interval_in_ms=opto_metadata["trainInterval"],
+            pulse_length_in_ms=get_epoch_info_entry(
+                opto_metadata, fs_gui_metadata, "pulseLength"
+            ),
+            number_pulses_per_pulse_train=get_epoch_info_entry(
+                opto_metadata, fs_gui_metadata, "nPulses"
+            ),
+            period_in_ms=get_epoch_info_entry(
+                opto_metadata, fs_gui_metadata, "sequencePeriod"
+            ),
+            number_trains=get_epoch_info_entry(
+                opto_metadata, fs_gui_metadata, "nOutputTrains"
+            ),
+            intertrain_interval_in_ms=get_epoch_info_entry(
+                opto_metadata, fs_gui_metadata, "train_interval"
+            ),
             power_in_mW=fs_gui_metadata["power_in_mW"],
             stimulation_on=True,
             start_time=epoch_df.start_time.values[
@@ -372,8 +382,6 @@ def compile_opto_entries(
             ],
         )
         # info about the trigger condition
-        trigger_id = opto_metadata["trigger_id"]["data"]["value"]
-        trigger_metadata = protocol_metadata[trigger_id]
         trigger_dict = dict(
             ripple_filter_on=False,
             ripple_filter_num_above_threshold=-1,
@@ -384,34 +392,40 @@ def compile_opto_entries(
             theta_filter_phase_in_deg=-1,
             theta_filter_reference_ntrode=-1,
         )
-        # ripple trigger
-        if "ripple" in trigger_metadata["type_id"]:
-            trigger_dict["ripple_filter_on"] = True
-            trigger_dict["ripple_filter_num_above_threshold"] = trigger_metadata[
-                "n_above_threshold"
-            ]
-            trigger_dict["ripple_filter_threshold_sd"] = trigger_metadata[
-                "sd_threshold"
-            ]
-            trigger_dict["ripple_filter_lockout_period_in_samples"] = opto_metadata[
-                "lockout_time"
-            ]
-        # theta trigger
-        elif "theta" in trigger_metadata["type_id"]:
-            trigger_dict["theta_filter_on"] = True
-            trigger_dict["theta_filter_lockout_period_in_samples"] = opto_metadata[
-                "lockout_time"
-            ]
-            trigger_dict["theta_filter_phase_in_deg"] = trigger_metadata[
-                "theta_filter_degrees"
-            ]
-            trigger_dict["theta_filter_reference_ntrode"] = trigger_metadata[
-                "reference_ntrode"
-            ]
+        if "trigger_id" in opto_metadata:
+            trigger_id = opto_metadata["trigger_id"]["data"]["value"]
+            trigger_metadata = protocol_metadata[trigger_id]
+            # ripple trigger
+            if "ripple" in trigger_metadata["type_id"]:
+                trigger_dict["ripple_filter_on"] = True
+                trigger_dict["ripple_filter_num_above_threshold"] = trigger_metadata[
+                    "n_above_threshold"
+                ]
+                trigger_dict["ripple_filter_threshold_sd"] = trigger_metadata[
+                    "sd_threshold"
+                ]
+                trigger_dict["ripple_filter_lockout_period_in_samples"] = opto_metadata[
+                    "lockout_time"
+                ]
+            # theta trigger
+            elif "theta" in trigger_metadata["type_id"]:
+                trigger_dict["theta_filter_on"] = True
+                trigger_dict["theta_filter_lockout_period_in_samples"] = opto_metadata[
+                    "lockout_time"
+                ]
+                trigger_dict["theta_filter_phase_in_deg"] = trigger_metadata[
+                    "theta_filter_degrees"
+                ]
+                trigger_dict["theta_filter_reference_ntrode"] = trigger_metadata[
+                    "reference_ntrode"
+                ]
+        else:
+            print("WARNING: Trigger info can not be pulled from statescript")
 
         # conditions for trigger activation (can be multiple)
         condition_dict = {}
-        condition_ids = get_condition_ids(opto_metadata["condition_id"])
+        condition_ids = get_condition_ids(opto_metadata.get("condition_id", None))
+        condition_ids.extend(get_condition_ids(opto_metadata.get("filter_id", None)))
         geometry_filter_metadata_list = []
         for condition_id in condition_ids:
             condition_metadata = protocol_metadata[condition_id]
@@ -455,6 +469,37 @@ def compile_opto_entries(
         row = {**epoch_dict, **trigger_dict, **condition_dict, **geometry_dict}
         new_rows.append(row)
     return new_rows
+
+
+def get_epoch_info_entry(
+    opto_metadata: dict,
+    fs_gui_metadata: dict,
+    key: str,
+):
+    """
+    Get the value for a specific key from the opto_metadata or fs_gui_metadata.
+
+    Parameters
+    ----------
+    opto_metadata : dict
+        Metadata containing information about the optogenetic epochs.
+    fs_gui_metadata : dict
+        Metadata containing information about the fs_gui script.
+    key : str
+        The key for which to retrieve the value.
+
+    Returns
+    -------
+    Any
+        The value corresponding to the specified key, or None if not found.
+    """
+    value = opto_metadata.get(key, fs_gui_metadata.get(key, None))
+    if value is None:
+        raise ValueError(
+            f"Key '{key}' not found in either the fsgui yaml script or the experiment "
+            + "metadata yaml."
+        )
+    return value
 
 
 def compile_geometry_filters(geometry_filter_metadata_list: List[str]) -> dict:
@@ -543,6 +588,8 @@ def get_condition_ids(metadata_dict: dict) -> List[str]:
         List[str]: A list of condition IDs extracted from the metadata. Corresponds
         to the extracted keys in the protocol_metadata
     """
+    if metadata_dict is None or "data" not in metadata_dict:
+        return []
     condition_ids = []
     if len(metadata_dict["children"]):
         for child in metadata_dict["children"]:
