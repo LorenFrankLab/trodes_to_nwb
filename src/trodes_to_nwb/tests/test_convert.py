@@ -41,9 +41,9 @@ def test_get_file_info():
         assert Path(file).exists()
 
 
-def test_get_included_probe_metadata_paths():
+def test_get_included_device_metadata_paths():
     probes = list(get_included_device_metadata_paths())
-    assert len(probes) == 12
+    assert len(probes) == 16
     assert all([probe.exists() for probe in probes])
 
 

@@ -365,7 +365,7 @@ def compile_opto_entries(
                 opto_metadata, fs_gui_metadata, "nOutputTrains"
             ),
             intertrain_interval_in_ms=get_epoch_info_entry(
-                opto_metadata, fs_gui_metadata, "train_interval"
+                opto_metadata, fs_gui_metadata, "trainInterval"
             ),
             power_in_mW=fs_gui_metadata["power_in_mW"],
             stimulation_on=True,
