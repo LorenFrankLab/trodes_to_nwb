@@ -47,6 +47,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         is_analog: bool = False,
         interpolate_dropped_packets: bool = False,
         timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
+        save_as_microvolts=True,
         **kwargs,
     ):
         """
@@ -69,6 +70,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             whether to interpolate single dropped packets, by default False
         timestamps : [type], optional
             timestamps to use. Can provide efficiency improvements by skipping recalculating timestamps from rec files, by default None
+        save_as_microvolts : bool, optional
+            convert the ephys data to microvolts prior to saving if True; keep it in raw ADC units if False
         kwargs : dict
             additional arguments to pass to GenericDataChunkIterator
         """
@@ -76,6 +79,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             raise FileNotFoundError("Must provide at least one rec file path")
         logger = logging.getLogger("convert")
         self.conversion = conversion
+        self.save_as_microvolts = save_as_microvolts
         self.is_analog = is_analog
         self.neo_io = [
             SpikeGadgetsRawIO(
@@ -274,7 +278,11 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 time_index[-1] - i,  # if finished in this stream
             )
 
-        data = (np.concatenate(data) * self.conversion).astype("int16")
+        if self.save_as_microvolts:
+            data = (np.concatenate(data) * self.conversion).astype("int16")
+        else:
+            data = np.concatenate(data).astype("int16")
+
         # Handle the appended multiplex data
         if (
             self.neo_io[0].header["signal_streams"][self.stream_index]["id"]
@@ -353,6 +361,12 @@ def add_raw_ephys(
             metadata["raw_data_to_volts"] * MICROVOLTS_PER_VOLT
         )  # Use metadata-provided conversion if not available in rec file
 
+    # read metadata
+    if "save_as_microvolts" in metadata:
+        save_as_microvolts = metadata["save_as_microvolts"]
+    else:
+        save_as_microvolts = True
+
     # make the data iterator
     rec_dci = RecFileDataChunkIterator(
         recfile,
@@ -360,6 +374,7 @@ def add_raw_ephys(
         conversion=conversion,
         interpolate_dropped_packets=True,
         stream_id="trodes",
+        save_as_microvolts=save_as_microvolts,
     )  # can set buffer_gb if needed
 
     # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended
@@ -375,12 +390,17 @@ def add_raw_ephys(
     )
 
     # do we want to pull the timestamps from the rec file? or is there another source?
+    if save_as_microvolts:
+        conversion_to_use = VOLTS_PER_MICROVOLT
+    else:
+        conversion_to_use = conversion * VOLTS_PER_MICROVOLT
+
     eseries = ElectricalSeries(
         name="e-series",
         data=data_data_io,
         timestamps=rec_dci.timestamps,
         electrodes=electrode_table_region,  # TODO
-        conversion=VOLTS_PER_MICROVOLT,
+        conversion=conversion_to_use,
         offset=0.0,  # TODO
     )
 
