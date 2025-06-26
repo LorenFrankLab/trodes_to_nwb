@@ -447,12 +447,12 @@ def test_produce_ephys_channel_ids():
     assert len(result_5) == n_recorded_5
 
     # --- Edge Cases ---
-    result_5 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0, 32)
-    assert result_5 == []
-    result_6 = SpikeGadgetsRawIO._produce_ephys_channel_ids(128, 128, 0)
+    result_6 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0, 32)
     assert result_6 == []
-    result_7 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0, 0)
+    result_7 = SpikeGadgetsRawIO._produce_ephys_channel_ids(128, 128, 0)
     assert result_7 == []
+    result_8 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0, 0)
+    assert result_8 == []
 
     # --- Error Cases ---
     with pytest.raises(ValueError) as excinfo:
@@ -461,3 +461,13 @@ def test_produce_ephys_channel_ids():
     with pytest.raises(ValueError) as excinfo:
         SpikeGadgetsRawIO._produce_ephys_channel_ids(65, 65, 16)
     assert "multiple of channels per chip" in str(excinfo.value)
+    with pytest.raises(ValueError) as excinfo:
+        SpikeGadgetsRawIO._produce_ephys_channel_ids(
+            64,
+            63,
+            16,
+        )
+    assert "hw_channels_recorded must be provided" in str(excinfo.value)
+    with pytest.raises(ValueError) as excinfo:
+        SpikeGadgetsRawIO._produce_ephys_channel_ids(64, 63, 16, ["1", "2", "3"])
+    assert "hw_channels_recorded must be provided" in str(excinfo.value)
