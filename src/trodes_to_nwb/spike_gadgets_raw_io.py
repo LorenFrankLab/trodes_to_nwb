@@ -132,7 +132,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         channel_names = [item for sublist in x for item in sublist]
 
         if n_total_channels == n_channels_recorded:
-            # case where all channels are recorded, no censoring requuired
+            # case where all channels are recorded, no censoring required
             return channel_names
 
         if hw_channels_recorded is None:
@@ -453,7 +453,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
                 ] = True
                 self._mask_channels_bytes[stream_id].append(chan_mask)
 
-                # chan_ind += 1
 
         # make mask as array (used in _get_analogsignal_chunk(...))
         self._mask_streams = {}
