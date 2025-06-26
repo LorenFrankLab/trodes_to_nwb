@@ -139,7 +139,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             # case where all channels are recorded, no censoring required
             return channel_names
 
-        if hw_channels_recorded is None:
+        if not hw_channels_recorded or len(hw_channels_recorded) != n_channels_recorded:
             raise ValueError(
                 "If n_total_channels != n_channels_recorded, "
                 "hw_channels_recorded must be provided to censor the returned list."
@@ -191,9 +191,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         num_chip_channels = int(
             hconf.attrib["numChannels"]
         )  # number of channels the hardware supports
-        num_ephy_channels = int(
-            hconf.attrib["numChannels"]
-        )  # number of channels recorder
+        num_ephy_channels = num_chip_channels  # number of channels recorded
         # check for agreement with number of channels in xml
         sconf_channels = np.sum([len(x) for x in sconf])
         if sconf_channels < num_ephy_channels:
