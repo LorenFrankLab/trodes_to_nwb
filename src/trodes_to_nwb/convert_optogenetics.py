@@ -438,9 +438,9 @@ def compile_opto_entries(
 
             elif condition_metadata["type_id"] == "speed-filter-type":
                 condition_dict["speed_filter_on"] = True
-                condition_dict["speed_filter_threshold"] = condition_metadata[
-                    "threshold"
-                ]
+                condition_dict["speed_filter_threshold_in_cm_per_s"] = (
+                    condition_metadata["threshold"]
+                )
                 condition_dict["speed_filter_on_above_threshold"] = condition_metadata[
                     "threshold_above"
                 ]
@@ -525,7 +525,7 @@ def compile_geometry_filters(geometry_filter_metadata_list: List[str]) -> dict:
         node_data[i, : len(nodes_x), 0] = nodes_x * n_pixels_x
         node_data[i, : len(nodes_y), 1] = nodes_y * n_pixels_y
 
-    geometry_dict["spatial_filter_nodes"] = node_data
+    geometry_dict["spatial_filter_region_node_coordinates_in_pixels"] = node_data
 
     return geometry_dict
 

@@ -74,7 +74,11 @@ def test_add_optogenetic_epochs():
     np.allclose(opto_df.start_time.values, np.array([1.68747480e09, 1.68747482e09]))
     np.allclose(opto_df.stop_time.values, np.array([1.68747481e09, 1.68747484e09]))
     assert opto_df.stimulation_on.values[0]
-    assert opto_df.spatial_filter_nodes.values[0].shape == (1, 7, 2)
+    assert opto_df.spatial_filter_region_node_coordinates_in_pixels.values[0].shape == (
+        1,
+        7,
+        2,
+    )
     assert isinstance(opto_df.spatial_filter_cameras.values[0][0], CameraDevice)
     assert opto_df.spatial_filter_cameras.values[0][0].name == "camera_device 0"
     assert opto_df.spatial_filter_cameras_cm_per_pixel.values[0][0] == 0.1
