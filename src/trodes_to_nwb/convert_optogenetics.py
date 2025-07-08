@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import List, Tuple
 
@@ -30,11 +31,11 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
     device_metadata : list
         List of dictionaries containing metadata for devices used in the experiment.
     """
+    logger = logging.getLogger("convert")
     if not all(
         [
             x in metadata
             for x in [
-                # "optogenetic_experiment",
                 "virus_injection",
                 "opto_excitation_source",
                 "optical_fiber",
@@ -42,8 +43,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
             ]
         ]
     ):
-        print("missing optogenetic metadata")
-        # TODO Log lack of metadata
+        logger.info("No available optogenetic metadata")
         return
 
     # Add optogenetic experiment metadata
@@ -80,6 +80,16 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
 def make_optogenetic_source(
     nwbfile: NWBFile, source_metadata: dict, device_metadata: List[dict]
 ) -> ExcitationSource:
+    """Create an ExcitationSource object and add it to the NWB file.
+
+    Args:
+        nwbfile (NWBFile): The NWB file to which the excitation source will be added.
+        source_metadata (dict): Metadata for the excitation source.
+        device_metadata (List[dict]): Metadata for the excitation device used in the experiment.
+
+    Returns:
+        ExcitationSource: The created ExcitationSource object.
+    """
     model_metadata = get_optogenetic_source_device(
         source_metadata["model_name"], device_metadata
     )
@@ -108,6 +118,16 @@ def make_optical_fiber(
     excitation_source: ExcitationSource,
     device_metadata: List[dict],
 ) -> OpticalFiber:
+    """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
+
+    Args:
+        nwbfile (NWBFile): The NWB file to which the optical fiber locations table will be added.
+        fiber_metadata_list (dict): Metadata for the optical fibers.
+        excitation_source (ExcitationSource): The excitation source associated with the optical fibers.
+
+    Returns:
+        OpticalFiber: The created OpticalFiber object.
+    """
     # make the locations table
     optical_fiber_locations_table = OpticalFiberLocationsTable(
         description="Information about implanted optical fiber locations",
@@ -172,6 +192,13 @@ def make_virus_injecton(
     ----------
     virus_injection_metadata : dict
         Metadata containing information about the virus injection.
+    device_metadata : list
+        List of dictionaries containing metadata for virus "devices" used in the experiment.
+
+    Returns
+    -------
+    Tuple[OptogeneticViruses, OptogeneticVirusInjections]
+        A tuple containing the OptogeneticViruses and OptogeneticVirusInjections objects.
     """
     included_viruses = {}
     injections_list = []
