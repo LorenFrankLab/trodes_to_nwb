@@ -82,12 +82,14 @@ def make_optogenetic_source(
 ) -> ExcitationSource:
     """Create an ExcitationSource object and add it to the NWB file.
 
-    Args:
+    Parameters:
+    ----------
         nwbfile (NWBFile): The NWB file to which the excitation source will be added.
         source_metadata (dict): Metadata for the excitation source.
         device_metadata (List[dict]): Metadata for the excitation device used in the experiment.
 
     Returns:
+    -------
         ExcitationSource: The created ExcitationSource object.
     """
     model_metadata = get_optogenetic_source_device(
@@ -120,12 +122,14 @@ def make_optical_fiber(
 ) -> OpticalFiber:
     """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
 
-    Args:
+    Parameters:
+    ----------
         nwbfile (NWBFile): The NWB file to which the optical fiber locations table will be added.
         fiber_metadata_list (dict): Metadata for the optical fibers.
         excitation_source (ExcitationSource): The excitation source associated with the optical fibers.
 
     Returns:
+    -------
         OpticalFiber: The created OpticalFiber object.
     """
     # make the locations table
@@ -608,10 +612,12 @@ def get_condition_ids(metadata_dict: dict) -> List[str]:
     """
     Recursively extracts condition IDs from a metadata dictionary.
 
-    Args:
+    Parameters:
+    ----------
         metadata_dict (dict): A dictionary containing metadata, which may
         include nested children.
     Returns:
+    -------
         List[str]: A list of condition IDs extracted from the metadata. Corresponds
         to the extracted keys in the protocol_metadata
     """
