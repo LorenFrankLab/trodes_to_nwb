@@ -6,7 +6,7 @@ from unittest.mock import patch
 import numpy as np
 from pynwb import NWBHDF5IO
 
-from trodes_to_nwb.convert import create_nwbs, get_included_probe_metadata_paths
+from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.utils import data_path
 
@@ -41,14 +41,14 @@ def test_get_file_info():
         assert Path(file).exists()
 
 
-def test_get_included_probe_metadata_paths():
-    probes = get_included_probe_metadata_paths()
-    assert len(probes) == 9
+def test_get_included_device_metadata_paths():
+    probes = list(get_included_device_metadata_paths())
+    assert len(probes) == 16
     assert all([probe.exists() for probe in probes])
 
 
 def test_convert_full():
-    probe_metadata = [data_path / "tetrode_12.5.yml"]
+    device_metadata = get_included_device_metadata_paths()
 
     video_directory = data_path / "temp_video_directory_full_convert"
     if not os.path.exists(video_directory):
@@ -57,7 +57,7 @@ def test_convert_full():
     exclude_reconfig_yaml = str(data_path / "20230622_sample_metadataProbeReconfig.yml")
     create_nwbs(
         path=data_path,
-        probe_metadata_paths=probe_metadata,
+        device_metadata_paths=device_metadata,
         output_dir=str(data_path),
         n_workers=1,
         query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
@@ -94,7 +94,7 @@ def test_convert_full_with_inspector_error(mocker):
 
     mocker.patch("trodes_to_nwb.convert.add_subject", do_nothing)
 
-    probe_metadata = [data_path / "tetrode_12.5.yml"]
+    device_metadata = get_included_device_metadata_paths()
 
     video_directory = data_path / "temp_video_directory_full_convert"
     if not os.path.exists(video_directory):
@@ -103,7 +103,7 @@ def test_convert_full_with_inspector_error(mocker):
     exclude_reconfig_yaml = str(data_path / "20230622_sample_metadataProbeReconfig.yml")
     create_nwbs(
         path=data_path,
-        probe_metadata_paths=probe_metadata,
+        device_metadata_paths=device_metadata,
         output_dir=str(data_path),
         n_workers=1,
         query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
