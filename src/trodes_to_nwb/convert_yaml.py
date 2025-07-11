@@ -140,18 +140,20 @@ def add_cameras(nwbfile: NWBFile, metadata: dict) -> None:
         metadata from the yaml generator
     """
     # add each camera device to the nwb
+    camera_devices = {}
     for camera_metadata in metadata["cameras"]:
-        model = DeviceModel(
-            name=camera_metadata["model"],
-            manufacturer=camera_metadata["manufacturer"],
-            description="",
-        )
+        if (model_name := camera_metadata["model"]) not in camera_devices:
+            camera_devices[model_name] = nwbfile.create_device_model(
+                name=camera_metadata["model"],
+                manufacturer=camera_metadata["manufacturer"],
+                description="",
+            )
         nwbfile.add_device(
             CameraDevice(
                 name="camera_device " + str(camera_metadata["id"]),
                 meters_per_pixel=camera_metadata["meters_per_pixel"],
                 manufacturer=camera_metadata["manufacturer"],
-                model=model,
+                model=camera_devices[model_name],
                 lens=camera_metadata["lens"],
                 camera_name=camera_metadata["camera_name"],
             )
