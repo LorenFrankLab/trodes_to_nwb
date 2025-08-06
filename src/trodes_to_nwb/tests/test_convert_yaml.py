@@ -252,7 +252,7 @@ def test_no_reference_electrode():
         metadata, rec_header.find("SpikeConfiguration")
     )
     # set one tetrode to no reference
-    ref_electrode_map["0"] = ("-1", -1)
+    ref_electrode_map["0"] = (-1, -1)
     convert_yaml.add_electrode_groups(
         nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
