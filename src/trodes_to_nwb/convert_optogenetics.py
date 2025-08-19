@@ -32,16 +32,29 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
         List of dictionaries containing metadata for devices used in the experiment.
     """
     logger = logging.getLogger("convert")
-    if not all(
-        [
-            x in metadata
-            for x in [
-                "virus_injection",
-                "opto_excitation_source",
-                "optical_fiber",
-                "optogenetic_stimulation_software",
+    if not (
+        all(
+            [
+                x in metadata
+                for x in [
+                    "virus_injection",
+                    "opto_excitation_source",
+                    "optical_fiber",
+                    "optogenetic_stimulation_software",
+                ]
             ]
-        ]
+        )
+        and all(
+            [
+                len(metadata[x]) > 0
+                for x in [
+                    "virus_injection",
+                    "opto_excitation_source",
+                    "optical_fiber",
+                    "optogenetic_stimulation_software",
+                ]
+            ]
+        )
     ):
         logger.info("No available optogenetic metadata")
         return
