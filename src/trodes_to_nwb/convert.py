@@ -139,6 +139,9 @@ def create_nwbs(
         See https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html.
     disable_ptp : bool, optional
         Blocks use of ptp timestamps regardless of rec header, by default False.
+    behavior_only : bool, optional
+        Flag to indicate only behaviorsl data (no ephys) was collected in the rec
+        files, by default False.
 
     """
 
