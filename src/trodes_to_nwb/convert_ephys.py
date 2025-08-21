@@ -102,6 +102,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 neo_io.signal_streams_count() == 4 - behavior_only
                 for neo_io in self.neo_io
             ]
+        ), (
+            "Unexpected number of signal streams. "
+            + "Confirm whether behavior_only is set correctly for this recording"
         )
 
         self.block_index = 0
