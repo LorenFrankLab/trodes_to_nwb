@@ -112,6 +112,7 @@ def create_nwbs(
     n_workers: int = 1,
     query_expression: str | None = None,
     disable_ptp: bool = False,
+    behavior_only: bool = False,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -138,6 +139,9 @@ def create_nwbs(
         See https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html.
     disable_ptp : bool, optional
         Blocks use of ptp timestamps regardless of rec header, by default False.
+    behavior_only : bool, optional
+        Flag to indicate only behaviorsl data (no ephys) was collected in the rec
+        files, by default False.
 
     """
 
@@ -166,6 +170,7 @@ def create_nwbs(
                     output_dir,
                     video_directory,
                     convert_video,
+                    behavior_only=behavior_only,
                 )
                 return True
             except Exception as e:
@@ -194,6 +199,7 @@ def create_nwbs(
                 video_directory,
                 convert_video,
                 disable_ptp,
+                behavior_only=behavior_only,
             )
 
 
@@ -206,6 +212,7 @@ def _create_nwb(
     video_directory: str = "",
     convert_video: bool = False,
     disable_ptp: bool = False,
+    behavior_only: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
@@ -217,7 +224,10 @@ def _create_nwb(
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
     rec_dci = RecFileDataChunkIterator(
-        rec_filepaths, interpolate_dropped_packets=False, stream_id="trodes"
+        rec_filepaths,
+        interpolate_dropped_packets=False,
+        stream_id="ECU_analog" if behavior_only else "trodes",
+        behavior_only=behavior_only,
     )
     rec_dci_timestamps = (
         rec_dci.timestamps
@@ -263,30 +273,36 @@ def _create_nwb(
     add_acquisition_devices(nwb_file, metadata)
     add_tasks(nwb_file, metadata)
     add_associated_files(nwb_file, metadata)
-    add_electrode_groups(
-        nwb_file, metadata, device_metadata, hw_channel_map, ref_electrode_map
-    )
     add_header_device(nwb_file, rec_header)
     add_associated_video_files(
         nwb_file, metadata, session_df, video_directory, convert_video
     )
     add_optogenetics(nwb_file, metadata, device_metadata)
 
-    logger.info("ADDING EPHYS DATA")
-    # add rec file data
-    map_row_ephys_data_to_row_electrodes_table = list(
-        range(len(nwb_file.electrodes))
-    )  # TODO: Double check this
-    add_raw_ephys(
-        nwb_file,
-        rec_filepaths,
-        map_row_ephys_data_to_row_electrodes_table,
-        metadata,
-    )
+    if not behavior_only:
+        add_electrode_groups(
+            nwb_file, metadata, device_metadata, hw_channel_map, ref_electrode_map
+        )
+        logger.info("ADDING EPHYS DATA")
+        # add rec file data
+        map_row_ephys_data_to_row_electrodes_table = list(
+            range(len(nwb_file.electrodes))
+        )  # TODO: Double check this
+        add_raw_ephys(
+            nwb_file,
+            rec_filepaths,
+            map_row_ephys_data_to_row_electrodes_table,
+            metadata,
+        )
     logger.info("ADDING DIO DATA")
     add_dios(nwb_file, rec_filepaths, metadata)
     logger.info("ADDING ANALOG DATA")
-    add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
+    add_analog_data(
+        nwb_file,
+        rec_filepaths,
+        timestamps=rec_dci_timestamps,
+        behavior_only=behavior_only,
+    )
     logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
     logger.info("ADDING EPOCHS")

@@ -15,7 +15,11 @@ DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
 def add_analog_data(
-    nwbfile: NWBFile, rec_file_path: list[str], timestamps: np.ndarray = None, **kwargs
+    nwbfile: NWBFile,
+    rec_file_path: list[str],
+    timestamps: np.ndarray = None,
+    behavior_only: bool = False,
+    **kwargs,
 ) -> None:
     """Adds analog streams to the nwb file.
 
@@ -46,9 +50,10 @@ def add_analog_data(
     rec_dci = RecFileDataChunkIterator(
         rec_file_path,
         nwb_hw_channel_order=analog_channel_ids,
-        stream_index=2,
+        stream_id="ECU_analog",
         is_analog=True,
         timestamps=timestamps,
+        behavior_only=behavior_only,
     )
 
     # add headstage channel IDs to the list of analog channel IDs

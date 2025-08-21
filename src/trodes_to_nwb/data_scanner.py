@@ -12,6 +12,7 @@ VALID_FILE_EXTENSIONS = [
     "rec",  # binary file containing the ephys recording, accelerometer, gyroscope, magnetometer, DIO data, header
     "videoPositionTracking",  # trodes tracked position
     "h264",  # video file
+    "mp4",  # video file
     "cameraHWSync",  # position timestamps
     "stateScriptLog",  # state script controls the experimenter parameters
     "yml",  # metadata file
