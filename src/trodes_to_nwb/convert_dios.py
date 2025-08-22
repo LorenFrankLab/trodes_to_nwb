@@ -9,7 +9,7 @@ from pynwb.behavior import BehavioralEvents
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
-def _get_channel_name_map(metadata: dict) -> dict[str, str]:
+def _get_channel_name_map(metadata: dict) -> dict[str, dict[str, str]]:
     """Parses behavioral events metadata from the yaml file
 
     Parameters
@@ -21,6 +21,7 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
     -------
     channel_name_map : dict
         Parsed behavioral events metadata mapping hardware event name to human-readable name
+        {"hardware_event_name": {"name": "human_readable_name", "comments": "comments"}}
     """
     dio_metadata = metadata["behavioral_events"]
     channel_name_map = {}
