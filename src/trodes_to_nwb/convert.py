@@ -17,7 +17,7 @@ from trodes_to_nwb.convert_analog import add_analog_data
 from trodes_to_nwb.convert_dios import add_dios
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
-from trodes_to_nwb.convert_optogenetics import add_optogenetics
+from trodes_to_nwb.convert_optogenetics import add_optogenetic_epochs, add_optogenetics
 from trodes_to_nwb.convert_position import add_associated_video_files, add_position
 from trodes_to_nwb.convert_rec_header import (
     add_header_device,
@@ -278,6 +278,7 @@ def _create_nwb(
         nwb_file, metadata, session_df, video_directory, convert_video
     )
     add_optogenetics(nwb_file, metadata, device_metadata)
+    add_optogenetic_epochs(nwb_file, metadata)
 
     if not behavior_only:
         add_electrode_groups(
