@@ -46,7 +46,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
         return
 
     # Add optogenetic experiment metadata
-
+    logger.info("Adding optogenetic experiment metadata")
     virus, virus_injection = make_virus_injecton(
         metadata.get("virus_injection"), device_metadata
     )
@@ -306,11 +306,12 @@ def add_optogenetic_epochs(
     file_dir : str, optional
         Directory appended to the file path given in the metadata. Default is empty string.
     """
-
+    logger = logging.getLogger("convert")
     opto_epochs_metadata = metadata.get("fs_gui_yamls", [])
     if len(opto_epochs_metadata) == 0:
-        print("No optogenetic epochs found in metadata.")
+        logger.info("No optogenetic epochs found in metadata.")
         return
+    logger.info(f"Adding {len(opto_epochs_metadata)} optogenetic epochs.")
 
     from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 
