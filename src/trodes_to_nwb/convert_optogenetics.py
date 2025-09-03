@@ -348,6 +348,13 @@ def add_optogenetic_epochs(
                     np.ones(max_shape) * np.nan
                 )
             else:
+                nodes = np.pad(
+                    nodes,
+                    (
+                        (0, max_shape[0] - nodes.shape[0]),
+                        (0, max_shape[1] - nodes.shape[1]),
+                        (0, max_shape[2] - nodes.shape[2]),
+                    ),
                     mode="constant",
                     constant_values=np.nan,
                 )
