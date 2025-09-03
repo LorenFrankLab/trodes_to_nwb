@@ -109,6 +109,7 @@ def create_nwbs(
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    fs_gui_dir: str = "",
     n_workers: int = 1,
     query_expression: str | None = None,
     disable_ptp: bool = False,
@@ -170,6 +171,8 @@ def create_nwbs(
                     output_dir,
                     video_directory,
                     convert_video,
+                    fs_gui_dir,
+                    disable_ptp,
                     behavior_only=behavior_only,
                 )
                 return True
@@ -198,6 +201,7 @@ def create_nwbs(
                 output_dir,
                 video_directory,
                 convert_video,
+                fs_gui_dir,
                 disable_ptp,
                 behavior_only=behavior_only,
             )
@@ -211,6 +215,7 @@ def _create_nwb(
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    fs_gui_dir: str = "",
     disable_ptp: bool = False,
     behavior_only: bool = False,
 ):
@@ -278,7 +283,6 @@ def _create_nwb(
         nwb_file, metadata, session_df, video_directory, convert_video
     )
     add_optogenetics(nwb_file, metadata, device_metadata)
-    add_optogenetic_epochs(nwb_file, metadata)
 
     if not behavior_only:
         add_electrode_groups(
@@ -312,6 +316,7 @@ def _create_nwb(
         session_df=session_df,
         neo_io=rec_dci.neo_io,
     )
+    add_optogenetic_epochs(nwb_file, metadata, fs_gui_dir)
     logger.info("ADDING POSITION")
     # add position
     if disable_ptp:
