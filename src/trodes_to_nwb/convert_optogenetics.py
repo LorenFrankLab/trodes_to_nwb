@@ -331,7 +331,7 @@ def add_optogenetic_epochs(
         rows.extend(new_rows)
 
     # ensure spatial geometry nodes have same shape in each row
-    max_shape = [0, 0, 0]
+    max_shape = [0, 0, 0]  # n_regions, n_nodes, 2 (x,y)
     for row in rows:
         nodes = row.get("spatial_filter_region_node_coordinates_in_pixels", None)
         if nodes is not None:
