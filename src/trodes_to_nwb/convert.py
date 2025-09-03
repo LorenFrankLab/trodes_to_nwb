@@ -17,7 +17,7 @@ from trodes_to_nwb.convert_analog import add_analog_data
 from trodes_to_nwb.convert_dios import add_dios
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
-from trodes_to_nwb.convert_optogenetics import add_optogenetics
+from trodes_to_nwb.convert_optogenetics import add_optogenetic_epochs, add_optogenetics
 from trodes_to_nwb.convert_position import add_associated_video_files, add_position
 from trodes_to_nwb.convert_rec_header import (
     add_header_device,
@@ -109,6 +109,7 @@ def create_nwbs(
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    fs_gui_dir: str = "",
     n_workers: int = 1,
     query_expression: str | None = None,
     disable_ptp: bool = False,
@@ -131,6 +132,8 @@ def create_nwbs(
         Directory containing the video files, by default "".
     convert_video : bool, optional
         Whether to convert the video files, by default False.
+    fs_gui_dir : str, optional
+        Optional alternative directory to find optogenetic files, by default "".
     n_workers : int, optional
         Number of workers to use for parallel processing, by default 1.
     query_expression : str, optional
@@ -170,6 +173,8 @@ def create_nwbs(
                     output_dir,
                     video_directory,
                     convert_video,
+                    fs_gui_dir,
+                    disable_ptp,
                     behavior_only=behavior_only,
                 )
                 return True
@@ -198,6 +203,7 @@ def create_nwbs(
                 output_dir,
                 video_directory,
                 convert_video,
+                fs_gui_dir,
                 disable_ptp,
                 behavior_only=behavior_only,
             )
@@ -211,6 +217,7 @@ def _create_nwb(
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    fs_gui_dir: str = "",
     disable_ptp: bool = False,
     behavior_only: bool = False,
 ):
@@ -311,6 +318,7 @@ def _create_nwb(
         session_df=session_df,
         neo_io=rec_dci.neo_io,
     )
+    add_optogenetic_epochs(nwb_file, metadata, fs_gui_dir)
     logger.info("ADDING POSITION")
     # add position
     if disable_ptp:

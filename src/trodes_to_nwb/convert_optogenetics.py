@@ -46,7 +46,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
         return
 
     # Add optogenetic experiment metadata
-
+    logger.info("Adding optogenetic experiment metadata")
     virus, virus_injection = make_virus_injecton(
         metadata.get("virus_injection"), device_metadata
     )
@@ -306,11 +306,12 @@ def add_optogenetic_epochs(
     file_dir : str, optional
         Directory appended to the file path given in the metadata. Default is empty string.
     """
-
+    logger = logging.getLogger("convert")
     opto_epochs_metadata = metadata.get("fs_gui_yamls", [])
     if len(opto_epochs_metadata) == 0:
-        print("No optogenetic epochs found in metadata.")
+        logger.info("No optogenetic epochs found in metadata.")
         return
+    logger.info(f"Adding {len(opto_epochs_metadata)} optogenetic epochs.")
 
     from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 
@@ -320,14 +321,47 @@ def add_optogenetic_epochs(
     )
 
     # loop through each fsgui script, which can apply to multiple epochs
+    rows = []
     for fs_gui_metadata in opto_epochs_metadata:
         new_rows = compile_opto_entries(
             fs_gui_metadata=fs_gui_metadata,
             nwbfile=nwbfile,
             file_dir=file_dir,
         )
-        for row in new_rows:
-            opto_epochs_table.add_row(**row)
+        rows.extend(new_rows)
+
+    # ensure spatial geometry nodes have same shape in each row
+    max_shape = [0, 0, 0]  # n_regions, n_nodes, 2 (x,y)
+    for row in rows:
+        nodes = row.get("spatial_filter_region_node_coordinates_in_pixels", None)
+        if nodes is not None:
+            max_shape = [
+                max(max_shape[0], nodes.shape[0]),
+                max(max_shape[1], nodes.shape[1]),
+                max(max_shape[2], nodes.shape[2]),
+            ]
+    if max_shape != [0, 0, 0]:
+        for row in rows:
+            nodes = row.get("spatial_filter_region_node_coordinates_in_pixels", None)
+            if nodes is None:
+                row["spatial_filter_region_node_coordinates_in_pixels"] = (
+                    np.ones(max_shape) * np.nan
+                )
+            else:
+                nodes = np.pad(
+                    nodes,
+                    (
+                        (0, max_shape[0] - nodes.shape[0]),
+                        (0, max_shape[1] - nodes.shape[1]),
+                        (0, max_shape[2] - nodes.shape[2]),
+                    ),
+                    mode="constant",
+                    constant_values=np.nan,
+                )
+                row["spatial_filter_region_node_coordinates_in_pixels"] = nodes
+
+    for row in rows:
+        opto_epochs_table.add_row(**row)
 
     nwbfile.add_time_intervals(opto_epochs_table)
 
