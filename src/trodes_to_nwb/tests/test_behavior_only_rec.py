@@ -44,8 +44,9 @@ def test_behavior_only_rec_file():
     assert "trodes" not in stream_names, "unexpected trodes stream in iterator"
 
     # check data accesses
-    assert rec_dci.timestamps.size == 433012
-    assert rec_dci.timestamps[-1] == 1751195974.5656028, "unexpected last timestamp"
+    timestamps = rec_dci.get_timestamps()  # Use new method to get timestamps
+    assert timestamps.size == 433012
+    assert timestamps[-1] == 1751195974.5656028, "unexpected last timestamp"
     assert set(neo_io.multiplexed_channel_xml.keys()) == set(
         [
             "Headstage_AccelX",

@@ -34,6 +34,83 @@ DEFAULT_CHUNK_TIME_DIM = 16384
 DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
+class TimestampDataChunkIterator(GenericDataChunkIterator):
+    """Data chunk iterator for timestamps from SpikeGadgets rec files."""
+
+    def __init__(
+        self,
+        neo_io_list: list[SpikeGadgetsRawIO],
+        use_systime: bool = True,
+        **kwargs,
+    ):
+        """
+        Parameters
+        ----------
+        neo_io_list : list[SpikeGadgetsRawIO]
+            list of neo IO objects for the rec files
+        use_systime : bool, optional
+            whether to use system time (True) or trodes timestamps (False), by default True
+        kwargs : dict
+            additional arguments to pass to GenericDataChunkIterator
+        """
+        self.neo_io_list = neo_io_list
+        self.use_systime = use_systime
+        self.n_time = [
+            neo_io.get_signal_size(
+                block_index=0, seg_index=0, stream_index=0
+            )
+            for neo_io in self.neo_io_list
+        ]
+        super().__init__(**kwargs)
+
+    def _get_data(self, selection: Tuple[slice]) -> np.ndarray:
+        # selection is (time,)
+        assert selection[0].step is None
+
+        # what global index each file starts at
+        file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
+        # the time indexes we want
+        time_index = np.arange(selection[0].start, selection[0].stop)[
+            :: selection[0].step
+        ]
+        timestamps = []
+        i = time_index[0]
+        while i < min(time_index[-1], self._get_maxshape()[0]):
+            # find the stream where this piece of slice begins
+            io_stream = np.argmin(i >= file_start_ind) - 1
+            # get the timestamps from that stream
+            i_start_local = int(i - file_start_ind[io_stream])
+            i_stop_local = int(
+                min(
+                    time_index[-1] - file_start_ind[io_stream],
+                    self.n_time[io_stream],
+                )
+            ) + 1
+            
+            if self.use_systime and self.neo_io_list[io_stream].sysClock_byte:
+                chunk_timestamps = self.neo_io_list[io_stream].get_regressed_systime(
+                    i_start_local, i_stop_local
+                )
+            else:
+                chunk_timestamps = self.neo_io_list[io_stream].get_systime_from_trodes_timestamps(
+                    i_start_local, i_stop_local
+                )
+            timestamps.append(chunk_timestamps)
+            
+            i += min(
+                self.n_time[io_stream] - (i - file_start_ind[io_stream]),
+                time_index[-1] - i,
+            )
+
+        return np.concatenate(timestamps)
+
+    def _get_maxshape(self) -> Tuple[int]:
+        return (np.sum(self.n_time),)
+
+    def _get_dtype(self) -> np.dtype:
+        return np.dtype("float64")
+
+
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
@@ -202,29 +279,17 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators
         logger.info(f"# iterators: {len(self.neo_io)}")
-        # NOTE: this will read all the timestamps from the rec file, which can be slow
+        # Check if timestamps are regular to potentially use sampling rate instead
+        self._check_timestamp_regularity()
+        
+        # Only load timestamps into memory if they're needed and irregular
         if timestamps is not None:
             self.timestamps = timestamps
-
-        elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = np.concatenate(
-                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
-            )
-
-        else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            self.timestamps = np.concatenate(
-                [
-                    neo_io.get_systime_from_trodes_timestamps(0, None)
-                    for neo_io in self.neo_io
-                ]
-            )
-
-        logger.info("Reading timestamps COMPLETE")
-        is_timestamps_sequential = np.all(np.diff(self.timestamps))
-        if not is_timestamps_sequential:
-            warn(
-                "Timestamps are not sequential. This may cause problems with some software or data analysis."
-            )
+            self._has_loaded_timestamps = True
+        else:
+            # Defer timestamp loading - we'll create a chunked iterator later if needed
+            self.timestamps = None
+            self._has_loaded_timestamps = False
 
         self.n_time = [
             neo_io.get_signal_size(
@@ -236,6 +301,87 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         ]
 
         super().__init__(**kwargs)
+
+    def _check_timestamp_regularity(self):
+        """Check if timestamps are regular by sampling a few chunks."""
+        # Sample a small portion of timestamps to check regularity
+        sample_size = min(1000, self.n_time[0])  # Sample first 1000 or all if smaller
+        
+        try:
+            if self.neo_io[0].sysClock_byte:
+                sample_timestamps = self.neo_io[0].get_regressed_systime(0, sample_size)
+            else:
+                sample_timestamps = self.neo_io[0].get_systime_from_trodes_timestamps(0, sample_size)
+            
+            # Check if timestamps are evenly spaced
+            diffs = np.diff(sample_timestamps)
+            expected_dt = 1.0 / self.neo_io[0]._sampling_rate
+            relative_error = np.abs(diffs - expected_dt) / expected_dt
+            
+            # Consider regular if 95% of intervals are within 1% of expected
+            self._timestamps_regular = np.percentile(relative_error, 95) < 0.01
+            self._sampling_rate = self.neo_io[0]._sampling_rate
+            
+            if len(self.neo_io) > 1:
+                # For multiple files, we need to be more conservative
+                self._timestamps_regular = False
+                
+        except Exception:
+            # If we can't check, assume irregular
+            self._timestamps_regular = False
+            self._sampling_rate = None
+
+    def get_timestamps_chunked(self) -> TimestampDataChunkIterator:
+        """Get a chunked iterator for timestamps."""
+        use_systime = self.neo_io[0].sysClock_byte if hasattr(self.neo_io[0], 'sysClock_byte') else False
+        return TimestampDataChunkIterator(
+            self.neo_io,
+            use_systime=use_systime,
+        )
+
+    def get_timestamps(self) -> np.ndarray:
+        """Get timestamps, loading them if necessary."""
+        if self.timestamps is not None:
+            return self.timestamps
+        else:
+            return self.load_all_timestamps()
+
+    def get_sampling_rate(self) -> float:
+        """Get the sampling rate if timestamps are regular."""
+        if hasattr(self, '_timestamps_regular') and self._timestamps_regular:
+            return self._sampling_rate
+        return None
+
+    def load_all_timestamps(self):
+        """Load all timestamps into memory (fallback for irregular timestamps)."""
+        if self._has_loaded_timestamps:
+            return self.timestamps
+            
+        logger = logging.getLogger("convert")
+        logger.info("Loading all timestamps into memory...")
+        
+        if self.neo_io[0].sysClock_byte:  # use this if have sysClock
+            self.timestamps = np.concatenate(
+                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
+            )
+        else:  # use this to convert Trodes timestamps into systime based on sampling rate
+            self.timestamps = np.concatenate(
+                [
+                    neo_io.get_systime_from_trodes_timestamps(0, None)
+                    for neo_io in self.neo_io
+                ]
+            )
+        
+        self._has_loaded_timestamps = True
+        logger.info("Reading timestamps COMPLETE")
+        
+        is_timestamps_sequential = np.all(np.diff(self.timestamps) > 0)
+        if not is_timestamps_sequential:
+            warn(
+                "Timestamps are not sequential. This may cause problems with some software or data analysis."
+            )
+        
+        return self.timestamps
 
     def _get_data(self, selection: Tuple[slice]) -> np.ndarray:
         # selection is (time, channel)
@@ -389,14 +535,33 @@ def add_raw_ephys(
         ),
     )
 
-    # do we want to pull the timestamps from the rec file? or is there another source?
-    eseries = ElectricalSeries(
-        name="e-series",
-        data=data_data_io,
-        timestamps=rec_dci.timestamps,
-        electrodes=electrode_table_region,  # TODO
-        conversion=VOLTS_PER_MICROVOLT,
-        offset=0.0,  # TODO
-    )
+    # Check if we can use sampling rate instead of individual timestamps
+    sampling_rate = rec_dci.get_sampling_rate()
+    if sampling_rate is not None:
+        # Use sampling rate for regular timestamps - much more memory efficient
+        eseries = ElectricalSeries(
+            name="e-series",
+            data=data_data_io,
+            rate=sampling_rate,
+            electrodes=electrode_table_region,
+            conversion=VOLTS_PER_MICROVOLT,
+            offset=0.0,
+        )
+    else:
+        # Use chunked timestamps for irregular timestamps
+        timestamps_chunked = rec_dci.get_timestamps_chunked()
+        timestamps_data_io = H5DataIO(
+            timestamps_chunked,
+            chunks=(DEFAULT_CHUNK_TIME_DIM,),
+        )
+        
+        eseries = ElectricalSeries(
+            name="e-series",
+            data=data_data_io,
+            timestamps=timestamps_data_io,
+            electrodes=electrode_table_region,
+            conversion=VOLTS_PER_MICROVOLT,
+            offset=0.0,
+        )
 
     nwbfile.add_acquisition(eseries)

@@ -17,7 +17,6 @@ DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 def add_analog_data(
     nwbfile: NWBFile,
     rec_file_path: list[str],
-    timestamps: np.ndarray = None,
     behavior_only: bool = False,
     **kwargs,
 ) -> None:
@@ -52,7 +51,6 @@ def add_analog_data(
         nwb_hw_channel_order=analog_channel_ids,
         stream_id="ECU_analog",
         is_analog=True,
-        timestamps=timestamps,
         behavior_only=behavior_only,
     )
 
@@ -76,17 +74,40 @@ def add_analog_data(
         name="analog", description="Contains all analog data"
     )
     analog_events = pynwb.behavior.BehavioralEvents(name="analog")
-    analog_events.add_timeseries(
-        pynwb.TimeSeries(
+    
+    # Check if we can use sampling rate instead of individual timestamps
+    sampling_rate = rec_dci.get_sampling_rate()
+    if sampling_rate is not None:
+        # Use sampling rate for regular timestamps - much more memory efficient
+        analog_time_series = pynwb.TimeSeries(
             name="analog",
             description=__merge_row_description(
                 analog_channel_ids
             ),  # NOTE: matches rec_to_nwb system
             data=data_data_io,
-            timestamps=rec_dci.timestamps,
+            rate=sampling_rate,
             unit="-1",
         )
-    )
+    else:
+        # Use chunked timestamps for irregular timestamps
+        from trodes_to_nwb import convert_ephys
+        timestamps_chunked = rec_dci.get_timestamps_chunked()
+        timestamps_data_io = H5DataIO(
+            timestamps_chunked,
+            chunks=(convert_ephys.DEFAULT_CHUNK_TIME_DIM,),
+        )
+        
+        analog_time_series = pynwb.TimeSeries(
+            name="analog",
+            description=__merge_row_description(
+                analog_channel_ids
+            ),  # NOTE: matches rec_to_nwb system
+            data=data_data_io,
+            timestamps=timestamps_data_io,
+            unit="-1",
+        )
+    
+    analog_events.add_timeseries(analog_time_series)
     # add it to the nwb file
     nwbfile.processing["analog"].add(analog_events)
 
