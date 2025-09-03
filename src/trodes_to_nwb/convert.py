@@ -132,6 +132,8 @@ def create_nwbs(
         Directory containing the video files, by default "".
     convert_video : bool, optional
         Whether to convert the video files, by default False.
+    fs_gui_dir : str, optional
+        Optional alternative directory to find optogenetic files, by default "".
     n_workers : int, optional
         Number of workers to use for parallel processing, by default 1.
     query_expression : str, optional
