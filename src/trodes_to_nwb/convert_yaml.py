@@ -25,6 +25,12 @@ from ndx_franklab_novela import (
 from pynwb import NWBFile
 from pynwb.file import ProcessingModule, Subject
 
+try:
+    from pynwb.device import DeviceModel
+except ImportError:
+    # Temporary error message to ensure existing users have the correct version of pynwb
+    raise ImportError("Please upgrade pynwb to 3.1.0 or later")
+
 import trodes_to_nwb.metadata_validation
 from trodes_to_nwb import __version__
 
@@ -134,13 +140,20 @@ def add_cameras(nwbfile: NWBFile, metadata: dict) -> None:
         metadata from the yaml generator
     """
     # add each camera device to the nwb
+    camera_devices = {}
     for camera_metadata in metadata["cameras"]:
+        if (model_name := camera_metadata["model"]) not in camera_devices:
+            camera_devices[model_name] = nwbfile.create_device_model(
+                name=camera_metadata["model"],
+                manufacturer=camera_metadata["manufacturer"],
+                description="",
+            )
         nwbfile.add_device(
             CameraDevice(
                 name="camera_device " + str(camera_metadata["id"]),
                 meters_per_pixel=camera_metadata["meters_per_pixel"],
                 manufacturer=camera_metadata["manufacturer"],
-                model=camera_metadata["model"],
+                model=camera_devices[model_name],
                 lens=camera_metadata["lens"],
                 camera_name=camera_metadata["camera_name"],
             )
