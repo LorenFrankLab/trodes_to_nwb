@@ -355,7 +355,7 @@ def add_raw_ephys(
     electrode_row_indices : list
         which electrodes to add to table
     metadata : dict, optional
-        metadata dictionary, useed only for conversion if not in rec, by default None
+        metadata dictionary, used only for conversion if not in rec, by default None
     """
 
     electrode_table_region = nwbfile.create_electrode_table_region(
@@ -377,10 +377,13 @@ def add_raw_ephys(
         )  # Use metadata-provided conversion if not available in rec file
 
     # read metadata
-    if "save_as_microvolts" in metadata:
-        save_as_microvolts = metadata["save_as_microvolts"]
-    else:
+    if metadata is None:
         save_as_microvolts = True
+    else:
+        if "save_as_microvolts" in metadata:
+            save_as_microvolts = metadata["save_as_microvolts"]
+        else:
+            save_as_microvolts = True
 
     # make the data iterator
     rec_dci = RecFileDataChunkIterator(
