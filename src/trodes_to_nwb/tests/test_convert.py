@@ -43,7 +43,7 @@ def test_get_file_info():
 
 def test_get_included_device_metadata_paths():
     probes = list(get_included_device_metadata_paths())
-    assert len(probes) == 16
+    assert len(probes) == 19
     assert all([probe.exists() for probe in probes])
 
 
