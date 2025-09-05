@@ -1,0 +1,133 @@
+nodes:
+- type_id: trodes-camera-data-type
+  instance_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  nickname: Trodes Camera
+- type_id: geometry-filter-type
+  instance_id: f00d8798-cd42-11ee-8f41-a0369f6f691e
+  nickname: reward A
+  source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  trackgeometry:
+    filename: fsgui_geometry.trackgeometry
+    zone_id: 54
+  cameraWidth: 1292
+  cameraHeight: 964
+- type_id: geometry-filter-type
+  instance_id: 16334bce-cd43-11ee-8f41-a0369f6f691e
+  nickname: reward B
+  source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  trackgeometry:
+    filename: fsgui_geometry.trackgeometry
+    zone_id: 52
+  cameraWidth: 1292
+  cameraHeight: 964
+- type_id: trodes-digital-pulse-action-type
+  instance_id: 71f62774-cd43-11ee-8f41-a0369f6f691e
+  nickname: Digital Pulsetrain
+  trigger_id:
+    id: a75002d8-fb4b-11ee-a25a-a0369f6f691e
+    data:
+      label: Ripple filter (new)
+      type: filter
+      value: 35386686-d04e-11ee-90c5-a0369f6f691e
+    children: []
+  condition_id:
+    id: e9b4ff52-fb4b-11ee-a25a-a0369f6f691e
+    data:
+      label: AND Gate
+      type: gate
+      value: gate-and
+    children:
+    - id: f23489d6-fb4b-11ee-a25a-a0369f6f691e
+      data:
+        label: Speed filter
+        type: filter
+        value: 03466cfc-fb48-11ee-a25a-a0369f6f691e
+      children: []
+    - id: 11561172-fb4c-11ee-a25a-a0369f6f691e
+      data:
+        label: OR Gate
+        type: gate
+        value: gate-or
+      children:
+      - id: 15331e52-fb4c-11ee-a25a-a0369f6f691e
+        data:
+          label: reward A
+          type: filter
+          value: f00d8798-cd42-11ee-8f41-a0369f6f691e
+        children: []
+      - id: 18498388-fb4c-11ee-a25a-a0369f6f691e
+        data:
+          label: reward B
+          type: filter
+          value: 16334bce-cd43-11ee-8f41-a0369f6f691e
+        children: []
+      - id: 1b206e8c-fb4c-11ee-a25a-a0369f6f691e
+        data:
+          label: reward C
+          type: filter
+          value: 9d408d38-d2cb-11ee-8461-a0369f6f691e
+        children: []
+  pulseLength: 2
+  nPulses: 20
+  preDelay: 250
+  sequencePeriod: 5
+  nOutputTrains: 1
+  trainInterval: 1000
+  primaryBit: 7
+  lockout_time: 250
+  functNum: 22
+  action_enabled: false
+  off_when_false: false
+- type_id: trodes-lfp-data-type
+  instance_id: 0b5d1686-d04e-11ee-90c5-a0369f6f691e
+  nickname: Trodes LFP
+- type_id: ripple-new-filter-type
+  instance_id: 35386686-d04e-11ee-90c5-a0369f6f691e
+  nickname: Ripple filter (new)
+  source_id: 0b5d1686-d04e-11ee-90c5-a0369f6f691e
+  num_signals: 32
+  bp_order: 2
+  bp_crit_freqs_low: 150
+  bp_crit_freqs_high: 400
+  lfp_sample_rate: 1500
+  env_num_taps: 15
+  env_band_edges_low: 50
+  env_band_edges_high: 55
+  means_magic_input: 0.0
+  sigmas_magic_input: 0.0
+  sd_threshold: 3.92
+  n_above_threshold: 2
+  tetrode_selection:
+    is_include: true
+    tetrodes:
+    - 7
+    - 14
+    - 23
+    - 26
+    - 22
+    - 11
+    - 17
+    - 32
+  auto_flag: false
+  sample_mean_sd: false
+  display_channel: 26
+- type_id: geometry-filter-type
+  instance_id: 9d408d38-d2cb-11ee-8461-a0369f6f691e
+  nickname: reward C
+  source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  trackgeometry:
+    filename: fsgui_geometry.trackgeometry
+    zone_id: 53
+  cameraWidth: 1292
+  cameraHeight: 964
+- type_id: speed-filter-type
+  instance_id: 03466cfc-fb48-11ee-a25a-a0369f6f691e
+  nickname: Speed filter
+  source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  smooth_x: true
+  smooth_y: true
+  smooth_speed: true
+  position_sampling_rate: 30
+  scale_factor: 0.16
+  threshold: 8.0
+  threshold_above: false

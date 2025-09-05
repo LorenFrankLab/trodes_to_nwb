@@ -1,0 +1,5 @@
+model_name : LuxX+ 638-200
+description : Laser for red-shifted optogenetic stimulation
+manufacturer : MarketTech
+illumination_type : laser
+wavelength_range_in_nm : [638.0, 638.0]

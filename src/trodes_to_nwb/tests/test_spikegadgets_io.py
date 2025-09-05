@@ -377,7 +377,9 @@ def test_produce_ephys_channel_ids():
         full_expected_1.extend(
             [k + i * n_per_chip_1 for i in range(n_total_1 // n_per_chip_1)]
         )
-    result_1 = SpikeGadgetsRawIO._produce_ephys_channel_ids(n_total_1, n_per_chip_1)
+    result_1 = SpikeGadgetsRawIO._produce_ephys_channel_ids(
+        n_total_1, n_total_1, n_per_chip_1
+    )
     assert result_1 == full_expected_1
     assert len(result_1) == n_total_1
 
@@ -389,7 +391,9 @@ def test_produce_ephys_channel_ids():
         full_expected_2.extend(
             [k + i * n_per_chip_2 for i in range(n_total_2 // n_per_chip_2)]
         )
-    result_2 = SpikeGadgetsRawIO._produce_ephys_channel_ids(n_total_2, n_per_chip_2)
+    result_2 = SpikeGadgetsRawIO._produce_ephys_channel_ids(
+        n_total_2, n_total_2, n_per_chip_2
+    )
     assert result_2 == full_expected_2
     assert len(result_2) == n_total_2
 
@@ -402,7 +406,9 @@ def test_produce_ephys_channel_ids():
             [k + i * n_per_chip_3 for i in range(n_total_3 // n_per_chip_3)]
         )
 
-    result_3 = SpikeGadgetsRawIO._produce_ephys_channel_ids(n_total_3, n_per_chip_3)
+    result_3 = SpikeGadgetsRawIO._produce_ephys_channel_ids(
+        n_total_3, n_total_3, n_per_chip_3
+    )
     assert result_3 == full_expected_3
     assert len(result_3) == n_total_3
 
@@ -410,22 +416,58 @@ def test_produce_ephys_channel_ids():
     n_total_4 = 32
     n_per_chip_4 = 32
     expected_4 = list(range(32))  # Should just be 0, 1, 2, ..., 31
-    result_4 = SpikeGadgetsRawIO._produce_ephys_channel_ids(n_total_4, n_per_chip_4)
+    result_4 = SpikeGadgetsRawIO._produce_ephys_channel_ids(
+        n_total_4, n_total_4, n_per_chip_4
+    )
     assert result_4 == expected_4
     assert len(result_4) == n_total_4
 
+    # case 5: Not all channels recorded
+    n_total_5 = 128
+    n_recorded_5 = 127
+    n_per_chip_5 = 32
+    missing_hw_channel = 2
+
+    full_expected_5 = []
+    for k in range(n_per_chip_5):
+        full_expected_5.extend(
+            [k + i * n_per_chip_5 for i in range(n_total_5 // n_per_chip_5)]
+        )
+    full_expected_5 = [x for x in full_expected_5 if x != missing_hw_channel]
+    hw_channels_recorded_5 = [
+        str(x) for x in np.arange(n_total_5) if x != missing_hw_channel
+    ]
+    result_5 = SpikeGadgetsRawIO._produce_ephys_channel_ids(
+        n_total_5,
+        n_recorded_5,
+        n_per_chip_5,
+        hw_channels_recorded=hw_channels_recorded_5,
+    )
+    assert result_5 == full_expected_5
+    assert len(result_5) == n_recorded_5
+
     # --- Edge Cases ---
-    result_5 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 32)
-    assert result_5 == []
-    result_6 = SpikeGadgetsRawIO._produce_ephys_channel_ids(128, 0)
+    result_6 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0, 32)
     assert result_6 == []
-    result_7 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0)
+    result_7 = SpikeGadgetsRawIO._produce_ephys_channel_ids(128, 128, 0)
     assert result_7 == []
+    result_8 = SpikeGadgetsRawIO._produce_ephys_channel_ids(0, 0, 0)
+    assert result_8 == []
 
     # --- Error Cases ---
     with pytest.raises(ValueError) as excinfo:
-        SpikeGadgetsRawIO._produce_ephys_channel_ids(127, 32)
+        SpikeGadgetsRawIO._produce_ephys_channel_ids(127, 127, 32)
     assert "multiple of channels per chip" in str(excinfo.value)
     with pytest.raises(ValueError) as excinfo:
-        SpikeGadgetsRawIO._produce_ephys_channel_ids(65, 16)
+        SpikeGadgetsRawIO._produce_ephys_channel_ids(65, 65, 16)
     assert "multiple of channels per chip" in str(excinfo.value)
+    with pytest.raises(ValueError) as excinfo:
+        SpikeGadgetsRawIO._produce_ephys_channel_ids(
+            64,
+            63,
+            16,
+        )
+    assert "hw_channels_recorded must be provided" in str(excinfo.value)
+    with pytest.raises(ValueError) as excinfo:
+        SpikeGadgetsRawIO._produce_ephys_channel_ids(64, 63, 16, ["1", "2", "3"])
+    assert "hw_channels_recorded must be provided" in str(excinfo.value)

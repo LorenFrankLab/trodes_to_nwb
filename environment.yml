@@ -7,7 +7,7 @@ dependencies:
 - numpy
 - scipy
 - pandas
-- pynwb
+- pynwb<=3.0.0
 - nwbinspector>=0.5.0
 - dask
 - ipython
@@ -20,4 +20,5 @@ dependencies:
 - pip
 - pip:
     - ndx-franklab-novela
+    - ndx-optogenetics
     - neo>=0.13.4

@@ -1250,7 +1250,12 @@ def add_associated_video_files(
         epoch = video_metadata["task_epochs"][0]
         # get the video file path
         video_path = None
-        for file in session_df[session_df.file_extension == ".h264"].full_path:
+        for file in session_df[
+            np.logical_or(
+                session_df.file_extension == ".h264",
+                session_df.file_extension == ".mp4",
+            )
+        ].full_path:
             if video_metadata["name"].rsplit(".", 1)[0] in file:
                 video_path = file
                 break

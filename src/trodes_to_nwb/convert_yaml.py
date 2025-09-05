@@ -30,7 +30,8 @@ from trodes_to_nwb import __version__
 
 
 def load_metadata(
-    metadata_path: str, probe_metadata_paths: list[str]
+    metadata_path: str,
+    device_metadata_paths: list[str],
 ) -> tuple[dict, list[dict]]:
     """loads metadata files as dictionaries
 
@@ -38,13 +39,14 @@ def load_metadata(
     ----------
     metadata_path : str
         path to file made by yaml generator
-    probe_metadata_paths : list[str]
-        list of paths to yaml files with information on probe types
+    device_metadata_paths : list[str]
+        list of paths to yaml files with information on standard devices (e.g. probes,
+        optical fibers, viruses)
 
     Returns
     -------
     tuple[dict, list[dict]]
-        the yaml generator metadata and list of probe metadatas
+        the yaml generator metadata and list of device metadatas
     """
     metadata = None
     with open(metadata_path, "r") as stream:
@@ -56,17 +58,17 @@ def load_metadata(
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
         logger.exception("".join(metadata_errors))
-    probe_metadata = []
-    for path in probe_metadata_paths:
+    device_metadata = []
+    for path in device_metadata_paths:
         with open(path, "r") as stream:
-            probe_metadata.append(yaml.safe_load(stream))
+            device_metadata.append(yaml.safe_load(stream))
     if not metadata["associated_files"] is None:
         for file in metadata["associated_files"]:
             file["task_epochs"] = [file["task_epochs"]]
     if not metadata["associated_video_files"] is None:
         for file in metadata["associated_video_files"]:
             file["task_epochs"] = [file["task_epochs"]]
-    return metadata, probe_metadata
+    return metadata, device_metadata
 
 
 def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:
@@ -203,7 +205,7 @@ def add_electrode_groups(
         # find the probe corresponding to the device type
         probe_meta = None
         for test_meta in probe_metadata:
-            if test_meta["probe_type"] == egroup_metadata["device_type"]:
+            if test_meta.get("probe_type", None) == egroup_metadata["device_type"]:
                 probe_meta = test_meta
                 break
         if probe_meta is None:
@@ -220,7 +222,8 @@ def add_electrode_groups(
             contact_side_numbering=probe_meta["contact_side_numbering"],
             contact_size=probe_meta["contact_size"],
         )
-        # make the electrode group with the probe (Do it here so have electrodeGroup object to reference when making electrodes)
+        # make the electrode group with the probe (Do it here so have
+        # electrodeGroup object to reference when making electrodes)
         e_group = NwbElectrodeGroup(
             name=str(egroup_metadata["id"]),
             description=egroup_metadata["description"],
@@ -297,6 +300,10 @@ def add_electrode_groups(
     for nwb_group in list(electrode_table["group_name"]):
         # use the refference electrode map and defined electrode table to find index of the reference electrode
         ref_group, ref_electrode = ref_electrode_map[str(nwb_group)]
+        if ref_group == -1:
+            # handle case where no reference electrode is defined
+            ref_electrode_id.append(-1)
+            continue
         ref_electrode_id.append(
             electrode_table.index[
                 (electrode_table["group_name"] == ref_group)

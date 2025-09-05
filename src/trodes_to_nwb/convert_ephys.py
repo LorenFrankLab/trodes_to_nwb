@@ -48,6 +48,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         interpolate_dropped_packets: bool = False,
         timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         save_as_microvolts=True,
+        behavior_only: bool = False,
         **kwargs,
     ):
         """
@@ -72,6 +73,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             timestamps to use. Can provide efficiency improvements by skipping recalculating timestamps from rec files, by default None
         save_as_microvolts : bool, optional
             convert the ephys data to microvolts prior to saving if True; keep it in raw ADC units if False
+        behavior_only : bool, optional
+            indicate if file contains only behavior data (no e-phys), by default False
         kwargs : dict
             additional arguments to pass to GenericDataChunkIterator
         """
@@ -98,7 +101,15 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # trodes
         assert all([neo_io.block_count() == 1 for neo_io in self.neo_io])
         assert all([neo_io.segment_count(0) == 1 for neo_io in self.neo_io])
-        assert all([neo_io.signal_streams_count() == 4 for neo_io in self.neo_io])
+        assert all(
+            [
+                neo_io.signal_streams_count() == 4 - behavior_only
+                for neo_io in self.neo_io
+            ]
+        ), (
+            "Unexpected number of signal streams. "
+            + "Confirm whether behavior_only is set correctly for this recording"
+        )
 
         self.block_index = 0
         self.seg_index = 0
@@ -117,6 +128,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         else:  # if stream id is not provided
             stream_id = self.neo_io[0].get_stream_id_from_index(stream_index)
 
+        if behavior_only and stream_id == "trodes":
+            raise ValueError(
+                "Behavior only recordings do not contain a `trodes` stream"
+            )
         self.stream_id = stream_id
         self.stream_index = stream_index
 

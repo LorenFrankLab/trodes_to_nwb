@@ -9,7 +9,7 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
-from typing import Optional
+from typing import List, Optional
 from xml.etree import ElementTree
 
 import numpy as np
@@ -71,7 +71,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @staticmethod
     def _produce_ephys_channel_ids(
-        n_total_channels: int, n_channels_per_chip: int
+        n_total_channels: int,
+        n_channels_recorded: int,
+        n_channels_per_chip: int,
+        hw_channels_recorded: List[str] = None,
     ) -> list[int]:
         """Computes the hardware channel IDs for ephys data.
 
@@ -85,9 +88,15 @@ class SpikeGadgetsRawIO(BaseRawIO):
         Parameters
         ----------
         n_total_channels : int
+            Total number of ephys channels in the hardware configuration.
+        n_channels_recorded : int
             Total number of ephys channels recorded.
         n_channels_per_chip : int
             Number of channels per headstage chip/amplifier.
+        hw_channels_recorded : list of str, optional
+            List of hardware channel IDs that were actually recorded. If `None`, all channels are assumed
+            to be recorded. This is used to filter the returned list if `n_total_channels`
+            is not equal to `n_channels_recorded`.
 
         Returns
         -------
@@ -123,7 +132,19 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     for i in range(int(n_total_channels / n_channels_per_chip))
                 ]
             )
-        return [item for sublist in x for item in sublist]
+
+        channel_names = [item for sublist in x for item in sublist]
+
+        if n_total_channels == n_channels_recorded:
+            # case where all channels are recorded, no censoring required
+            return channel_names
+
+        if not hw_channels_recorded or len(hw_channels_recorded) != n_channels_recorded:
+            raise ValueError(
+                "If n_total_channels != n_channels_recorded, "
+                "hw_channels_recorded must be provided to censor the returned list."
+            )
+        return [x for x in channel_names if str(x) in hw_channels_recorded]
 
     def _parse_header(self):
         """
@@ -167,10 +188,14 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # dt = datetime.datetime.fromtimestamp(int(self.system_time_at_creation) / 1000.0)
 
         self._sampling_rate = float(hconf.attrib["samplingRate"])
-        num_ephy_channels = int(hconf.attrib["numChannels"])
+        num_chip_channels = int(
+            hconf.attrib["numChannels"]
+        )  # number of channels the hardware supports
+        num_ephy_channels = num_chip_channels  # number of channels recorded
         # check for agreement with number of channels in xml
         sconf_channels = np.sum([len(x) for x in sconf])
         if sconf_channels < num_ephy_channels:
+            # Case: not every channel was saved to recording
             num_ephy_channels = sconf_channels
         if sconf_channels > num_ephy_channels:
             raise ValueError(
@@ -383,46 +408,52 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
             self._mask_channels_bytes[stream_id] = []
 
+            # get list of all hardware channels recorded
+            hw_channels_recorded = []
+            for trode in sconf:
+                for schan in trode:
+                    hw_channels_recorded.append(schan.attrib["hwChan"])
+
             channel_ids = self._produce_ephys_channel_ids(
-                num_ephy_channels, num_chan_per_chip
+                num_chip_channels,
+                num_ephy_channels,
+                num_chan_per_chip,
+                hw_channels_recorded,
             )
 
             chan_ind = 0
-            for trode in sconf:
-                for schan in trode:
-                    chan_id = str(channel_ids[chan_ind])
-                    name = "chan" + chan_id
+            for chan_ind in range(len(channel_ids)):
+                chan_id = str(channel_ids[chan_ind])
+                name = "chan" + chan_id
 
-                    # TODO LATER : handle gain correctly according the file version
-                    units = ""
-                    gain = 1.0
-                    offset = 0.0
-                    signal_channels.append(
-                        (
-                            name,
-                            chan_id,
-                            self._sampling_rate,
-                            "int16",
-                            units,
-                            gain,
-                            offset,
-                            stream_id,
-                            "",
-                        )
+                # TODO LATER : handle gain correctly according the file version
+                units = ""
+                gain = 1.0
+                offset = 0.0
+                signal_channels.append(
+                    (
+                        name,
+                        chan_id,
+                        self._sampling_rate,
+                        "int16",
+                        units,
+                        gain,
+                        offset,
+                        stream_id,
+                        "",
                     )
+                )
 
-                    chan_mask = np.zeros(packet_size, dtype="bool")
-                    num_bytes_offset = (
-                        packet_size
-                        - (EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels)
-                        + (EPHYS_SAMPLE_SIZE_BYTES * chan_ind)
-                    )
-                    chan_mask[
-                        num_bytes_offset : num_bytes_offset + EPHYS_SAMPLE_SIZE_BYTES
-                    ] = True
-                    self._mask_channels_bytes[stream_id].append(chan_mask)
-
-                    chan_ind += 1
+                chan_mask = np.zeros(packet_size, dtype="bool")
+                num_bytes_offset = (
+                    packet_size
+                    - (EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels)
+                    + (EPHYS_SAMPLE_SIZE_BYTES * chan_ind)
+                )
+                chan_mask[
+                    num_bytes_offset : num_bytes_offset + EPHYS_SAMPLE_SIZE_BYTES
+                ] = True
+                self._mask_channels_bytes[stream_id].append(chan_mask)
 
         # make mask as array (used in _get_analogsignal_chunk(...))
         self._mask_streams = {}

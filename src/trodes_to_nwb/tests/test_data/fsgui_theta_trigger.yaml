@@ -1,0 +1,76 @@
+nodes:
+- type_id: trodes-camera-data-type
+  instance_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  nickname: Trodes Camera
+- type_id: trodes-digital-pulse-action-type
+  instance_id: 71f62774-cd43-11ee-8f41-a0369f6f691e
+  nickname: Digital Pulsetrain
+  trigger_id:
+    id: 8e9ecb2e-29c3-11ef-b290-a0369f6f691e
+    data:
+      label: Theta filter (Hilbert phase)
+      type: filter
+      value: db858ef6-29c2-11ef-b290-a0369f6f691e
+    children: []
+  condition_id:
+    id: 6b7187a0-29db-11ef-a7a4-a0369f6f691e
+    data:
+      label: AND Gate
+      type: gate
+      value: gate-and
+    children:
+    - id: 6f66a764-29db-11ef-a7a4-a0369f6f691e
+      data:
+        label: running zone
+        type: filter
+        value: 550928e4-e262-11ee-b2ba-a0369f6f691e
+      children: []
+    - id: 71be017e-29db-11ef-a7a4-a0369f6f691e
+      data:
+        label: Speed filter
+        type: filter
+        value: 5e354e5a-29db-11ef-a7a4-a0369f6f691e
+      children: []
+  pulseLength: 2
+  nPulses: 7
+  preDelay: 0
+  sequencePeriod: 5
+  nOutputTrains: 1
+  trainInterval: 1000
+  primaryBit: 7
+  lockout_time: 80
+  functNum: 22
+  action_enabled: false
+  off_when_false: false
+- type_id: geometry-filter-type
+  instance_id: 550928e4-e262-11ee-b2ba-a0369f6f691e
+  nickname: running zone
+  source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  trackgeometry:
+    filename: fsgui_geometry.trackgeometry
+    zone_id: 56
+  cameraWidth: 1292
+  cameraHeight: 964
+- type_id: trodes-lfp-data-type
+  instance_id: 996c8b8c-29c2-11ef-b290-a0369f6f691e
+  nickname: Trodes LFP
+- type_id: theta-phase-hilbert-filter-type
+  instance_id: db858ef6-29c2-11ef-b290-a0369f6f691e
+  nickname: Theta filter (Hilbert phase)
+  source_id: 996c8b8c-29c2-11ef-b290-a0369f6f691e
+  theta_filter_degrees: 320
+  reference_ntrode: 15
+  lfp_sample_rate: 1500
+  timestamp_interval: 20
+  trim_proportion: 0.15
+- type_id: speed-filter-type
+  instance_id: 5e354e5a-29db-11ef-a7a4-a0369f6f691e
+  nickname: Speed filter
+  source_id: e7988860-cd42-11ee-8f41-a0369f6f691e
+  smooth_x: true
+  smooth_y: true
+  smooth_speed: false
+  position_sampling_rate: 30
+  scale_factor: 0.22
+  threshold: 4.0
+  threshold_above: true

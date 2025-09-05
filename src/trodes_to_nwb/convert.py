@@ -6,7 +6,6 @@ and final NWB file writing and validation.
 """
 
 import logging
-import os
 from pathlib import Path
 
 import nwbinspector
@@ -18,6 +17,7 @@ from trodes_to_nwb.convert_analog import add_analog_data
 from trodes_to_nwb.convert_dios import add_dios
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
+from trodes_to_nwb.convert_optogenetics import add_optogenetic_epochs, add_optogenetics
 from trodes_to_nwb.convert_position import add_associated_video_files, add_position
 from trodes_to_nwb.convert_rec_header import (
     add_header_device,
@@ -72,18 +72,16 @@ def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
     return logger
 
 
-def get_included_probe_metadata_paths() -> list[Path]:
+def get_included_device_metadata_paths() -> list[Path]:
     """Get the included probe metadata paths
     Returns
     -------
-    probe_metadata_paths : list[Path]
+    device_metadata_paths : list[Path]
         List of probe metadata paths
     """
     package_dir = Path(__file__).parent.resolve()
-    probe_folder = package_dir / "probe_metadata"
-    return [
-        probe_folder / file for file in probe_folder.iterdir() if file.suffix == ".yml"
-    ]
+    device_folder = package_dir / "device_metadata"
+    return device_folder.rglob("*.yml")
 
 
 def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
@@ -107,13 +105,15 @@ def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
 def create_nwbs(
     path: Path,
     header_reconfig_path: Path | None = None,
-    probe_metadata_paths: list[Path] | None = None,
+    device_metadata_paths: list[Path] | None = None,
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    fs_gui_dir: str = "",
     n_workers: int = 1,
     query_expression: str | None = None,
     disable_ptp: bool = False,
+    behavior_only: bool = False,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -124,14 +124,16 @@ def create_nwbs(
         Path to the SpikeGadgets data file.
     header_reconfig_path : Path, optional
         Path to the header reconfiguration file, by default None.
-    probe_metadata_paths : list[Path], optional
-        List of paths to the probe metadata files, by default None.
+    device_metadata_paths : list[Path], optional
+        List of paths to the device metadata files, by default None.
     output_dir : str, optional
         Output directory for the NWB files, by default "/stelmo/nwb/raw".
     video_directory : str, optional
         Directory containing the video files, by default "".
     convert_video : bool, optional
         Whether to convert the video files, by default False.
+    fs_gui_dir : str, optional
+        Optional alternative directory to find optogenetic files, by default "".
     n_workers : int, optional
         Number of workers to use for parallel processing, by default 1.
     query_expression : str, optional
@@ -140,6 +142,9 @@ def create_nwbs(
         See https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html.
     disable_ptp : bool, optional
         Blocks use of ptp timestamps regardless of rec header, by default False.
+    behavior_only : bool, optional
+        Flag to indicate only behaviorsl data (no ephys) was collected in the rec
+        files, by default False.
 
     """
 
@@ -147,8 +152,8 @@ def create_nwbs(
         path = Path(path)
 
     # provide the included probe metadata files if none are provided
-    if probe_metadata_paths is None:
-        probe_metadata_paths = get_included_probe_metadata_paths()
+    if device_metadata_paths is None:
+        device_metadata_paths = get_included_device_metadata_paths()
 
     file_info = get_file_info(path)
 
@@ -164,10 +169,13 @@ def create_nwbs(
                     session,
                     session_df,
                     header_reconfig_path,
-                    probe_metadata_paths,
+                    device_metadata_paths,
                     output_dir,
                     video_directory,
                     convert_video,
+                    fs_gui_dir,
+                    disable_ptp,
+                    behavior_only=behavior_only,
                 )
                 return True
             except Exception as e:
@@ -191,11 +199,13 @@ def create_nwbs(
                 session,
                 session_df,
                 header_reconfig_path,
-                probe_metadata_paths,
+                device_metadata_paths,
                 output_dir,
                 video_directory,
                 convert_video,
+                fs_gui_dir,
                 disable_ptp,
+                behavior_only=behavior_only,
             )
 
 
@@ -203,11 +213,13 @@ def _create_nwb(
     session: tuple[str, str, str],
     session_df: pd.DataFrame,
     header_reconfig_path: Path | None = None,
-    probe_metadata_paths: list[Path] | None = None,
+    device_metadata_paths: list[Path] | None = None,
     output_dir: str = "/stelmo/nwb/raw",
     video_directory: str = "",
     convert_video: bool = False,
+    fs_gui_dir: str = "",
     disable_ptp: bool = False,
+    behavior_only: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
@@ -219,7 +231,10 @@ def _create_nwb(
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
     rec_dci = RecFileDataChunkIterator(
-        rec_filepaths, interpolate_dropped_packets=False, stream_id="trodes"
+        rec_filepaths,
+        interpolate_dropped_packets=False,
+        stream_id="ECU_analog" if behavior_only else "trodes",
+        behavior_only=behavior_only,
     )
     rec_dci_timestamps = (
         rec_dci.timestamps
@@ -241,8 +256,8 @@ def _create_nwb(
         metadata_filepaths = metadata_filepaths[0]
     logger.info(f"\tmetadata_filepath: {metadata_filepaths}")
 
-    metadata, probe_metadata = load_metadata(
-        metadata_filepaths, probe_metadata_paths=probe_metadata_paths
+    metadata, device_metadata = load_metadata(
+        metadata_filepaths, device_metadata_paths=device_metadata_paths
     )
 
     logger.info("CREATING HARDWARE MAPS")
@@ -265,29 +280,36 @@ def _create_nwb(
     add_acquisition_devices(nwb_file, metadata)
     add_tasks(nwb_file, metadata)
     add_associated_files(nwb_file, metadata)
-    add_electrode_groups(
-        nwb_file, metadata, probe_metadata, hw_channel_map, ref_electrode_map
-    )
     add_header_device(nwb_file, rec_header)
     add_associated_video_files(
         nwb_file, metadata, session_df, video_directory, convert_video
     )
+    add_optogenetics(nwb_file, metadata, device_metadata)
 
-    logger.info("ADDING EPHYS DATA")
-    ### add rec file data ###
-    map_row_ephys_data_to_row_electrodes_table = list(
-        range(len(nwb_file.electrodes))
-    )  # TODO: Double check this
-    add_raw_ephys(
-        nwb_file,
-        rec_filepaths,
-        map_row_ephys_data_to_row_electrodes_table,
-        metadata,
-    )
+    if not behavior_only:
+        add_electrode_groups(
+            nwb_file, metadata, device_metadata, hw_channel_map, ref_electrode_map
+        )
+        logger.info("ADDING EPHYS DATA")
+        # add rec file data
+        map_row_ephys_data_to_row_electrodes_table = list(
+            range(len(nwb_file.electrodes))
+        )  # TODO: Double check this
+        add_raw_ephys(
+            nwb_file,
+            rec_filepaths,
+            map_row_ephys_data_to_row_electrodes_table,
+            metadata,
+        )
     logger.info("ADDING DIO DATA")
     add_dios(nwb_file, rec_filepaths, metadata)
     logger.info("ADDING ANALOG DATA")
-    add_analog_data(nwb_file, rec_filepaths, timestamps=rec_dci_timestamps)
+    add_analog_data(
+        nwb_file,
+        rec_filepaths,
+        timestamps=rec_dci_timestamps,
+        behavior_only=behavior_only,
+    )
     logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
     logger.info("ADDING EPOCHS")
@@ -296,8 +318,9 @@ def _create_nwb(
         session_df=session_df,
         neo_io=rec_dci.neo_io,
     )
+    add_optogenetic_epochs(nwb_file, metadata, fs_gui_dir)
     logger.info("ADDING POSITION")
-    ### add position ###
+    # add position
     if disable_ptp:
         ptp_enabled = False
     else:

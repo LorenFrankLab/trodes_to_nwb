@@ -72,7 +72,7 @@ def test_acq_device_creation():
     convert_yaml.add_acquisition_devices(nwb_file, metadata)
     devices = nwb_file.devices
     assert len(devices) == 1
-    name = f"dataacq_device0"
+    name = "dataacq_device0"
     assert devices[name].system == "SpikeGadgets"
     assert devices[name].amplifier == "Intan"
     assert devices[name].adc_circuit == "Intan"
@@ -234,6 +234,31 @@ def test_electrode_creation_reconfigured():
     assert list(nwbfile.electrodes.to_dataframe()["ref_elect_id"][:4]) == [0, 0, 0, 0]
     # check that hw channel mapping from channel_map is correct
     assert list(nwbfile.electrodes.to_dataframe()["hwChan"][-2:]) == ["115", "107"]
+
+
+def test_no_reference_electrode():
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    probe_metadata = [data_path / "tetrode_12.5.yml"]
+    metadata, probe_metadata = convert_yaml.load_metadata(metadata_path, probe_metadata)
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+
+    # create the hw_channel map using rec data
+    recfile = data_path / "20230622_sample_01_a1.rec"
+    rec_header = convert_rec_header.read_header(recfile)
+    hw_channel_map = convert_rec_header.make_hw_channel_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
+    ref_electrode_map = convert_rec_header.make_ref_electrode_map(
+        metadata, rec_header.find("SpikeConfiguration")
+    )
+    # set one tetrode to no reference
+    ref_electrode_map["0"] = (-1, -1)
+    convert_yaml.add_electrode_groups(
+        nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
+    )
+    df = nwbfile.electrodes.to_dataframe()
+    assert (df[df["group_name"] == "0"].ref_elect_id.unique() == -1).all()
+    assert (df[df["group_name"] != "0"].ref_elect_id.unique() == 0).all()
 
 
 def test_add_tasks():
