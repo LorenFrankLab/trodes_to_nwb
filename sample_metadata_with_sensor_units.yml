@@ -1,0 +1,84 @@
+experimenter_name:
+  - lastname, firstname
+lab: Loren Frank Lab
+institution: UCSF
+experiment_description: Test Conversion with Headstage Sensor Units
+session_description: test yaml insertion with separate sensor TimeSeries
+session_id: "12345"
+keywords:
+  - testing
+  - headstage_sensors
+subject:
+  description: Long-Evans Rat
+  genotype: Obese Prone CD Rat
+  sex: M
+  species: Rattus pyctoris
+  subject_id: "54321"
+  date_of_birth: 2000-01-01T00:00:00.000Z
+  weight: 100
+data_acq_device:
+  - name: SpikeGadgets
+    system: SpikeGadgets
+    amplifier: Intan
+    adc_circuit: Intan
+cameras:
+  - id: 0
+    meters_per_pixel: 0.001
+    manufacturer: Allied Vision
+    model: model1
+    lens: lens1
+    camera_name: test camera 1
+tasks:
+  - task_name: Sleep
+    task_description: sleeping
+    task_environment: sleep box
+    camera_id:
+      - 0
+    task_epochs:
+      - 1
+associated_files: []
+associated_video_files: []
+
+# Updated units specification with individual sensor units
+units:
+  analog: "unspecified"  # Default for uncategorized analog channels
+  behavioral_events: "unspecified"  # Default for DIO events
+
+# Optional: specify custom units for specific sensor types
+sensor_units:
+  accelerometer: "g"  # Will override default
+  gyroscope: "d/s"    # Will override default
+  magnetometer: "unspecified"
+  analog_input: "V"   # For ECU analog inputs
+
+times_period_multiplier: 1
+raw_data_to_volts: 1.95e-07
+default_header_file_path: /stelmo/sam/test_data
+
+device:
+  name:
+    - device1
+
+# Enhanced behavioral_events with individual unit specifications
+behavioral_events:
+  - description: Din1
+    name: Light_1
+    comments: Indicator for reward delivery
+    unit: "unspecified"  # Digital events are dimensionless
+  - description: Din2
+    name: Light_2
+    unit: "unspecified"
+  - description: Dout2
+    name: Poke_1
+    unit: "unspecified"
+  - description: ECU_Ain1
+    name: Analog_Input_1
+    comments: Custom analog input channel
+    unit: "V"  # Voltage
+  - description: ECU_Ain2  
+    name: Analog_Input_2
+    comments: Another analog input
+    unit: "mV"  # Millivolts
+
+electrode_groups: []
+ntrode_electrode_group_channel_map: []

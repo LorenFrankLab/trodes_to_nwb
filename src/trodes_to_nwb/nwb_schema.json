@@ -656,6 +656,50 @@
                 }
             }
         },
+        "sensor_units": {
+            "$id": "#root/sensor_units",
+            "title": "sensor_units",
+            "type": "object",
+            "description": "Optional custom units for specific sensor types",
+            "properties": {
+                "accelerometer": {
+                    "$id": "#root/sensor_units/accelerometer",
+                    "title": "accelerometer",
+                    "type": "string",
+                    "default": "g",
+                    "description": "Unit for accelerometer data",
+                    "examples": ["g", "m/s^2"],
+                    "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                },
+                "gyroscope": {
+                    "$id": "#root/sensor_units/gyroscope", 
+                    "title": "gyroscope",
+                    "type": "string",
+                    "default": "d/s",
+                    "description": "Unit for gyroscope data",
+                    "examples": ["d/s", "rad/s"],
+                    "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                },
+                "magnetometer": {
+                    "$id": "#root/sensor_units/magnetometer",
+                    "title": "magnetometer", 
+                    "type": "string",
+                    "default": "unspecified",
+                    "description": "Unit for magnetometer data",
+                    "examples": ["T", "Gauss", "unspecified"],
+                    "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                },
+                "analog_input": {
+                    "$id": "#root/sensor_units/analog_input",
+                    "title": "analog_input",
+                    "type": "string", 
+                    "default": "unspecified",
+                    "description": "Unit for analog input channels",
+                    "examples": ["V", "mV", "A", "unspecified"],
+                    "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                }
+            }
+        },
         "times_period_multiplier": {
             "$id": "#root/times_period_multiplier",
             "title": "times_period_multiplier",
@@ -944,6 +988,30 @@
                             "Sleep"
                         ],
                         "description": "Type of behavioral events",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "comments": {
+                        "$id": "#root/behavioral_events/items/comments",
+                        "title": "comments",
+                        "type": "string",
+                        "default": "",
+                        "description": "Optional comments about this behavioral event",
+                        "pattern": "^(.|\\s)*$"
+                    },
+                    "unit": {
+                        "$id": "#root/behavioral_events/items/unit",
+                        "title": "unit",
+                        "type": "string",
+                        "default": "unspecified",
+                        "examples": [
+                            "unspecified",
+                            "V",
+                            "mV",
+                            "A",
+                            "g",
+                            "d/s"
+                        ],
+                        "description": "Unit for this specific behavioral event",
                         "pattern": "^(.|\\s)*\\S(.|\\s)*$"
                     }
                 }
