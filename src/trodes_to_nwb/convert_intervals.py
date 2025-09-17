@@ -97,7 +97,7 @@ def add_sample_count(
     )
 
     # get the systime information
-    systime = np.array(rec_dci.timestamps) * NANOSECONDS_PER_SECOND
+    systime = np.array(rec_dci.get_timestamps()) * NANOSECONDS_PER_SECOND
     # get the sample count information
     trodes_sample = np.concatenate(
         [neo_io.get_analogsignal_timestamps(0, None) for neo_io in rec_dci.neo_io]

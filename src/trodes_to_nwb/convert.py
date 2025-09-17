@@ -236,9 +236,8 @@ def _create_nwb(
         stream_id="ECU_analog" if behavior_only else "trodes",
         behavior_only=behavior_only,
     )
-    rec_dci_timestamps = (
-        rec_dci.timestamps
-    )  # pass these when creating other non-interpolated rec iterators to save time
+    # Defer timestamp loading until needed - this saves memory for large recordings
+    rec_dci_timestamps = None
 
     rec_header = read_header(rec_filepaths[0])
     reconfig_header = rec_header
@@ -307,7 +306,6 @@ def _create_nwb(
     add_analog_data(
         nwb_file,
         rec_filepaths,
-        timestamps=rec_dci_timestamps,
         behavior_only=behavior_only,
     )
     logger.info("ADDING SAMPLE COUNTS")
@@ -332,6 +330,9 @@ def _create_nwb(
             session_df,
         )
     else:
+        # For non-PTP position tracking, we need timestamps
+        if rec_dci_timestamps is None:
+            rec_dci_timestamps = rec_dci.get_timestamps()
         add_position(
             nwb_file,
             metadata,
