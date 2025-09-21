@@ -29,11 +29,20 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
             raise ValueError(
                 f"Duplicate channel name {dio_event['description']} in metadata YAML"
             )
+        
+        # Get unit for this specific event type, or use default
+        unit = "unspecified"  # Default unit for digital events
+        if "unit" in dio_event:
+            unit = dio_event["unit"]
+        elif "units" in metadata and "behavioral_events" in metadata["units"]:
+            unit = metadata["units"]["behavioral_events"]
+            
         channel_name_map[dio_event["description"]] = {
             "name": dio_event["name"],
             "comments": (
                 dio_event["comments"] if "comments" in dio_event else "no comments"
             ),
+            "unit": unit
         }
     return channel_name_map
 
@@ -101,7 +110,7 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
             comments=channel_name_map[channel_name]["comments"],
             description=channel_name,
             data=state_changes,
-            unit="-1",  # TODO change to "N/A",
+            unit=channel_name_map[channel_name]["unit"],
             timestamps=timestamps,  # TODO adjust timestamps
         )
         beh_events.add_timeseries(ts)

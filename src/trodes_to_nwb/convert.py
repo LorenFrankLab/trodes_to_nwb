@@ -309,6 +309,7 @@ def _create_nwb(
         rec_filepaths,
         timestamps=rec_dci_timestamps,
         behavior_only=behavior_only,
+        metadata=metadata,
     )
     logger.info("ADDING SAMPLE COUNTS")
     add_sample_count(nwb_file, rec_dci)
