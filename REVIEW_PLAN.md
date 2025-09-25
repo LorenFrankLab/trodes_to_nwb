@@ -38,7 +38,7 @@ subprocess.run(['cp', file, new_file_name], check=False)
 
 ### 5. **Zip Safety Parameters** (test_convert_yaml.py:301, 389)
 **Issue**: Added `strict=False` weakens safety guarantees
-**Action**: Remove `strict=False` unless there's a specific reason for different-length iterables
+**Action**: ✅ Removed `strict=False` to use default `strict=True` behavior for better safety
 
 ### 6. **Unused Enumerate Variables** (convert_yaml.py:198)
 **Issue**: Changed to `_probe_counter` but could remove enumerate entirely
