@@ -120,7 +120,7 @@ def validate_yaml_header_electrode_map(
         # find appropriate channel map metadata
         channel_map = None
         map_number = None
-        for map_number, test_meta in enumerate(
+        for _, test_meta in enumerate(
             metadata["ntrode_electrode_group_channel_map"]
         ):
             if str(test_meta["ntrode_id"]) == ntrode_id:

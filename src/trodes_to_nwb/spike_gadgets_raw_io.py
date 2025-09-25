@@ -454,8 +454,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # make mask as array (used in _get_analogsignal_chunk(...))
         self._mask_streams = {}
-        for stream_id, l in self._mask_channels_bytes.items():
-            mask = np.array(l)
+        for stream_id, channels_bytes in self._mask_channels_bytes.items():
+            mask = np.array(channels_bytes)
             self._mask_channels_bytes[stream_id] = mask
             self._mask_streams[stream_id] = np.any(mask, axis=0)
 

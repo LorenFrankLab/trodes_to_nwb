@@ -149,8 +149,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.n_multiplexed_channel += len(self.neo_io[0].multiplexed_channel_xml)
 
         # order that the hw channels are in within the nwb table
-        if nwb_hw_channel_order is None:  # TODO: raise error instead?
-            self.nwb_hw_channel_order = np.arange(self.n_channel)
+        if nwb_hw_channel_order is None:
+            raise ValueError(
+                "Must provide nwb_hw_channel_order to ensure correct channel ordering"
+            )
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
