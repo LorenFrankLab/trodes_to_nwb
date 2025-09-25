@@ -130,8 +130,8 @@ def parse_dtype(fieldstr: str) -> np.dtype:
             ftype = sep[i + 1]
         try:
             fieldtype = getattr(np, ftype)
-        except AttributeError:
-            raise AttributeError(ftype + " is not a valid field type.\n")
+        except AttributeError as err:
+            raise AttributeError(ftype + " is not a valid field type.\n") from err
         else:
             typearr.append((str(fieldname), fieldtype, repeats))
 
@@ -598,10 +598,10 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
             np.squeeze(video_timestamps["HWTimestamp"]).astype(np.float64)
             / NANOSECONDS_PER_SECOND
         )
-    except KeyError:
+    except KeyError as err:
         raise KeyError(
             "'HWTimestamp' field missing in the data file. Ensure the file is formatted correctly."
-        )
+        ) from err
 
 
 def _get_position_timestamps_ptp(

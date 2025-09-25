@@ -39,7 +39,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
     def __init__(
         self,
         rec_file_path: list[str],
-        nwb_hw_channel_order=[],
+        nwb_hw_channel_order=None,
         conversion: float = 1.0,
         stream_index: int = None,  # TODO use the stream name instead of the index
         stream_id: str = None,
@@ -151,7 +151,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.n_multiplexed_channel += len(self.neo_io[0].multiplexed_channel_xml)
 
         # order that the hw channels are in within the nwb table
-        if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
+        if nwb_hw_channel_order is None:  # TODO: raise error instead?
             self.nwb_hw_channel_order = np.arange(self.n_channel)
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order

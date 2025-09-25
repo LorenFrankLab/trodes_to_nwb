@@ -167,7 +167,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     break
 
             if header_size is None:
-                ValueError(
+                raise ValueError(
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
 
@@ -1207,7 +1207,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                     break
 
             if header_size is None:
-                ValueError(
+                raise ValueError(
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
         # Inherit the original memmap object from the full_io object to conserve virtual memory

@@ -2,20 +2,20 @@
 
 This document tracks the plan to fix the remaining 56 ruff issues (excluding notebook issues).
 
-## 🔴 Priority 1: Critical Fixes (7 issues) - PENDING
+## 🔴 Priority 1: Critical Fixes (7 issues) - ✅ COMPLETED
 
 ### Immediate Action Required
-- [ ] **Mutable Default Argument** (`convert_ephys.py:42`)
+- [x] **Mutable Default Argument** (`convert_ephys.py:42`)
   - Change `nwb_hw_channel_order=[]` to `nwb_hw_channel_order=None`
   - Add `if nwb_hw_channel_order is None: nwb_hw_channel_order = []` inside function
 
-- [ ] **Missing Raise Statements** (2 issues)
+- [x] **Missing Raise Statements** (2 issues)
   - `spike_gadgets_raw_io.py:170, 1210` - Add `raise` keyword before exception instantiation
 
-- [ ] **Exception Chaining** (`convert_position.py:134, 602`)
+- [x] **Exception Chaining** (`convert_position.py:134, 602`)
   - Change `raise SomeException(...)` to `raise SomeException(...) from err`
 
-- [ ] **Top-Level Imports** (`convert_optogenetics.py` - 4 locations)
+- [x] **Top-Level Imports** (`convert_optogenetics.py` - 4 locations)
   - Move `import` statements from inside functions to module top
 
 ## 🟡 Priority 2: Code Quality (25 issues) - PENDING
@@ -58,8 +58,8 @@ This document tracks the plan to fix the remaining 56 ruff issues (excluding not
 ## Progress Tracking
 
 **Total Issues**: 56 (excluding notebooks)
-- **Fixed**: 0
-- **Remaining**: 56
+- **Fixed**: 7
+- **Remaining**: 49
 
 **Estimated Timeline**:
 - Phase 1 (Critical): 30 minutes

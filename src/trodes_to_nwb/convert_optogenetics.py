@@ -1,6 +1,8 @@
 import logging
+import os
 from pathlib import Path
 
+from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 from ndx_optogenetics import (
     ExcitationSource,
     ExcitationSourceModel,
@@ -15,6 +17,9 @@ from ndx_optogenetics import (
 )
 import numpy as np
 from pynwb import NWBFile
+import yaml
+
+from trodes_to_nwb.tests.utils import data_path
 
 
 def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dict]):
@@ -312,8 +317,6 @@ def add_optogenetic_epochs(
         return
     logger.info(f"Adding {len(opto_epochs_metadata)} optogenetic epochs.")
 
-    from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
-
     opto_epochs_table = FrankLabOptogeneticEpochsTable(
         name="optogenetic_epochs",
         description="Metadata about optogenetic stimulation parameters per epoch",
@@ -387,8 +390,6 @@ def compile_opto_entries(
     List[dict]
         A list of dictionaries containing the compiled entries for the optogenetic epochs table.
     """
-    import yaml
-
     # load the fs_gui yaml
     fs_gui_path = Path(file_dir) / fs_gui_metadata["name"]
     protocol_metadata = None
@@ -605,12 +606,8 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
     - A dictionary with zone IDs as keys and their respective node relative coordinates.
     """
     zones = {i: {} for i in target_zones}
-    import os
-
     if not os.path.exists(geometry_file_path):
         try:
-            from trodes_to_nwb.tests.utils import data_path
-
             geometry_file_path = Path(data_path) / Path(geometry_file_path).name
             os.path.exists(geometry_file_path)
         except Exception as e:
