@@ -1,8 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, Tuple
 
-import numpy as np
 from ndx_optogenetics import (
     ExcitationSource,
     ExcitationSourceModel,
@@ -15,10 +13,11 @@ from ndx_optogenetics import (
     OptogeneticVirusInjection,
     OptogeneticVirusInjections,
 )
+import numpy as np
 from pynwb import NWBFile
 
 
-def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dict]):
+def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dict]):
     """
     Add optogenetics data to the NWB file.
 
@@ -77,7 +76,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
 
 
 def make_optogenetic_source(
-    nwbfile: NWBFile, source_metadata: dict, device_metadata: List[dict]
+    nwbfile: NWBFile, source_metadata: dict, device_metadata: list[dict]
 ) -> ExcitationSource:
     """Create an ExcitationSource object and add it to the NWB file.
 
@@ -117,7 +116,7 @@ def make_optical_fiber(
     nwbfile: NWBFile,
     fiber_metadata_list: dict,
     excitation_source: ExcitationSource,
-    device_metadata: List[dict],
+    device_metadata: list[dict],
 ) -> OpticalFiber:
     """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
 
@@ -186,8 +185,8 @@ def make_optical_fiber(
 
 
 def make_virus_injecton(
-    virus_injection_metadata_list: List[dict], device_metadata: List[dict]
-) -> Tuple[OptogeneticViruses, OptogeneticVirusInjections]:
+    virus_injection_metadata_list: list[dict], device_metadata: list[dict]
+) -> tuple[OptogeneticViruses, OptogeneticVirusInjections]:
     """
     Add virus injection data to the NWB file.
 
@@ -370,7 +369,7 @@ def compile_opto_entries(
     fs_gui_metadata: dict,
     nwbfile: NWBFile,
     file_dir: str = "",
-) -> List[dict]:
+) -> list[dict]:
     """
     Compile an entry for the optogenetic epochs table.
 
@@ -393,7 +392,7 @@ def compile_opto_entries(
     # load the fs_gui yaml
     fs_gui_path = Path(file_dir) / fs_gui_metadata["name"]
     protocol_metadata = None
-    with open(fs_gui_path, "r") as stream:
+    with open(fs_gui_path) as stream:
         protocol_metadata = yaml.safe_load(stream)
     protocol_metadata = {
         x["instance_id"]: x for x in protocol_metadata["nodes"]
@@ -513,7 +512,7 @@ def compile_opto_entries(
         # add camera information if speed or spatial filter is on
         if "speed_filter_on" in condition_dict or "spatial_filter_on" in geometry_dict:
             print("ADDING CAMERA INFO")
-            if (camera_id := fs_gui_metadata.get("camera_id", None)) is None:
+            if (camera_id := fs_gui_metadata.get("camera_id")) is None:
                 raise ValueError(
                     "Camera ID not found in metadata. "
                     "Please provide a camera_id for speed or spatial filters."
@@ -557,7 +556,7 @@ def get_epoch_info_entry(
     Any
         The value corresponding to the specified key, or None if not found.
     """
-    value = opto_metadata.get(key, fs_gui_metadata.get(key, None))
+    value = opto_metadata.get(key, fs_gui_metadata.get(key))
     if value is None:
         raise ValueError(
             f"Key '{key}' not found in either the fsgui yaml script or the experiment "
@@ -566,7 +565,7 @@ def get_epoch_info_entry(
     return value
 
 
-def compile_geometry_filters(geometry_filter_metadata_list: List[str]) -> dict:
+def compile_geometry_filters(geometry_filter_metadata_list: list[str]) -> dict:
     if len(geometry_filter_metadata_list) == 0:
         return {}
 
@@ -620,7 +619,7 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
                 "Please check the path and try again."
             ) from e
 
-    with open(geometry_file_path, "r", encoding="utf-8") as f:
+    with open(geometry_file_path, encoding="utf-8") as f:
         zone_id = None
         for line in f:
             if line.startswith("Zone id:"):
@@ -641,7 +640,7 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
     return zones
 
 
-def get_condition_ids(metadata_dict: dict) -> List[str]:
+def get_condition_ids(metadata_dict: dict) -> list[str]:
     """
     Recursively extracts condition IDs from a metadata dictionary.
 

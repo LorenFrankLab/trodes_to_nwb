@@ -1,16 +1,12 @@
 import os
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from pynwb import NWBHDF5IO
+from pynwb.behavior import Position
 import pytest
-from pynwb import NWBHDF5IO, TimeSeries
-from pynwb.behavior import BehavioralEvents, Position
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
-from trodes_to_nwb.convert_dios import add_dios
-from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
-from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
 from trodes_to_nwb.convert_position import (
     add_position,
     convert_datafile_to_pandas,
@@ -20,7 +16,6 @@ from trodes_to_nwb.convert_position import (
     estimate_camera_time_from_mcu_time,
     estimate_camera_to_mcu_lag,
     find_acquisition_timing_pause,
-    find_camera_dio_channel,
     find_large_frame_jumps,
     get_framerate,
     parse_dtype,
@@ -308,7 +303,6 @@ def test_add_position_preexisting():
     test_add_position(prior_position=True)
 
 
-from trodes_to_nwb.convert_position import read_trodes_datafile
 
 
 def test_add_position_non_ptp():

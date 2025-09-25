@@ -1,8 +1,7 @@
-import os
 from xml.etree import ElementTree
 
-import pytest
 from ndx_franklab_novela import HeaderDevice
+import pytest
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.tests.utils import data_path

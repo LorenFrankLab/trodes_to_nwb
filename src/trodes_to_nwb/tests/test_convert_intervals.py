@@ -7,7 +7,6 @@ from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
 from trodes_to_nwb.convert_yaml import initialize_nwb, load_metadata
 from trodes_to_nwb.data_scanner import get_file_info
-from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
 

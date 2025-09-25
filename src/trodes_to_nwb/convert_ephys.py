@@ -3,12 +3,11 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 """
 
 import logging
-from typing import Tuple
 from warnings import warn
 
-import numpy as np
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
+import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
@@ -237,7 +236,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         super().__init__(**kwargs)
 
-    def _get_data(self, selection: Tuple[slice]) -> np.ndarray:
+    def _get_data(self, selection: tuple[slice]) -> np.ndarray:
         # selection is (time, channel)
         assert selection[0].step is None
 
@@ -266,7 +265,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             io_stream = np.argmin(i >= file_start_ind) - 1
             # get the data from that stream
             data.append(
-                (
+
                     self.neo_io[io_stream].get_analogsignal_chunk(
                         block_index=self.block_index,
                         seg_index=self.seg_index,
@@ -281,7 +280,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                         stream_index=self.stream_index,
                         channel_ids=channel_ids,
                     )
-                )
+
             )
             i += min(
                 self.n_time[io_stream]
@@ -320,7 +319,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         return data
 
-    def _get_maxshape(self) -> Tuple[int, int]:
+    def _get_maxshape(self) -> tuple[int, int]:
         return (
             np.sum(self.n_time),
             self.n_channel + self.n_multiplexed_channel,

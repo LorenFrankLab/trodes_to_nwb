@@ -58,7 +58,7 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
     [neo_io.parse_header() for neo_io in neo_io]
 
     # Make a processing module for behavior and add to the nwbfile
-    if not "behavior" in nwbfile.processing:
+    if "behavior" not in nwbfile.processing:
         nwbfile.create_processing_module(
             name="behavior", description="Contains all behavior-related data"
         )
@@ -90,7 +90,7 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
             all_timestamps[i].append(timestamps)
             all_state_changes[i].append(state_changes)
     for channel_name, state_changes, timestamps in zip(
-        channel_name_map, all_state_changes, all_timestamps
+        channel_name_map, all_state_changes, all_timestamps, strict=False
     ):
         timestamps = np.concatenate(timestamps)
         state_changes = np.concatenate(state_changes)

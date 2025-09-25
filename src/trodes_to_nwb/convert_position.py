@@ -5,10 +5,10 @@ and ImageSeries. Includes logic for PTP and non-PTP timestamp alignment.
 
 import datetime
 import logging
+from pathlib import Path
 import re
 import subprocess
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -27,7 +27,7 @@ DEFAULT_MAX_PTP_PAUSE_S = (
 )
 
 
-def find_wrap_point(t: np.ndarray) -> Optional[int]:
+def find_wrap_point(t: np.ndarray) -> int | None:
     """
     Finds the point at which the timestamps wrap around due to overflow.
     Returns None if no wrap point is found
@@ -122,7 +122,7 @@ def parse_dtype(fieldstr: str) -> np.dtype:
         ftype = "uint32"
         # Finds if a <num>* is included in datatype
         if "*" in sep[i + 1]:
-            temptypes = re.split("\*", sep[i + 1])
+            temptypes = re.split(r"\*", sep[i + 1])
             # Results in the correct assignment, whether str is num*dtype or dtype*num
             ftype = temptypes[temptypes[0].isdigit()]
             repeats = int(temptypes[temptypes[1].isdigit()])
@@ -138,7 +138,7 @@ def parse_dtype(fieldstr: str) -> np.dtype:
     return np.dtype(typearr)
 
 
-def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
+def read_trodes_datafile(filename: Path) -> dict[str, Any] | None:
     """
     Read trodes binary.
 
@@ -190,7 +190,7 @@ def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
     except PermissionError:
         logger.error(f"Permission denied when trying to read: {filename}")
         return None
-    except IOError as e:
+    except OSError as e:
         logger.error(f"An I/O error occurred while reading {filename}: {e}")
         return None
     except Exception as e:  # Catch-all for unexpected errors during file processing
@@ -198,7 +198,7 @@ def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
         raise
 
 
-def convert_datafile_to_pandas(datafile: Dict[str, Any]) -> pd.DataFrame:
+def convert_datafile_to_pandas(datafile: dict[str, Any]) -> pd.DataFrame:
     """Takes the output of read_trodes_datafile and converts it to a pandas dataframe.
     Added for changes identified in numpy 2.2.2
 
@@ -332,7 +332,7 @@ def detect_repeat_timestamps(timestamps: np.ndarray) -> np.ndarray:
 
 def detect_trodes_time_repeats_or_frame_jumps(
     trodes_time: np.ndarray, frame_count: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Detects if a Trodes time index repeats, indicating that the Trodes clock has frozen
     due to headstage disconnects. Also detects large frame jumps.
@@ -386,7 +386,7 @@ def detect_trodes_time_repeats_or_frame_jumps(
 
 def estimate_camera_time_from_mcu_time(
     position_timestamps: np.ndarray, mcu_timestamps: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
 
     Parameters
@@ -449,7 +449,7 @@ def remove_acquisition_timing_pause_non_ptp(
     camera_systime: np.ndarray,
     is_valid_camera_time: np.ndarray,
     pause_mid_time: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Removes data points occurring before a detected acquisition timing pause.
     Used in non-PTP alignment. Operates on timestamps in seconds.
@@ -789,12 +789,12 @@ def _get_position_timestamps_no_ptp(
 
 def get_position_timestamps(
     position_timestamps_filepath: Path,
-    position_tracking_filepath: Optional[Path] = None,
-    rec_dci_timestamps: Optional[np.ndarray] = None,  # units = seconds
-    dio_camera_timestamps: Optional[np.ndarray] = None,  # units = seconds
-    sample_count: Optional[np.ndarray] = None,  # units = samples
+    position_tracking_filepath: Path | None = None,
+    rec_dci_timestamps: np.ndarray | None = None,  # units = seconds
+    dio_camera_timestamps: np.ndarray | None = None,  # units = seconds
+    sample_count: np.ndarray | None = None,  # units = samples
     ptp_enabled: bool = True,
-    epoch_interval: Optional[List[float]] = None,  # units = seconds
+    epoch_interval: list[float] | None = None,  # units = seconds
 ):
     """Get the timestamps for a position data file. Includes protocols for both ptp and non-ptp data.
 
@@ -945,8 +945,8 @@ def add_position(
     metadata: dict,
     session_df: pd.DataFrame,
     ptp_enabled: bool = True,
-    rec_dci_timestamps: Optional[np.ndarray] = None,
-    sample_count: Optional[np.ndarray] = None,
+    rec_dci_timestamps: np.ndarray | None = None,
+    sample_count: np.ndarray | None = None,
 ) -> None:
     """Add position data to an NWBFile.
 
@@ -994,7 +994,7 @@ def add_position(
     epoch_to_camera_ids = pd.concat(df).set_index("epoch").sort_index()
 
     # Make a processing module for behavior and add to the nwbfile
-    if not "behavior" in nwb_file.processing:
+    if "behavior" not in nwb_file.processing:
         nwb_file.create_processing_module(
             name="behavior", description="Contains all behavior-related data"
         )
@@ -1152,7 +1152,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(f"ffmpeg -i {file} {new_file_name}", shell=True)
+        subprocess.run(f"ffmpeg -i {file} {new_file_name}", check=False, shell=True)
         logger.info(
             f"Video conversion completed. {file} has been converted to {new_file_name}"
         )
@@ -1196,7 +1196,7 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(f"cp {file} {new_file_name}", shell=True)
+        subprocess.run(f"cp {file} {new_file_name}", check=False, shell=True)
         logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
         return new_file_name
     except subprocess.CalledProcessError as e:
@@ -1208,7 +1208,7 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
 def add_associated_video_files(
     nwb_file: NWBFile,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     session_df: pd.DataFrame,
     video_directory: str,
     convert_video: bool = False,

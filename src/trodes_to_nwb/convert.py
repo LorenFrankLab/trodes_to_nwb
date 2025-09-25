@@ -8,9 +8,9 @@ and final NWB file writing and validation.
 import logging
 from pathlib import Path
 
+from dask.distributed import Client
 import nwbinspector
 import pandas as pd
-from dask.distributed import Client
 from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert_analog import add_analog_data
@@ -188,7 +188,7 @@ def create_nwbs(
         argument_list = list(file_info.groupby(["date", "animal"]))
         futures = client.map(pass_func, argument_list)
         # print out error results
-        for args, future in zip(argument_list, futures):
+        for args, future in zip(argument_list, futures, strict=False):
             result = future.result()
             if result is not True:
                 print(args, result)

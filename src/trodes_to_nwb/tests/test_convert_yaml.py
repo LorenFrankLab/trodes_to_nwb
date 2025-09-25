@@ -1,7 +1,7 @@
+from datetime import datetime
 import logging
 import os
 import shutil
-from datetime import datetime
 
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
@@ -298,7 +298,7 @@ def test_add_tasks():
                 "camera_id",
                 "task_epochs",
                 "task_environment",
-            ),
+            ), strict=False,
         ):
             assert a == b
 
@@ -352,7 +352,7 @@ def test_add_associated_files(capsys):
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
             log_file_path = handler.baseFilename
-            with open(log_file_path, "r") as log_file:
+            with open(log_file_path) as log_file:
                 for line in log_file.readlines():
                     if "ERROR: associated file bad_path.txt does not exist" in line:
                         printed_warning = True
@@ -386,7 +386,7 @@ def test_add_associated_video_files():
 
     for video, video_meta in zip(
         nwbfile.processing["video_files"]["video"].time_series,
-        metadata["associated_video_files"],
+        metadata["associated_video_files"], strict=False,
     ):
         video = nwbfile.processing["video_files"]["video"][video]
         assert video.name == video_meta["name"]

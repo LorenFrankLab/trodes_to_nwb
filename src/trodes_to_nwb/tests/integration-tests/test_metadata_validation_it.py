@@ -1,6 +1,6 @@
-import os
 
 import pytest
+
 from trodes_to_nwb.metadata_validation import validate
 from trodes_to_nwb.tests.test_data.test_metadata_dict_samples import (
     basic_data,

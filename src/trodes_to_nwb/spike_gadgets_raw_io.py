@@ -9,10 +9,8 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
-from typing import List, Optional
 from xml.etree import ElementTree
 
-import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
     _event_channel_dtype,
@@ -20,6 +18,7 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
+import numpy as np
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
@@ -37,7 +36,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def __init__(
         self,
         filename: str = "",
-        selected_streams: Optional[list[str] | str] = None,
+        selected_streams: list[str] | str | None = None,
         interpolate_dropped_packets: bool = False,
     ):
         """
@@ -74,7 +73,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         n_total_channels: int,
         n_channels_recorded: int,
         n_channels_per_chip: int,
-        hw_channels_recorded: List[str] = None,
+        hw_channels_recorded: list[str] = None,
     ) -> list[int]:
         """Computes the hardware channel IDs for ephys data.
 
@@ -557,7 +556,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         i_start: int,
         i_stop: int,
         stream_index: int,
-        channel_indexes: Optional[int | np.ndarray | slice] = None,
+        channel_indexes: int | np.ndarray | slice | None = None,
     ) -> np.ndarray:
         """
         Returns a chunk of the analog signal data from the .rec file.
@@ -691,7 +690,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @functools.lru_cache(maxsize=2)
     def get_analogsignal_multiplexed(
-        self, channel_names: Optional[list[str]] = None
+        self, channel_names: list[str] | None = None
     ) -> np.ndarray:
         """
         Retrieves multiplexed analog signal data.
@@ -950,7 +949,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @functools.lru_cache(maxsize=1)
     def get_regressed_systime(
-        self, i_start: int, i_stop: Optional[int] = None
+        self, i_start: int, i_stop: int | None = None
     ) -> np.ndarray:
         """
         Retrieves the regressed system time based on the Trodes timestamp and the system clock.
@@ -992,7 +991,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @functools.lru_cache(maxsize=1)
     def get_systime_from_trodes_timestamps(
-        self, i_start: int, i_stop: Optional[int] = None
+        self, i_start: int, i_stop: int | None = None
     ) -> np.ndarray:
         """
         Retrieves system time based on Trodes timestamps.
@@ -1041,7 +1040,7 @@ class InsertedMemmap:
     """
 
     def __init__(
-        self, _raw_memmap: np.ndarray, inserted_index: Optional[np.ndarray] = None
+        self, _raw_memmap: np.ndarray, inserted_index: np.ndarray | None = None
     ) -> None:
         """
         Initializes an InsertedMemmap object to handle slices into an interpolated memmap.
@@ -1105,8 +1104,8 @@ class InsertedMemmap:
             # see if slice contains inserted values
             if (
                 (
-                    (not index.start is None)
-                    and (not index.stop is None)
+                    (index.start is not None)
+                    and (index.stop is not None)
                     and np.any(
                         (self.inserted_locations >= index.start)
                         & (self.inserted_locations < index.stop)
@@ -1114,12 +1113,12 @@ class InsertedMemmap:
                 )
                 | (
                     (index.start is None)
-                    and (not index.stop is None)
+                    and (index.stop is not None)
                     and np.any(self.inserted_locations < index.stop)
                 )
                 | (
                     index.stop is None
-                    and (not index.start is None)
+                    and (index.start is not None)
                     and np.any(self.inserted_locations > index.start)
                 )
                 | (
@@ -1153,7 +1152,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         full_io: SpikeGadgetsRawIO,
         start_index: int,
         stop_index: int,
-        previous_multiplex_state: Optional[np.ndarray] = None,
+        previous_multiplex_state: np.ndarray | None = None,
     ):
         """Initialize a partial SpikeGadgetsRawIO object.
 
@@ -1234,7 +1233,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
 
     @functools.lru_cache(maxsize=2)
     def get_analogsignal_multiplexed(
-        self, channel_names: Optional[list[str]] = None
+        self, channel_names: list[str] | None = None
     ) -> np.ndarray:
         """
         Overide of the superclass to use the last state of the previous file segment

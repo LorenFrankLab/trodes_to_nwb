@@ -3,15 +3,12 @@
 initial NWB file setup, subject info, device entries, electrode tables, etc.
 """
 
-import logging
-import uuid
 from copy import deepcopy
 from datetime import datetime
+import logging
+import uuid
 from xml.etree import ElementTree
 
-import pandas as pd
-import pytz
-import yaml
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
     AssociatedFiles,
@@ -22,11 +19,14 @@ from ndx_franklab_novela import (
     Shank,
     ShanksElectrode,
 )
+import pandas as pd
 from pynwb import NWBFile
 from pynwb.file import ProcessingModule, Subject
+import pytz
+import yaml
 
-import trodes_to_nwb.metadata_validation
 from trodes_to_nwb import __version__
+import trodes_to_nwb.metadata_validation
 
 
 def load_metadata(
@@ -49,7 +49,7 @@ def load_metadata(
         the yaml generator metadata and list of device metadatas
     """
     metadata = None
-    with open(metadata_path, "r") as stream:
+    with open(metadata_path) as stream:
         metadata = yaml.safe_load(stream)
     (
         is_metadata_valid,
@@ -60,12 +60,12 @@ def load_metadata(
         logger.exception("".join(metadata_errors))
     device_metadata = []
     for path in device_metadata_paths:
-        with open(path, "r") as stream:
+        with open(path) as stream:
             device_metadata.append(yaml.safe_load(stream))
-    if not metadata["associated_files"] is None:
+    if metadata["associated_files"] is not None:
         for file in metadata["associated_files"]:
             file["task_epochs"] = [file["task_epochs"]]
-    if not metadata["associated_video_files"] is None:
+    if metadata["associated_video_files"] is not None:
         for file in metadata["associated_video_files"]:
             file["task_epochs"] = [file["task_epochs"]]
     return metadata, device_metadata
@@ -426,12 +426,12 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
         # read file content
         content = ""
         try:
-            with open(file["path"], "r") as open_file:
+            with open(file["path"]) as open_file:
                 content = open_file.read()
         except FileNotFoundError as err:
             logger.info(f"ERROR: associated file {file['path']} does not exist")
             logger.info(str(err))
-        except IOError as err:
+        except OSError as err:
             logger.info(f"ERROR: Cannot read file at {file['path']}")
             logger.info(str(err))
         # convert task epoch values into strings
