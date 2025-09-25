@@ -5,6 +5,7 @@ This document tracks the plan to fix the remaining 56 ruff issues (excluding not
 ## 🔴 Priority 1: Critical Fixes (7 issues) - ✅ COMPLETED
 
 ### Immediate Action Required
+
 - [x] **Mutable Default Argument** (`convert_ephys.py:42`)
   - Change `nwb_hw_channel_order=[]` to `nwb_hw_channel_order=None`
   - Add `if nwb_hw_channel_order is None: nwb_hw_channel_order = []` inside function
@@ -21,6 +22,7 @@ This document tracks the plan to fix the remaining 56 ruff issues (excluding not
 ## 🟡 Priority 2: Code Quality (25 issues) - ✅ COMPLETED
 
 ### Quick Wins - Auto-fixable patterns
+
 - [x] **Dictionary/List Inefficiencies** (11 issues)
   - Replace `key in dict.keys()` with `key in dict` (8 instances)
   - Replace `dict()` with `{}` literals (2 instances)
@@ -41,6 +43,7 @@ This document tracks the plan to fix the remaining 56 ruff issues (excluding not
 ## 🟠 Priority 3: Style & Performance (9 issues remaining) - PARTIALLY COMPLETED
 
 ### Consider for future refactoring
+
 - [ ] **Magic Numbers** (`convert_position.py` - 4 instances)
   - Extract constants: `MIN_TIMESTAMPS = 2`, `DEFAULT_TIMEOUT = 2000`, `MIN_TICKS = 100`
   - **Note**: These are context-specific values that may be better left as literals
@@ -60,10 +63,12 @@ This document tracks the plan to fix the remaining 56 ruff issues (excluding not
 ## Progress Tracking
 
 **Total Issues**: 56 (excluding notebooks)
+
 - **Fixed**: 47 (7 Priority 1 + 37 Priority 2 + 3 Priority 3)
 - **Remaining**: 9 (4 magic numbers + 4 memory optimizations + 1 unused import)
 
 **Estimated Timeline**:
+
 - Phase 1 (Critical): 30 minutes
 - Phase 2 (Quality): 45 minutes
 - Phase 3 (Style): As needed during regular development

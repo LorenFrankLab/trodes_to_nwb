@@ -83,7 +83,10 @@ extend-exclude = '''
 '''
 
 [tool.pytest.ini_options]
-testpaths = ["src/trodes_to_nwb/tests", "src/trodes_to_nwb/tests/integration-tests"]
+testpaths = [
+    "src/trodes_to_nwb/tests",
+    "src/trodes_to_nwb/tests/integration-tests",
+]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -99,7 +102,7 @@ warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-disallow_untyped_defs = false  # Set to true gradually
+disallow_untyped_defs = false      # Set to true gradually
 disallow_incomplete_defs = true
 check_untyped_defs = true
 disallow_untyped_decorators = true
@@ -125,18 +128,18 @@ line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "B",  # flake8-bugbear
-    "I",  # isort
-    "UP", # pyupgrade
-    "C4", # flake8-comprehensions
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "UP",  # pyupgrade
+    "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
-    "PL", # pylint
+    "PL",  # pylint
 ]
 ignore = [
-    "E501",  # line too long, handled by black
+    "E501",    # line too long, handled by black
     "PLR0913", # too many arguments to function call
     "PLR0912", # too many branches
     "PLR0915", # too many statements
@@ -144,7 +147,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004"]  # magic value used in comparison
+"tests/**/*.py" = ["PLR2004"]                   # magic value used in comparison
 "src/trodes_to_nwb/tests/**/*.py" = ["PLR2004"]
 "notebooks/**/*.py" = ["E402", "F401", "F821"]  # notebook-specific ignores
 

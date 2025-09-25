@@ -31,9 +31,7 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
             )
         channel_name_map[dio_event["description"]] = {
             "name": dio_event["name"],
-            "comments": (
-                dio_event.get("comments", "no comments")
-            ),
+            "comments": (dio_event.get("comments", "no comments")),
         }
     return channel_name_map
 

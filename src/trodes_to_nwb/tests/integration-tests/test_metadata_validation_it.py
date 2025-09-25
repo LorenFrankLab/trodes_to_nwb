@@ -1,4 +1,3 @@
-
 import pytest
 
 from trodes_to_nwb.metadata_validation import validate

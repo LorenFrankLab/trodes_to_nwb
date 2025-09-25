@@ -3,12 +3,15 @@
 initial NWB file setup, subject info, device entries, electrode tables, etc.
 """
 
-from copy import deepcopy
-from datetime import datetime
 import logging
 import uuid
+from copy import deepcopy
+from datetime import datetime
 from xml.etree import ElementTree
 
+import pandas as pd
+import pytz
+import yaml
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
     AssociatedFiles,
@@ -19,14 +22,11 @@ from ndx_franklab_novela import (
     Shank,
     ShanksElectrode,
 )
-import pandas as pd
 from pynwb import NWBFile
 from pynwb.file import ProcessingModule, Subject
-import pytz
-import yaml
 
-from trodes_to_nwb import __version__
 import trodes_to_nwb.metadata_validation
+from trodes_to_nwb import __version__
 
 
 def load_metadata(

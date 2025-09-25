@@ -2,6 +2,8 @@ import logging
 import os
 from pathlib import Path
 
+import numpy as np
+import yaml
 from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 from ndx_optogenetics import (
     ExcitationSource,
@@ -15,9 +17,7 @@ from ndx_optogenetics import (
     OptogeneticVirusInjection,
     OptogeneticVirusInjections,
 )
-import numpy as np
 from pynwb import NWBFile
-import yaml
 
 from trodes_to_nwb.tests.utils import data_path
 

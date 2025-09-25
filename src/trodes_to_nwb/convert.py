@@ -8,9 +8,9 @@ and final NWB file writing and validation.
 import logging
 from pathlib import Path
 
-from dask.distributed import Client
 import nwbinspector
 import pandas as pd
+from dask.distributed import Client
 from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert_analog import add_analog_data

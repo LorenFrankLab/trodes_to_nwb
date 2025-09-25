@@ -5,9 +5,9 @@ and ImageSeries. Includes logic for PTP and non-PTP timestamp alignment.
 
 import datetime
 import logging
-from pathlib import Path
 import re
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import numpy as np

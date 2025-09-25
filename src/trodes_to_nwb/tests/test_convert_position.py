@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 import pandas as pd
+import pytest
 from pynwb import NWBHDF5IO
 from pynwb.behavior import Position
-import pytest
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_position import (
@@ -262,8 +262,7 @@ def test_add_position(prior_position=False):
             ]:
                 # check series in new nwbfile
                 assert (
-                    series
-                    in nwbfile.processing["behavior"]["position"].spatial_series
+                    series in nwbfile.processing["behavior"]["position"].spatial_series
                 )
                 # find the corresponding data in the old file
                 validated = False
@@ -303,8 +302,6 @@ def test_add_position_preexisting():
     test_add_position(prior_position=True)
 
 
-
-
 def test_add_position_non_ptp():
     # make session_df
     path_df = get_file_info(data_path)
@@ -338,10 +335,7 @@ def test_add_position_non_ptp():
             "led_1_series_2",
         ]:
             # check series in new nwbfile
-            assert (
-                series
-                in nwbfile.processing["behavior"]["position"].spatial_series
-            )
+            assert series in nwbfile.processing["behavior"]["position"].spatial_series
             # get the data for this series
             t_new = nwbfile.processing["behavior"]["position"][series].timestamps[:]
             pos_new = nwbfile.processing["behavior"]["position"][series].data[:]

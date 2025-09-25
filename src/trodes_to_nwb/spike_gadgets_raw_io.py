@@ -11,6 +11,7 @@ Intended as a temporary solution until official support is available in Neo.
 import functools
 from xml.etree import ElementTree
 
+import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
     _event_channel_dtype,
@@ -18,7 +19,6 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
-import numpy as np
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
@@ -213,9 +213,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             num_bytes = int(device.attrib["numBytes"])
             device_bytes[device_name] = packet_size
             packet_size += num_bytes
-        self.sysClock_byte = (
-            device_bytes.get("SysClock", False)
-        )
+        self.sysClock_byte = device_bytes.get("SysClock", False)
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size

@@ -5,9 +5,9 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 import logging
 from warnings import warn
 
+import numpy as np
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
-import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
@@ -97,8 +97,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         assert all(neo_io.block_count() == 1 for neo_io in self.neo_io)
         assert all(neo_io.segment_count(0) == 1 for neo_io in self.neo_io)
         assert all(
-            neo_io.signal_streams_count() == 4 - behavior_only
-                for neo_io in self.neo_io
+            neo_io.signal_streams_count() == 4 - behavior_only for neo_io in self.neo_io
         ), (
             "Unexpected number of signal streams. "
             + "Confirm whether behavior_only is set correctly for this recording"
@@ -132,10 +131,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         if (
             len(
                 {
-
-                        neo_io.signal_channels_count(stream_index=self.stream_index)
-                        for neo_io in self.neo_io
-
+                    neo_io.signal_channels_count(stream_index=self.stream_index)
+                    for neo_io in self.neo_io
                 }
             )
             > 1
@@ -222,7 +219,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
-                "Timestamps are not sequential. This may cause problems with some software or data analysis.", stacklevel=2
+                "Timestamps are not sequential. This may cause problems with some software or data analysis.",
+                stacklevel=2,
             )
 
         self.n_time = [
@@ -265,22 +263,20 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             io_stream = np.argmin(i >= file_start_ind) - 1
             # get the data from that stream
             data.append(
-
-                    self.neo_io[io_stream].get_analogsignal_chunk(
-                        block_index=self.block_index,
-                        seg_index=self.seg_index,
-                        i_start=int(i - file_start_ind[io_stream]),
-                        i_stop=int(
-                            min(
-                                time_index[-1] - file_start_ind[io_stream],
-                                self.n_time[io_stream],
-                            )
+                self.neo_io[io_stream].get_analogsignal_chunk(
+                    block_index=self.block_index,
+                    seg_index=self.seg_index,
+                    i_start=int(i - file_start_ind[io_stream]),
+                    i_stop=int(
+                        min(
+                            time_index[-1] - file_start_ind[io_stream],
+                            self.n_time[io_stream],
                         )
-                        + 1,
-                        stream_index=self.stream_index,
-                        channel_ids=channel_ids,
                     )
-
+                    + 1,
+                    stream_index=self.stream_index,
+                    channel_ids=channel_ids,
+                )
             )
             i += min(
                 self.n_time[io_stream]
