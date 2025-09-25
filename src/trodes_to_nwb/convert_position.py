@@ -165,7 +165,7 @@ def read_trodes_datafile(filename: Path) -> dict[str, Any] | None:
             # Check if first line is start of settings block
             if file.readline().decode().strip() != "<Start settings>":
                 raise Exception("Settings format not supported")
-            fields_text = dict()
+            fields_text = {}
             for line in file:
                 # Read through block of settings
                 line = line.decode().strip()
@@ -540,7 +540,7 @@ def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
     """
     try:
         behavior_module = nwb_file.processing["behavior"]
-        behavioral_events = behavior_module.data_interfaces["behavioral_events"]
+        behavior_module.data_interfaces["behavioral_events"]
     except KeyError as e:
         raise KeyError(
             f"Missing required NWB structure: {e}. Ensure 'behavior' module and 'behavioral_events' interface exist."

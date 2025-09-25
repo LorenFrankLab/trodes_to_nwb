@@ -247,7 +247,7 @@ def test_add_position(prior_position=False):
 
     # Read the created file and its original counterpart
     with NWBHDF5IO(filename, "r", load_namespaces=True) as io:
-        read_nwbfile = io.read()
+        io.read()
 
         rec_to_nwb_file = data_path / "minirec20230622_.nwb"
         with NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
@@ -263,15 +263,15 @@ def test_add_position(prior_position=False):
                 # check series in new nwbfile
                 assert (
                     series
-                    in nwbfile.processing["behavior"]["position"].spatial_series.keys()
+                    in nwbfile.processing["behavior"]["position"].spatial_series
                 )
                 # find the corresponding data in the old file
                 validated = False
                 for old_series in old_nwbfile.processing["behavior"][
                     "position"
-                ].spatial_series.keys():
+                ].spatial_series:
                     # check that led number matches
-                    if not series.split("_")[1] == old_series.split("_")[1]:
+                    if series.split("_")[1] != old_series.split("_")[1]:
                         continue
                     # check if timestamps end the same
                     timestamps = nwbfile.processing["behavior"]["position"][
@@ -340,7 +340,7 @@ def test_add_position_non_ptp():
             # check series in new nwbfile
             assert (
                 series
-                in nwbfile.processing["behavior"]["position"].spatial_series.keys()
+                in nwbfile.processing["behavior"]["position"].spatial_series
             )
             # get the data for this series
             t_new = nwbfile.processing["behavior"]["position"][series].timestamps[:]

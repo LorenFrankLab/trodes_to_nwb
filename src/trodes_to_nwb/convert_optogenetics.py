@@ -44,7 +44,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dic
     ]
 
     if not (
-        all([((x in metadata) and len(metadata[x]) > 0) for x in necessary_metadata])
+        all(((x in metadata) and len(metadata[x]) > 0) for x in necessary_metadata)
     ):
         logger.info("No available optogenetic metadata")
         return
@@ -415,47 +415,47 @@ def compile_opto_entries(
     # make a new row entry for each epoch this protocol was run
     for epoch in fs_gui_metadata["epochs"]:
         # info about the stimulus and epoch
-        epoch_dict = dict(
-            pulse_length_in_ms=get_epoch_info_entry(
+        epoch_dict = {
+            "pulse_length_in_ms": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "pulseLength"
             ),
-            number_pulses_per_pulse_train=get_epoch_info_entry(
+            "number_pulses_per_pulse_train": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "nPulses"
             ),
-            period_in_ms=get_epoch_info_entry(
+            "period_in_ms": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "sequencePeriod"
             ),
-            number_trains=get_epoch_info_entry(
+            "number_trains": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "nOutputTrains"
             ),
-            intertrain_interval_in_ms=get_epoch_info_entry(
+            "intertrain_interval_in_ms": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "trainInterval"
             ),
-            power_in_mW=fs_gui_metadata["power_in_mW"],
-            stimulation_on=True,
-            start_time=epoch_df.start_time.values[
+            "power_in_mW": fs_gui_metadata["power_in_mW"],
+            "stimulation_on": True,
+            "start_time": epoch_df.start_time.values[
                 epoch - 1
             ],  # get from nwbfile for epoch
-            stop_time=epoch_df.stop_time.values[epoch - 1],
-            epoch_name=epoch_df.tags.values[epoch - 1][0],
-            epoch_number=epoch,
-            convenience_code=opto_metadata["nickname"],
-            epoch_type="optogenetic",
-            stimulus_signal=nwbfile.processing["behavior"]["behavioral_events"][
+            "stop_time": epoch_df.stop_time.values[epoch - 1],
+            "epoch_name": epoch_df.tags.values[epoch - 1][0],
+            "epoch_number": epoch,
+            "convenience_code": opto_metadata["nickname"],
+            "epoch_type": "optogenetic",
+            "stimulus_signal": nwbfile.processing["behavior"]["behavioral_events"][
                 fs_gui_metadata["dio_output_name"]
             ],
-        )
+        }
         # info about the trigger condition
-        trigger_dict = dict(
-            ripple_filter_on=False,
-            ripple_filter_num_above_threshold=-1,
-            ripple_filter_threshold_sd=-1,
-            ripple_filter_lockout_period_in_samples=-1,
-            theta_filter_on=False,
-            theta_filter_lockout_period_in_samples=-1,
-            theta_filter_phase_in_deg=-1,
-            theta_filter_reference_ntrode=-1,
-        )
+        trigger_dict = {
+            "ripple_filter_on": False,
+            "ripple_filter_num_above_threshold": -1,
+            "ripple_filter_threshold_sd": -1,
+            "ripple_filter_lockout_period_in_samples": -1,
+            "theta_filter_on": False,
+            "theta_filter_lockout_period_in_samples": -1,
+            "theta_filter_phase_in_deg": -1,
+            "theta_filter_reference_ntrode": -1,
+        }
         if "trigger_id" in opto_metadata:
             trigger_id = opto_metadata["trigger_id"]["data"]["value"]
             trigger_metadata = protocol_metadata[trigger_id]

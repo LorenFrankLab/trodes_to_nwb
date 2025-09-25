@@ -103,7 +103,7 @@ def test_electrode_creation():
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
     assert len(nwbfile.electrode_groups) == len(metadata["electrode_groups"])
-    for i, group_metadata in enumerate(metadata["electrode_groups"]):
+    for _i, group_metadata in enumerate(metadata["electrode_groups"]):
         group = nwbfile.electrode_groups[str(group_metadata["id"])]
         assert group.description == group_metadata["description"]
         assert group.location == group_metadata["location"]
@@ -133,7 +133,7 @@ def test_electrode_creation():
         shank = probe.shanks[str(j)]
         assert isinstance(shank, Shank)
         assert len(shank.shanks_electrodes) == len(shank_meta["electrodes"])
-        for k, electrode_meta in enumerate(shank_meta["electrodes"]):
+        for _k, electrode_meta in enumerate(shank_meta["electrodes"]):
             electrode = shank.shanks_electrodes[str(electrode_id)]
             assert isinstance(electrode, ShanksElectrode)
             assert electrode.rel_x == float(electrode_meta["rel_x"])
@@ -183,7 +183,7 @@ def test_electrode_creation_reconfigured():
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
     assert len(nwbfile.electrode_groups) == len(metadata["electrode_groups"])
-    for i, group_metadata in enumerate(metadata["electrode_groups"]):
+    for _i, group_metadata in enumerate(metadata["electrode_groups"]):
         group = nwbfile.electrode_groups[str(group_metadata["id"])]
         assert group.description == group_metadata["description"]
         assert group.location == group_metadata["location"]

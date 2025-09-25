@@ -193,9 +193,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         num_ephy_channels = num_chip_channels  # number of channels recorded
         # check for agreement with number of channels in xml
         sconf_channels = np.sum([len(x) for x in sconf])
-        if sconf_channels < num_ephy_channels:
-            # Case: not every channel was saved to recording
-            num_ephy_channels = sconf_channels
+        num_ephy_channels = min(num_ephy_channels, sconf_channels)
         if sconf_channels > num_ephy_channels:
             raise ValueError(
                 "SpikeGadgets: the number of channels in the spike configuration is larger than the number of channels in the hardware configuration"
@@ -216,7 +214,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             device_bytes[device_name] = packet_size
             packet_size += num_bytes
         self.sysClock_byte = (
-            device_bytes["SysClock"] if "SysClock" in device_bytes else False
+            device_bytes.get("SysClock", False)
         )
 
         # timestamps 4 uint32
@@ -672,7 +670,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         inserted_locations = inserted_locations[
             (inserted_locations >= 0) & (inserted_locations < i_stop - i_start)
         ]
-        if not len(inserted_locations) == 0:
+        if len(inserted_locations) != 0:
             raw_uint32[inserted_locations] += 1
         return raw_uint32
 

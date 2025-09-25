@@ -94,13 +94,11 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # ECU_digital
         # ECU_analog
         # trodes
-        assert all([neo_io.block_count() == 1 for neo_io in self.neo_io])
-        assert all([neo_io.segment_count(0) == 1 for neo_io in self.neo_io])
+        assert all(neo_io.block_count() == 1 for neo_io in self.neo_io)
+        assert all(neo_io.segment_count(0) == 1 for neo_io in self.neo_io)
         assert all(
-            [
-                neo_io.signal_streams_count() == 4 - behavior_only
+            neo_io.signal_streams_count() == 4 - behavior_only
                 for neo_io in self.neo_io
-            ]
         ), (
             "Unexpected number of signal streams. "
             + "Confirm whether behavior_only is set correctly for this recording"
@@ -116,7 +114,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             ):  # if stream index is not provided, get from the SpikegadgetsRawIO object
                 stream_index = self.neo_io[0].get_stream_index_from_id(stream_id)
             # if both provided, check that they agree
-            elif not self.neo_io[0].get_stream_id_from_index(stream_index) == stream_id:
+            elif self.neo_io[0].get_stream_id_from_index(stream_index) != stream_id:
                 raise ValueError(
                     f"Provided stream index {stream_index} does not match provided stream id {stream_id}"
                 )
@@ -133,12 +131,12 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # check that all files have the same number of channels.
         if (
             len(
-                set(
-                    [
+                {
+
                         neo_io.signal_channels_count(stream_index=self.stream_index)
                         for neo_io in self.neo_io
-                    ]
-                )
+
+                }
             )
             > 1
         ):
@@ -222,7 +220,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
-                "Timestamps are not sequential. This may cause problems with some software or data analysis."
+                "Timestamps are not sequential. This may cause problems with some software or data analysis.", stacklevel=2
             )
 
         self.n_time = [

@@ -17,7 +17,7 @@ def test_add_analog_data():
     rec_header = convert_rec_header.read_header(rec_file)
     # make file with data
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
-    analog_channel_names = get_analog_channel_names(rec_header)
+    get_analog_channel_names(rec_header)
     add_analog_data(nwbfile, [rec_file])
     # save file
     filename = "test_add_analog.nwb"
