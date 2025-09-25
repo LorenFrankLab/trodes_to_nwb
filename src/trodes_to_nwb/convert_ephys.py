@@ -5,9 +5,9 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 import logging
 from warnings import warn
 
+import numpy as np
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
-import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
@@ -146,7 +146,9 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.n_multiplexed_channel += len(self.neo_io[0].multiplexed_channel_xml)
 
         # order that the hw channels are in within the nwb table
-        if nwb_hw_channel_order is None:  # TODO: raise error instead?
+        if nwb_hw_channel_order is None:
+            nwb_hw_channel_order = []
+        if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
             self.nwb_hw_channel_order = np.arange(self.n_channel)
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
