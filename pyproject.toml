@@ -41,7 +41,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-mock"]
-dev = ["black", "pytest", "pytest-cov", "pytest-mock", "mypy", "ruff", "pre-commit"]
+dev = ["black", "pytest", "pytest-cov", "pytest-mock", "mypy", "ruff"]
 lint = ["black", "ruff", "mypy"]
 docs = ["sphinx", "sphinx-rtd-theme", "myst-parser"]
 
