@@ -195,7 +195,7 @@ def add_electrode_groups(
         []
     )  # dataframe to track non-default electrode data. add to electrodes table at end
     # loop through the electrode groups
-    for _probe_counter, egroup_metadata in enumerate(metadata["electrode_groups"]):
+    for egroup_metadata in metadata["electrode_groups"]:
         # find correct channel map info
         channel_map = None
         for test_meta in metadata["ntrode_electrode_group_channel_map"]:

@@ -299,7 +299,6 @@ def test_add_tasks():
                 "task_epochs",
                 "task_environment",
             ),
-            strict=False,
         ):
             assert a == b
 
@@ -388,7 +387,6 @@ def test_add_associated_video_files():
     for video, video_meta in zip(
         nwbfile.processing["video_files"]["video"].time_series,
         metadata["associated_video_files"],
-        strict=False,
     ):
         video = nwbfile.processing["video_files"]["video"][video]
         assert video.name == video_meta["name"]

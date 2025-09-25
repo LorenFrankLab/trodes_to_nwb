@@ -1152,7 +1152,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(f"ffmpeg -i {file} {new_file_name}", check=False, shell=True)
+        subprocess.run(["ffmpeg", "-i", file, new_file_name], check=False)
         logger.info(
             f"Video conversion completed. {file} has been converted to {new_file_name}"
         )
@@ -1196,7 +1196,7 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(f"cp {file} {new_file_name}", check=False, shell=True)
+        subprocess.run(["cp", file, new_file_name], check=False)
         logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
         return new_file_name
     except subprocess.CalledProcessError as e:
