@@ -83,7 +83,7 @@ extend-exclude = '''
 '''
 
 [tool.pytest.ini_options]
-testpaths = ["src/trodes_to_nwb/tests"]
+testpaths = ["src/trodes_to_nwb/tests", "src/trodes_to_nwb/tests/integration-tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -94,7 +94,7 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
@@ -122,6 +122,8 @@ ignore_missing_imports = true
 [tool.ruff]
 target-version = "py38"
 line-length = 88
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -141,10 +143,11 @@ ignore = [
     "PLW2901", # redefined loop variable
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["PLR2004"]  # magic value used in comparison
 "src/trodes_to_nwb/tests/**/*.py" = ["PLR2004"]
+"notebooks/**/*.py" = ["E402", "F401", "F821"]  # notebook-specific ignores
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["trodes_to_nwb"]
 force-sort-within-sections = true
