@@ -188,7 +188,7 @@ def create_nwbs(
         argument_list = list(file_info.groupby(["date", "animal"]))
         futures = client.map(pass_func, argument_list)
         # print out error results
-        for args, future in zip(argument_list, futures, strict=False):
+        for args, future in zip(argument_list, futures, strict=True):
             result = future.result()
             if result is not True:
                 print(args, result)
