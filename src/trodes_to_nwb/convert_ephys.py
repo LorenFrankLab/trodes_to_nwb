@@ -235,6 +235,18 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         super().__init__(**kwargs)
 
     def _get_data(self, selection: tuple[slice]) -> np.ndarray:
+        """Get data chunk from the electrophysiology files.
+
+        Parameters
+        ----------
+        selection : tuple[slice]
+            Tuple of slices for (time, channel) selection.
+
+        Returns
+        -------
+        np.ndarray, shape (n_time_selected, n_channels_selected)
+            Array containing the selected electrophysiology data.
+        """
         # selection is (time, channel)
         assert selection[0].step is None
 
@@ -316,6 +328,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         return data
 
     def _get_maxshape(self) -> tuple[int, int]:
+        """Get the maximum shape of the data array.
+
+        Returns
+        -------
+        tuple[int, int]
+            Maximum shape as (n_time_total, n_channels_total).
+        """
         return (
             np.sum(self.n_time),
             self.n_channel + self.n_multiplexed_channel,

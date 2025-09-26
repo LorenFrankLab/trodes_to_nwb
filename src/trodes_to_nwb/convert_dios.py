@@ -10,17 +10,17 @@ from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
 def _get_channel_name_map(metadata: dict) -> dict[str, str]:
-    """Parses behavioral events metadata from the yaml file
+    """Parses behavioral events metadata from the yaml file.
 
     Parameters
     ----------
     metadata : dict
-        metadata from the yaml generator
+        Metadata from the yaml generator.
 
     Returns
     -------
     channel_name_map : dict
-        Parsed behavioral events metadata mapping hardware event name to human-readable name
+        Parsed behavioral events metadata mapping hardware event name to human-readable name.
     """
     dio_metadata = metadata["behavioral_events"]
     channel_name_map = {}
@@ -37,16 +37,16 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
 
 
 def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
-    """Adds DIO event information and data to nwb file
+    """Adds DIO event information and data to nwb file.
 
     Parameters
     ----------
     nwbfile : NWBFile
-        nwb file being assembled
+        NWB file being assembled.
     recfile : list[str]
-        list of paths to rec files
+        List of paths to rec files.
     metadata : dict
-        metadata from the yaml generator
+        Metadata from the yaml generator.
     """
 
     # TODO remove redundancy with convert_ephys.py

@@ -1,3 +1,8 @@
+"""Handles the conversion of optogenetic stimulation data and metadata from
+state script logs and metadata files into NWB optogenetics extension objects.
+Manages virus injections, optical fibers, and stimulation epoch tracking.
+"""
+
 import logging
 import os
 from pathlib import Path

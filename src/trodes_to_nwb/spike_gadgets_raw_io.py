@@ -554,8 +554,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         stream_index: int,
         channel_indexes: int | np.ndarray | slice | None = None,
     ) -> np.ndarray:
-        """
-        Returns a chunk of the analog signal data from the .rec file.
+        """Returns a chunk of the analog signal data from the .rec file.
 
         Parameters
         ----------
@@ -574,7 +573,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         Returns
         -------
-        np.ndarray
+        np.ndarray, shape (n_samples, n_channels)
             A NumPy array containing the requested chunk of the analog signal data.
         """
         stream_id = self.header["signal_streams"][stream_index]["id"]
@@ -628,6 +627,20 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return raw_unit16
 
     def get_analogsignal_timestamps(self, i_start: int, i_stop: int) -> np.ndarray:
+        """Get timestamps for analog signal data.
+
+        Parameters
+        ----------
+        i_start : int
+            Start index for the data chunk.
+        i_stop : int
+            Stop index for the data chunk.
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples,)
+            Array of timestamps for the analog signal data.
+        """
         if not self.interpolate_dropped_packets:
             # no interpolation
             raw_uint8 = self._raw_memmap[
@@ -673,6 +686,20 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return raw_uint32
 
     def get_sys_clock(self, i_start: int, i_stop: int) -> np.ndarray:
+        """Get system clock data from the raw memory map.
+
+        Parameters
+        ----------
+        i_start : int
+            Start index for the data chunk.
+        i_stop : int
+            Stop index for the data chunk.
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples,)
+            Array of system clock values.
+        """
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
         if i_stop is None:
@@ -688,8 +715,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def get_analogsignal_multiplexed(
         self, channel_names: list[str] | None = None
     ) -> np.ndarray:
-        """
-        Retrieves multiplexed analog signal data.
+        """Retrieves multiplexed analog signal data.
 
         If `channel_names` is provided, it retrieves data for the specified channels.
         Otherwise, it fetches all multiplexed channels.
@@ -701,7 +727,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         Returns
         -------
-        np.ndarray
+        np.ndarray, shape (n_samples, n_channels)
             A NumPy array containing the multiplexed analog signal data.
 
         Raises
