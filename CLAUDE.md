@@ -58,7 +58,7 @@ Input files must follow naming convention: `{YYYYMMDD}_{animal}_{epoch}_{tag}.{e
 
 Required files per session:
 
-- `.rec`: Main recording file
+- Optional: `.rec`: Main recording file
 - `{date}_{animal}.metadata.yml`: Session metadata
 - Optional: `.h264`, `.videoPositionTracking`, `.cameraHWSync`, `.stateScriptLog`
 
