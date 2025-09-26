@@ -88,7 +88,7 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
             all_timestamps[i].append(timestamps)
             all_state_changes[i].append(state_changes)
     for channel_name, state_changes, timestamps in zip(
-        channel_name_map, all_state_changes, all_timestamps, strict=False
+        channel_name_map, all_state_changes, all_timestamps, strict=True
     ):
         timestamps = np.concatenate(timestamps)
         state_changes = np.concatenate(state_changes)
