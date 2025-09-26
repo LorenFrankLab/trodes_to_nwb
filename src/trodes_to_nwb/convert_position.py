@@ -1191,7 +1191,7 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(["cp", file, new_file_name], check=False)
+        subprocess.run(["cp", file, new_file_name], check=True)
         logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
         return new_file_name
     except subprocess.CalledProcessError as e:
