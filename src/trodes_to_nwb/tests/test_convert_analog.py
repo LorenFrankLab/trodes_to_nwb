@@ -93,7 +93,7 @@ def test_selection_of_multiplexed_data():
     assert len(rec_dci.neo_io[0].multiplexed_channel_xml.keys()) == 10
     slice_ind = [(0, 4), (0, 30), (1, 15), (5, 15), (20, 25)]
     expected_channels = [4, 22, 14, 10, 2]
-    for ind, expected in zip(slice_ind, expected_channels, strict=False):
+    for ind, expected in zip(slice_ind, expected_channels, strict=True):
         data = rec_dci._get_data(
             (
                 slice(0, 100, None),
