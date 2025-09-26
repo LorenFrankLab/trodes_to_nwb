@@ -1147,7 +1147,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(["ffmpeg", "-i", file, new_file_name], check=False)
+        subprocess.run(["ffmpeg", "-i", file, new_file_name], check=True)
         logger.info(
             f"Video conversion completed. {file} has been converted to {new_file_name}"
         )
