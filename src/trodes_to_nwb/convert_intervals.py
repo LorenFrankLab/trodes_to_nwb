@@ -20,20 +20,16 @@ def add_epochs(
     session_df: pd.DataFrame,
     neo_io: list[SpikeGadgetsRawIO],
 ):
-    """add epochs to nwbfile
+    """Add epochs to nwbfile.
 
     Parameters
     ----------
     nwbfile : NWBFile
-        nwbfle to add epochs to
-    file_info : pd.DataFrame
-        dataframe with file info
-    date : int
-        date of session
-    animal : str
-        animal name
-    neo_io: List[SpikeGadgetsRawIO]
-        neo_io iterators for each rec file. Contains time information
+        NWB file to add epochs to.
+    session_df : pd.DataFrame
+        DataFrame with session file information.
+    neo_io : list[SpikeGadgetsRawIO]
+        List of neo_io iterators for each rec file. Contains time information.
     """
     logger = logging.getLogger("convert")
     for epoch in set(session_df.epoch):

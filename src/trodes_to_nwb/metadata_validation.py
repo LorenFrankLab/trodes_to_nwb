@@ -11,12 +11,12 @@ import yaml
 
 
 def _get_nwb_json_schema_path() -> str:
-    """Get the NWB JSON Schema file path
+    """Get the NWB JSON Schema file path.
 
     Returns
     -------
     str
-        NWB Schema file Path
+        NWB Schema file path.
     """
     return str((Path(__file__).parent / "nwb_schema.json").resolve())
 

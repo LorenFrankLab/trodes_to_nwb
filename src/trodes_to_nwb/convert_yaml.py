@@ -33,20 +33,20 @@ def load_metadata(
     metadata_path: str,
     device_metadata_paths: list[str],
 ) -> tuple[dict, list[dict]]:
-    """loads metadata files as dictionaries
+    """Loads metadata files as dictionaries.
 
     Parameters
     ----------
     metadata_path : str
-        path to file made by yaml generator
+        Path to file made by yaml generator.
     device_metadata_paths : list[str]
-        list of paths to yaml files with information on standard devices (e.g. probes,
-        optical fibers, viruses)
+        List of paths to yaml files with information on standard devices (e.g. probes,
+        optical fibers, viruses).
 
     Returns
     -------
     tuple[dict, list[dict]]
-        the yaml generator metadata and list of device metadatas
+        The yaml generator metadata and list of device metadatas.
     """
     metadata = None
     with open(metadata_path) as stream:
