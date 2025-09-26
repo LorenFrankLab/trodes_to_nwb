@@ -8,7 +8,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -27,18 +27,20 @@ DEFAULT_MAX_PTP_PAUSE_S = (
 )
 
 
-def find_wrap_point(t: np.ndarray) -> Optional[int]:
-    """
-    Finds the point at which the timestamps wrap around due to overflow.
-    Returns None if no wrap point is found
+def find_wrap_point(t: np.ndarray) -> int | None:
+    """Finds the point at which the timestamps wrap around due to overflow.
+
+    Returns None if no wrap point is found.
+
     Parameters
     ----------
-    t : np.ndarray
-        Array of timestamps
+    t : np.ndarray, shape (n_timestamps,)
+        Array of timestamps.
+
     Returns
     -------
     wrap_point : int or None
-        Index of the wrap point or None if no wrap point is found
+        Index of the wrap point or None if no wrap point is found.
     """
     wrap_point = None
     rng = [0, len(t) - 1]
@@ -62,15 +64,15 @@ def wrapped_digitize(
 
     Parameters
     ----------
-    x : np.ndarray
-        indeces to digitize
-    bins : np.ndarray
-        bins to digitize into
+    x : np.ndarray, shape (n_indices,)
+        Indices to digitize.
+    bins : np.ndarray, shape (n_bins,)
+        Bins to digitize into.
 
     Returns
     -------
-    np.ndarray
-        digitized indices
+    np.ndarray, shape (n_indices,)
+        Digitized indices.
     """
     wrap_point = find_wrap_point(bins)
     if wrap_point is None:
@@ -122,7 +124,7 @@ def parse_dtype(fieldstr: str) -> np.dtype:
         ftype = "uint32"
         # Finds if a <num>* is included in datatype
         if "*" in sep[i + 1]:
-            temptypes = re.split("\*", sep[i + 1])
+            temptypes = re.split(r"\*", sep[i + 1])
             # Results in the correct assignment, whether str is num*dtype or dtype*num
             ftype = temptypes[temptypes[0].isdigit()]
             repeats = int(temptypes[temptypes[1].isdigit()])
@@ -130,15 +132,15 @@ def parse_dtype(fieldstr: str) -> np.dtype:
             ftype = sep[i + 1]
         try:
             fieldtype = getattr(np, ftype)
-        except AttributeError:
-            raise AttributeError(ftype + " is not a valid field type.\n")
+        except AttributeError as err:
+            raise AttributeError(ftype + " is not a valid field type.\n") from err
         else:
             typearr.append((str(fieldname), fieldtype, repeats))
 
     return np.dtype(typearr)
 
 
-def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
+def read_trodes_datafile(filename: Path) -> dict[str, Any] | None:
     """
     Read trodes binary.
 
@@ -165,7 +167,7 @@ def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
             # Check if first line is start of settings block
             if file.readline().decode().strip() != "<Start settings>":
                 raise Exception("Settings format not supported")
-            fields_text = dict()
+            fields_text = {}
             for line in file:
                 # Read through block of settings
                 line = line.decode().strip()
@@ -190,7 +192,7 @@ def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
     except PermissionError:
         logger.error(f"Permission denied when trying to read: {filename}")
         return None
-    except IOError as e:
+    except OSError as e:
         logger.error(f"An I/O error occurred while reading {filename}: {e}")
         return None
     except Exception as e:  # Catch-all for unexpected errors during file processing
@@ -198,7 +200,7 @@ def read_trodes_datafile(filename: Path) -> Optional[Dict[str, Any]]:
         raise
 
 
-def convert_datafile_to_pandas(datafile: Dict[str, Any]) -> pd.DataFrame:
+def convert_datafile_to_pandas(datafile: dict[str, Any]) -> pd.DataFrame:
     """Takes the output of read_trodes_datafile and converts it to a pandas dataframe.
     Added for changes identified in numpy 2.2.2
 
@@ -218,17 +220,16 @@ def convert_datafile_to_pandas(datafile: Dict[str, Any]) -> pd.DataFrame:
 
 
 def get_framerate(timestamps: np.ndarray) -> float:
-    """
-    Calculates the framerate of a video based on the timestamps of each frame.
+    """Calculates the framerate of a video based on the timestamps of each frame.
 
     Parameters
     ----------
-    timestamps : np.ndarray
+    timestamps : np.ndarray, shape (n_frames,)
         An array of timestamps for each frame in the video, units = nanoseconds.
 
     Returns
     -------
-    frame_rate: float
+    frame_rate : float
         The framerate of the video in frames per second.
     """
     timestamps = np.asarray(timestamps)
@@ -241,12 +242,11 @@ def find_acquisition_timing_pause(
     max_duration: float = DEFAULT_MAX_PTP_PAUSE_S,
     n_search: int = 100,
 ) -> float:
-    """
-    Find the midpoint time of a timing pause in the video stream.
+    """Find the midpoint time of a timing pause in the video stream.
 
     Parameters
     ----------
-    timestamps : np.ndarray
+    timestamps : np.ndarray, shape (n_frames,)
         An array of timestamps for each frame in the video. Expects units=nanoseconds.
     min_duration : float, optional
         The minimum duration of the pause in seconds, by default 0.4.
@@ -264,7 +264,6 @@ def find_acquisition_timing_pause(
     ------
     IndexError
         If no valid timing pause is found within the search window.
-
     """
     timestamps = np.asarray(timestamps)
     timestamp_difference = np.diff(timestamps[:n_search] / NANOSECONDS_PER_SECOND)
@@ -284,21 +283,19 @@ def find_acquisition_timing_pause(
 def find_large_frame_jumps(
     frame_count: np.ndarray, min_frame_jump: int = 15
 ) -> np.ndarray:
-    """
-    Find large frame jumps in the video.
+    """Find large frame jumps in the video.
 
     Parameters
     ----------
-    frame_count : np.ndarray
+    frame_count : np.ndarray, shape (n_frames,)
         An array of frame counts for each frame in the video.
     min_frame_jump : int, optional
         The minimum number of frames to consider a jump as large, by default 15.
 
     Returns
     -------
-    np.ndarray
+    np.ndarray, shape (n_frames,)
         A boolean array indicating whether each frame has a large jump.
-
     """
     logger = logging.getLogger("convert")
     frame_count = np.asarray(frame_count)
@@ -311,17 +308,16 @@ def find_large_frame_jumps(
 
 
 def detect_repeat_timestamps(timestamps: np.ndarray) -> np.ndarray:
-    """
-    Detects repeated timestamps in an array of timestamps.
+    """Detects repeated timestamps in an array of timestamps.
 
     Parameters
     ----------
-    timestamps : np.ndarray
+    timestamps : np.ndarray, shape (n_timestamps,)
         Array of timestamps.
 
     Returns
     -------
-    np.ndarray
+    np.ndarray, shape (n_timestamps,)
         Boolean array indicating whether each timestamp is repeated.
     """
     if len(timestamps) < 2:
@@ -332,25 +328,24 @@ def detect_repeat_timestamps(timestamps: np.ndarray) -> np.ndarray:
 
 def detect_trodes_time_repeats_or_frame_jumps(
     trodes_time: np.ndarray, frame_count: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Detects if a Trodes time index repeats, indicating that the Trodes clock has frozen
+) -> tuple[np.ndarray, np.ndarray]:
+    """Detects if a Trodes time index repeats, indicating that the Trodes clock has frozen
     due to headstage disconnects. Also detects large frame jumps.
 
     Parameters
     ----------
-    trodes_time : np.ndarray
+    trodes_time : np.ndarray, shape (n_frames,)
         Array of Trodes time indices.
-    frame_count : np.ndarray
+    frame_count : np.ndarray, shape (n_frames,)
         Array of frame counts.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray]
         A tuple containing two arrays:
-        - non_repeat_timestamp_labels : np.ndarray
+        - non_repeat_timestamp_labels : np.ndarray, shape (n_valid_frames,)
             Array of labels for non-repeating timestamps.
-        - non_repeat_timestamp_labels_id : np.ndarray
+        - non_repeat_timestamp_labels_id : np.ndarray, shape (n_unique_labels,)
             Array of unique IDs for non-repeating timestamps.
     """
     logger = logging.getLogger("convert")
@@ -386,19 +381,22 @@ def detect_trodes_time_repeats_or_frame_jumps(
 
 def estimate_camera_time_from_mcu_time(
     position_timestamps: np.ndarray, mcu_timestamps: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
+) -> tuple[np.ndarray, np.ndarray]:
+    """Estimate camera timing from MCU timing.
 
     Parameters
     ----------
     position_timestamps : pd.DataFrame
+        Position timestamps dataframe.
     mcu_timestamps : pd.DataFrame
+        MCU timestamps dataframe.
 
     Returns
     -------
     camera_systime : np.ndarray, shape (n_frames_within_neural_time,)
+        Camera system time array.
     is_valid_camera_time : np.ndarray, shape (n_frames,)
-
+        Boolean mask for valid camera times.
     """
     is_valid_camera_time = np.isin(position_timestamps.index, mcu_timestamps.index)
     camera_systime = np.asarray(
@@ -411,14 +409,13 @@ def estimate_camera_time_from_mcu_time(
 def estimate_camera_to_mcu_lag(
     camera_systime: np.ndarray, dio_systime: np.ndarray, n_breaks: int = 0
 ) -> float:
-    """
-    Estimate lag between camera frame system time and DIO trigger system time.
+    """Estimate lag between camera frame system time and DIO trigger system time.
 
     Parameters
     ----------
-    camera_systime : np.ndarray
+    camera_systime : np.ndarray, shape (n_frames,)
         System timestamps (nanoseconds) of camera frames.
-    dio_systime : np.ndarray
+    dio_systime : np.ndarray, shape (n_frames,)
         System timestamps (nanoseconds) of corresponding DIO events.
     n_breaks : int, optional
         Number of detected breaks/discontinuities in the data. If 0, uses median lag.
@@ -449,7 +446,7 @@ def remove_acquisition_timing_pause_non_ptp(
     camera_systime: np.ndarray,
     is_valid_camera_time: np.ndarray,
     pause_mid_time: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Removes data points occurring before a detected acquisition timing pause.
     Used in non-PTP alignment. Operates on timestamps in seconds.
@@ -516,8 +513,7 @@ def correct_timestamps_for_camera_to_mcu_lag(
 
 
 def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
-    """
-    Finds the timestamp data for the camera DIO channel within an NWB file's
+    """Finds the timestamp data for the camera DIO channel within an NWB file's
     behavioral events. Assumes a single channel name contains "camera ticks".
 
     Parameters
@@ -527,7 +523,7 @@ def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    np.ndarray, shape (n_camera_ticks,)
         The timestamps (in seconds) of the camera DIO channel.
 
     Raises
@@ -540,7 +536,7 @@ def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
     """
     try:
         behavior_module = nwb_file.processing["behavior"]
-        behavioral_events = behavior_module.data_interfaces["behavioral_events"]
+        behavior_module.data_interfaces["behavioral_events"]
     except KeyError as e:
         raise KeyError(
             f"Missing required NWB structure: {e}. Ensure 'behavior' module and 'behavioral_events' interface exist."
@@ -574,8 +570,7 @@ def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
 
 
 def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
-    """
-    Reads hardware timestamps from a .cameraHWSync file and returns them in seconds.
+    """Reads hardware timestamps from a .cameraHWSync file and returns them in seconds.
 
     Parameters
     ----------
@@ -584,7 +579,7 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    np.ndarray, shape (n_timestamps,)
         An array of video timestamps in seconds. Returns empty array if file reading fails.
 
     Raises
@@ -598,10 +593,10 @@ def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
             np.squeeze(video_timestamps["HWTimestamp"]).astype(np.float64)
             / NANOSECONDS_PER_SECOND
         )
-    except KeyError:
+    except KeyError as err:
         raise KeyError(
             "'HWTimestamp' field missing in the data file. Ensure the file is formatted correctly."
-        )
+        ) from err
 
 
 def _get_position_timestamps_ptp(
@@ -685,19 +680,19 @@ def _get_position_timestamps_no_ptp(
 
     Parameters
     ----------
-    rec_dci_timestamps : np.ndarray
+    rec_dci_timestamps : np.ndarray, shape (n_samples,)
         System clock times from the rec file used for non-PTP data.
     video_timestamps : pd.DataFrame
         DataFrame containing 'HWTimestamp' (nanoseconds) and other columns like 'HWframeCount'.
     logger : logging.Logger
         Logger instance.
-    dio_camera_timestamps : np.ndarray
+    dio_camera_timestamps : np.ndarray, shape (n_dio_events,)
         Timestamps of the dio camera ticks used for non-PTP data.
-    sample_count : np.ndarray
+    sample_count : np.ndarray, shape (n_samples,)
         Trodes timestamps from the rec file used for non-PTP data.
     epoch_interval : list[float]
         The time interval for the epoch used for non-PTP data.
-    non_repeat_timestamp_labels_id : np.ndarray
+    non_repeat_timestamp_labels_id : np.ndarray, shape (n_unique_labels,)
         Array of unique IDs for non-repeating timestamps.
 
     Returns
@@ -789,12 +784,12 @@ def _get_position_timestamps_no_ptp(
 
 def get_position_timestamps(
     position_timestamps_filepath: Path,
-    position_tracking_filepath: Optional[Path] = None,
-    rec_dci_timestamps: Optional[np.ndarray] = None,  # units = seconds
-    dio_camera_timestamps: Optional[np.ndarray] = None,  # units = seconds
-    sample_count: Optional[np.ndarray] = None,  # units = samples
+    position_tracking_filepath: Path | None = None,
+    rec_dci_timestamps: np.ndarray | None = None,  # units = seconds
+    dio_camera_timestamps: np.ndarray | None = None,  # units = seconds
+    sample_count: np.ndarray | None = None,  # units = samples
     ptp_enabled: bool = True,
-    epoch_interval: Optional[List[float]] = None,  # units = seconds
+    epoch_interval: list[float] | None = None,  # units = seconds
 ):
     """Get the timestamps for a position data file. Includes protocols for both ptp and non-ptp data.
 
@@ -945,8 +940,8 @@ def add_position(
     metadata: dict,
     session_df: pd.DataFrame,
     ptp_enabled: bool = True,
-    rec_dci_timestamps: Optional[np.ndarray] = None,
-    sample_count: Optional[np.ndarray] = None,
+    rec_dci_timestamps: np.ndarray | None = None,
+    sample_count: np.ndarray | None = None,
 ) -> None:
     """Add position data to an NWBFile.
 
@@ -994,7 +989,7 @@ def add_position(
     epoch_to_camera_ids = pd.concat(df).set_index("epoch").sort_index()
 
     # Make a processing module for behavior and add to the nwbfile
-    if not "behavior" in nwb_file.processing:
+    if "behavior" not in nwb_file.processing:
         nwb_file.create_processing_module(
             name="behavior", description="Contains all behavior-related data"
         )
@@ -1152,7 +1147,7 @@ def convert_h264_to_mp4(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(f"ffmpeg -i {file} {new_file_name}", shell=True)
+        subprocess.run(["ffmpeg", "-i", file, new_file_name], check=True)
         logger.info(
             f"Video conversion completed. {file} has been converted to {new_file_name}"
         )
@@ -1196,7 +1191,7 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
     try:
         # Construct the ffmpeg command
-        subprocess.run(f"cp {file} {new_file_name}", shell=True)
+        subprocess.run(["cp", file, new_file_name], check=True)
         logger.info(f"Video copy completed. {file} has been copied to {new_file_name}")
         return new_file_name
     except subprocess.CalledProcessError as e:
@@ -1208,7 +1203,7 @@ def copy_video_to_directory(file: str, video_directory: str) -> str:
 
 def add_associated_video_files(
     nwb_file: NWBFile,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     session_df: pd.DataFrame,
     video_directory: str,
     convert_video: bool = False,

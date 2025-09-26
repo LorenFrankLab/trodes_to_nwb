@@ -11,12 +11,12 @@ import yaml
 
 
 def _get_nwb_json_schema_path() -> str:
-    """Get the NWB JSON Schema file path
+    """Get the NWB JSON Schema file path.
 
     Returns
     -------
     str
-        NWB Schema file Path
+        NWB Schema file path.
     """
     return str((Path(__file__).parent / "nwb_schema.json").resolve())
 
@@ -31,7 +31,7 @@ def _get_json_schema() -> str:
     """
     json_schema = None
     json_schema_path = _get_nwb_json_schema_path()
-    with open(json_schema_path, "r") as stream:
+    with open(json_schema_path) as stream:
         json_schema = yaml.safe_load(stream)
     return json_schema
 

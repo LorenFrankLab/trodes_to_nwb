@@ -10,17 +10,17 @@ from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
 def _get_channel_name_map(metadata: dict) -> dict[str, str]:
-    """Parses behavioral events metadata from the yaml file
+    """Parses behavioral events metadata from the yaml file.
 
     Parameters
     ----------
     metadata : dict
-        metadata from the yaml generator
+        Metadata from the yaml generator.
 
     Returns
     -------
     channel_name_map : dict
-        Parsed behavioral events metadata mapping hardware event name to human-readable name
+        Parsed behavioral events metadata mapping hardware event name to human-readable name.
     """
     dio_metadata = metadata["behavioral_events"]
     channel_name_map = {}
@@ -31,24 +31,22 @@ def _get_channel_name_map(metadata: dict) -> dict[str, str]:
             )
         channel_name_map[dio_event["description"]] = {
             "name": dio_event["name"],
-            "comments": (
-                dio_event["comments"] if "comments" in dio_event else "no comments"
-            ),
+            "comments": (dio_event.get("comments", "no comments")),
         }
     return channel_name_map
 
 
 def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
-    """Adds DIO event information and data to nwb file
+    """Adds DIO event information and data to nwb file.
 
     Parameters
     ----------
     nwbfile : NWBFile
-        nwb file being assembled
+        NWB file being assembled.
     recfile : list[str]
-        list of paths to rec files
+        List of paths to rec files.
     metadata : dict
-        metadata from the yaml generator
+        Metadata from the yaml generator.
     """
 
     # TODO remove redundancy with convert_ephys.py
@@ -58,7 +56,7 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
     [neo_io.parse_header() for neo_io in neo_io]
 
     # Make a processing module for behavior and add to the nwbfile
-    if not "behavior" in nwbfile.processing:
+    if "behavior" not in nwbfile.processing:
         nwbfile.create_processing_module(
             name="behavior", description="Contains all behavior-related data"
         )
@@ -90,7 +88,7 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
             all_timestamps[i].append(timestamps)
             all_state_changes[i].append(state_changes)
     for channel_name, state_changes, timestamps in zip(
-        channel_name_map, all_state_changes, all_timestamps
+        channel_name_map, all_state_changes, all_timestamps, strict=True
     ):
         timestamps = np.concatenate(timestamps)
         state_changes = np.concatenate(state_changes)

@@ -36,28 +36,24 @@ def test_behavior_only_rec_file():
     # check file streams
     stream_names = [stream[0] for stream in neo_io.header["signal_streams"]]
     assert all(
-        [
-            x in stream_names
-            for x in ["ECU_analog", "ECU_digital", "Controller_DIO_digital"]
-        ]
+        x in stream_names
+        for x in ["ECU_analog", "ECU_digital", "Controller_DIO_digital"]
     ), "missing expected stream in iterator"
     assert "trodes" not in stream_names, "unexpected trodes stream in iterator"
 
     # check data accesses
     assert rec_dci.timestamps.size == 433012
     assert rec_dci.timestamps[-1] == 1751195974.5656028, "unexpected last timestamp"
-    assert set(neo_io.multiplexed_channel_xml.keys()) == set(
-        [
-            "Headstage_AccelX",
-            "Headstage_AccelY",
-            "Headstage_AccelZ",
-            "Headstage_GyroX",
-            "Headstage_GyroY",
-            "Headstage_GyroZ",
-            "Headstage_MagX",
-            "Headstage_MagY",
-            "Headstage_MagZ",
-            "Controller_Ain1",
-        ]
-    )
+    assert set(neo_io.multiplexed_channel_xml.keys()) == {
+        "Headstage_AccelX",
+        "Headstage_AccelY",
+        "Headstage_AccelZ",
+        "Headstage_GyroX",
+        "Headstage_GyroY",
+        "Headstage_GyroZ",
+        "Headstage_MagX",
+        "Headstage_MagY",
+        "Headstage_MagZ",
+        "Controller_Ain1",
+    }
     assert neo_io._raw_memmap.shape == (433012, 54)

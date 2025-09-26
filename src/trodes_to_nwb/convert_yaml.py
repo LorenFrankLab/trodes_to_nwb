@@ -33,23 +33,23 @@ def load_metadata(
     metadata_path: str,
     device_metadata_paths: list[str],
 ) -> tuple[dict, list[dict]]:
-    """loads metadata files as dictionaries
+    """Loads metadata files as dictionaries.
 
     Parameters
     ----------
     metadata_path : str
-        path to file made by yaml generator
+        Path to file made by yaml generator.
     device_metadata_paths : list[str]
-        list of paths to yaml files with information on standard devices (e.g. probes,
-        optical fibers, viruses)
+        List of paths to yaml files with information on standard devices (e.g. probes,
+        optical fibers, viruses).
 
     Returns
     -------
     tuple[dict, list[dict]]
-        the yaml generator metadata and list of device metadatas
+        The yaml generator metadata and list of device metadatas.
     """
     metadata = None
-    with open(metadata_path, "r") as stream:
+    with open(metadata_path) as stream:
         metadata = yaml.safe_load(stream)
     (
         is_metadata_valid,
@@ -60,12 +60,12 @@ def load_metadata(
         logger.exception("".join(metadata_errors))
     device_metadata = []
     for path in device_metadata_paths:
-        with open(path, "r") as stream:
+        with open(path) as stream:
             device_metadata.append(yaml.safe_load(stream))
-    if not metadata["associated_files"] is None:
+    if metadata["associated_files"] is not None:
         for file in metadata["associated_files"]:
             file["task_epochs"] = [file["task_epochs"]]
-    if not metadata["associated_video_files"] is None:
+    if metadata["associated_video_files"] is not None:
         for file in metadata["associated_video_files"]:
             file["task_epochs"] = [file["task_epochs"]]
     return metadata, device_metadata
@@ -195,7 +195,7 @@ def add_electrode_groups(
         []
     )  # dataframe to track non-default electrode data. add to electrodes table at end
     # loop through the electrode groups
-    for probe_counter, egroup_metadata in enumerate(metadata["electrode_groups"]):
+    for egroup_metadata in metadata["electrode_groups"]:
         # find correct channel map info
         channel_map = None
         for test_meta in metadata["ntrode_electrode_group_channel_map"]:
@@ -426,12 +426,12 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
         # read file content
         content = ""
         try:
-            with open(file["path"], "r") as open_file:
+            with open(file["path"]) as open_file:
                 content = open_file.read()
         except FileNotFoundError as err:
             logger.info(f"ERROR: associated file {file['path']} does not exist")
             logger.info(str(err))
-        except IOError as err:
+        except OSError as err:
             logger.info(f"ERROR: Cannot read file at {file['path']}")
             logger.info(str(err))
         # convert task epoch values into strings

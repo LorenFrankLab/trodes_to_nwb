@@ -12,22 +12,22 @@ from pynwb import NWBFile
 
 
 def read_header(recfile: Path | str) -> ElementTree.Element:
-    """Read xml header from rec file
+    """Read XML header from rec file.
 
     Parameters
     ----------
-    recfile : Path
-        Path to rec file
+    recfile : Path or str
+        Path to rec file.
 
     Returns
     -------
     ElementTree.Element
-        xml header
+        XML header element.
 
     Raises
     ------
     ValueError
-        If the xml header does not contain '</Configuration>'
+        If the XML header does not contain '</Configuration>'.
     """
     header_size = None
     with open(recfile, mode="rb") as f:
@@ -120,9 +120,7 @@ def validate_yaml_header_electrode_map(
         # find appropriate channel map metadata
         channel_map = None
         map_number = None
-        for map_number, test_meta in enumerate(
-            metadata["ntrode_electrode_group_channel_map"]
-        ):
+        for _, test_meta in enumerate(metadata["ntrode_electrode_group_channel_map"]):
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break

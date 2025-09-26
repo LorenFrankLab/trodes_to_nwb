@@ -3,7 +3,6 @@ sample count information (mapping Trodes timestamps to system time) to the NWB f
 """
 
 import logging
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -19,22 +18,18 @@ NANOSECONDS_PER_SECOND = 1e9
 def add_epochs(
     nwbfile: NWBFile,
     session_df: pd.DataFrame,
-    neo_io: List[SpikeGadgetsRawIO],
+    neo_io: list[SpikeGadgetsRawIO],
 ):
-    """add epochs to nwbfile
+    """Add epochs to nwbfile.
 
     Parameters
     ----------
     nwbfile : NWBFile
-        nwbfle to add epochs to
-    file_info : pd.DataFrame
-        dataframe with file info
-    date : int
-        date of session
-    animal : str
-        animal name
-    neo_io: List[SpikeGadgetsRawIO]
-        neo_io iterators for each rec file. Contains time information
+        NWB file to add epochs to.
+    session_df : pd.DataFrame
+        DataFrame with session file information.
+    neo_io : list[SpikeGadgetsRawIO]
+        List of neo_io iterators for each rec file. Contains time information.
     """
     logger = logging.getLogger("convert")
     for epoch in set(session_df.epoch):
@@ -69,7 +64,6 @@ def add_epochs(
 
         tag = f"{epoch:02d}_{rec_file_list.tag.iloc[0]}"
         nwbfile.add_epoch(start_time, end_time, tag)
-    return
 
 
 def add_sample_count(

@@ -44,7 +44,7 @@ def test_get_file_info():
 def test_get_included_device_metadata_paths():
     probes = list(get_included_device_metadata_paths())
     assert len(probes) == 19
-    assert all([probe.exists() for probe in probes])
+    assert all(probe.exists() for probe in probes)
 
 
 def test_convert_full():
@@ -234,9 +234,7 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         ).all()
 
     # compare dio data
-    for dio_name in old_nwbfile.processing["behavior"][
-        "behavioral_events"
-    ].time_series.keys():
+    for dio_name in old_nwbfile.processing["behavior"]["behavioral_events"].time_series:
         old_dio = old_nwbfile.processing["behavior"]["behavioral_events"][dio_name]
         current_dio = nwbfile.processing["behavior"]["behavioral_events"][dio_name]
         # check that timeseries match
@@ -254,18 +252,14 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         assert current_dio.description == old_dio.description
 
     # Compare position data
-    for series in nwbfile.processing["behavior"]["position"].spatial_series.keys():
+    for series in nwbfile.processing["behavior"]["position"].spatial_series:
         # check series in new nwbfile
-        assert (
-            series in nwbfile.processing["behavior"]["position"].spatial_series.keys()
-        )
+        assert series in nwbfile.processing["behavior"]["position"].spatial_series
         # find the corresponding data in the old file
         validated = False
-        for old_series in old_nwbfile.processing["behavior"][
-            "position"
-        ].spatial_series.keys():
+        for old_series in old_nwbfile.processing["behavior"]["position"].spatial_series:
             # check that led number matches
-            if not series.split("_")[1] == old_series.split("_")[1]:
+            if series.split("_")[1] != old_series.split("_")[1]:
                 continue
             # check if timestamps end the same
             timestamps = nwbfile.processing["behavior"]["position"][series].timestamps[

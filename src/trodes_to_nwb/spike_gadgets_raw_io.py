@@ -9,7 +9,6 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
-from typing import List, Optional
 from xml.etree import ElementTree
 
 import numpy as np
@@ -37,7 +36,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
     def __init__(
         self,
         filename: str = "",
-        selected_streams: Optional[list[str] | str] = None,
+        selected_streams: list[str] | str | None = None,
         interpolate_dropped_packets: bool = False,
     ):
         """
@@ -74,7 +73,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         n_total_channels: int,
         n_channels_recorded: int,
         n_channels_per_chip: int,
-        hw_channels_recorded: List[str] = None,
+        hw_channels_recorded: list[str] = None,
     ) -> list[int]:
         """Computes the hardware channel IDs for ephys data.
 
@@ -168,7 +167,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
                     break
 
             if header_size is None:
-                ValueError(
+                raise ValueError(
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
 
@@ -194,9 +193,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         num_ephy_channels = num_chip_channels  # number of channels recorded
         # check for agreement with number of channels in xml
         sconf_channels = np.sum([len(x) for x in sconf])
-        if sconf_channels < num_ephy_channels:
-            # Case: not every channel was saved to recording
-            num_ephy_channels = sconf_channels
+        num_ephy_channels = min(num_ephy_channels, sconf_channels)
         if sconf_channels > num_ephy_channels:
             raise ValueError(
                 "SpikeGadgets: the number of channels in the spike configuration is larger than the number of channels in the hardware configuration"
@@ -216,9 +213,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             num_bytes = int(device.attrib["numBytes"])
             device_bytes[device_name] = packet_size
             packet_size += num_bytes
-        self.sysClock_byte = (
-            device_bytes["SysClock"] if "SysClock" in device_bytes else False
-        )
+        self.sysClock_byte = device_bytes.get("SysClock", False)
 
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
@@ -457,8 +452,8 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # make mask as array (used in _get_analogsignal_chunk(...))
         self._mask_streams = {}
-        for stream_id, l in self._mask_channels_bytes.items():
-            mask = np.array(l)
+        for stream_id, channels_bytes in self._mask_channels_bytes.items():
+            mask = np.array(channels_bytes)
             self._mask_channels_bytes[stream_id] = mask
             self._mask_streams[stream_id] = np.any(mask, axis=0)
 
@@ -557,10 +552,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         i_start: int,
         i_stop: int,
         stream_index: int,
-        channel_indexes: Optional[int | np.ndarray | slice] = None,
+        channel_indexes: int | np.ndarray | slice | None = None,
     ) -> np.ndarray:
-        """
-        Returns a chunk of the analog signal data from the .rec file.
+        """Returns a chunk of the analog signal data from the .rec file.
 
         Parameters
         ----------
@@ -579,7 +573,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         Returns
         -------
-        np.ndarray
+        np.ndarray, shape (n_samples, n_channels)
             A NumPy array containing the requested chunk of the analog signal data.
         """
         stream_id = self.header["signal_streams"][stream_index]["id"]
@@ -633,6 +627,20 @@ class SpikeGadgetsRawIO(BaseRawIO):
         return raw_unit16
 
     def get_analogsignal_timestamps(self, i_start: int, i_stop: int) -> np.ndarray:
+        """Get timestamps for analog signal data.
+
+        Parameters
+        ----------
+        i_start : int
+            Start index for the data chunk.
+        i_stop : int
+            Stop index for the data chunk.
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples,)
+            Array of timestamps for the analog signal data.
+        """
         if not self.interpolate_dropped_packets:
             # no interpolation
             raw_uint8 = self._raw_memmap[
@@ -673,11 +681,25 @@ class SpikeGadgetsRawIO(BaseRawIO):
         inserted_locations = inserted_locations[
             (inserted_locations >= 0) & (inserted_locations < i_stop - i_start)
         ]
-        if not len(inserted_locations) == 0:
+        if len(inserted_locations) != 0:
             raw_uint32[inserted_locations] += 1
         return raw_uint32
 
     def get_sys_clock(self, i_start: int, i_stop: int) -> np.ndarray:
+        """Get system clock data from the raw memory map.
+
+        Parameters
+        ----------
+        i_start : int
+            Start index for the data chunk.
+        i_stop : int
+            Stop index for the data chunk.
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples,)
+            Array of system clock values.
+        """
         if not self.sysClock_byte:
             raise ValueError("sysClock not available")
         if i_stop is None:
@@ -691,10 +713,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @functools.lru_cache(maxsize=2)
     def get_analogsignal_multiplexed(
-        self, channel_names: Optional[list[str]] = None
+        self, channel_names: list[str] | None = None
     ) -> np.ndarray:
-        """
-        Retrieves multiplexed analog signal data.
+        """Retrieves multiplexed analog signal data.
 
         If `channel_names` is provided, it retrieves data for the specified channels.
         Otherwise, it fetches all multiplexed channels.
@@ -706,7 +727,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         Returns
         -------
-        np.ndarray
+        np.ndarray, shape (n_samples, n_channels)
             A NumPy array containing the multiplexed analog signal data.
 
         Raises
@@ -950,7 +971,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @functools.lru_cache(maxsize=1)
     def get_regressed_systime(
-        self, i_start: int, i_stop: Optional[int] = None
+        self, i_start: int, i_stop: int | None = None
     ) -> np.ndarray:
         """
         Retrieves the regressed system time based on the Trodes timestamp and the system clock.
@@ -992,7 +1013,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
     @functools.lru_cache(maxsize=1)
     def get_systime_from_trodes_timestamps(
-        self, i_start: int, i_stop: Optional[int] = None
+        self, i_start: int, i_stop: int | None = None
     ) -> np.ndarray:
         """
         Retrieves system time based on Trodes timestamps.
@@ -1041,7 +1062,7 @@ class InsertedMemmap:
     """
 
     def __init__(
-        self, _raw_memmap: np.ndarray, inserted_index: Optional[np.ndarray] = None
+        self, _raw_memmap: np.ndarray, inserted_index: np.ndarray | None = None
     ) -> None:
         """
         Initializes an InsertedMemmap object to handle slices into an interpolated memmap.
@@ -1105,8 +1126,8 @@ class InsertedMemmap:
             # see if slice contains inserted values
             if (
                 (
-                    (not index.start is None)
-                    and (not index.stop is None)
+                    (index.start is not None)
+                    and (index.stop is not None)
                     and np.any(
                         (self.inserted_locations >= index.start)
                         & (self.inserted_locations < index.stop)
@@ -1114,12 +1135,12 @@ class InsertedMemmap:
                 )
                 | (
                     (index.start is None)
-                    and (not index.stop is None)
+                    and (index.stop is not None)
                     and np.any(self.inserted_locations < index.stop)
                 )
                 | (
                     index.stop is None
-                    and (not index.start is None)
+                    and (index.start is not None)
                     and np.any(self.inserted_locations > index.start)
                 )
                 | (
@@ -1153,7 +1174,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         full_io: SpikeGadgetsRawIO,
         start_index: int,
         stop_index: int,
-        previous_multiplex_state: Optional[np.ndarray] = None,
+        previous_multiplex_state: np.ndarray | None = None,
     ):
         """Initialize a partial SpikeGadgetsRawIO object.
 
@@ -1208,7 +1229,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                     break
 
             if header_size is None:
-                ValueError(
+                raise ValueError(
                     "SpikeGadgets: the xml header does not contain '</Configuration>'"
                 )
         # Inherit the original memmap object from the full_io object to conserve virtual memory
@@ -1234,7 +1255,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
 
     @functools.lru_cache(maxsize=2)
     def get_analogsignal_multiplexed(
-        self, channel_names: Optional[list[str]] = None
+        self, channel_names: list[str] | None = None
     ) -> np.ndarray:
         """
         Overide of the superclass to use the last state of the previous file segment

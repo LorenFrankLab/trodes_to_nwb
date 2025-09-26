@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "trodes_to_nwb"
 description = "A python package to convert SpikeGadgets data to NWB"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Sam Bray", email = "sam.bray@ucsf.edu" },
@@ -40,7 +40,10 @@ dynamic = ["version"]
 "Bug Tracker" = "https://github.com/LorenFrankLab/trodes_to_nwb/issues"
 
 [project.optional-dependencies]
-test = ["black", "pytest", "pytest-cov", "pytest-mock"]
+test = ["pytest", "pytest-cov", "pytest-mock"]
+dev = ["black", "pytest", "pytest-cov", "pytest-mock", "mypy", "ruff"]
+lint = ["black", "ruff", "mypy"]
+docs = ["sphinx", "sphinx-rtd-theme", "myst-parser"]
 
 [tool.hatch.version]
 source = "vcs"
@@ -59,3 +62,95 @@ exclude = ["src/trodes_to_nwb/data/test_data"]
 [tool.coverage.run]
 source = ["src/trodes_to_nwb"]
 omit = ["src/trodes_to_nwb/tests/*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = [
+    "src/trodes_to_nwb/tests",
+    "src/trodes_to_nwb/tests/integration-tests",
+]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--strict-markers --strict-config --verbose --cov=src/trodes_to_nwb --cov-report=term-missing"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = false      # Set to true gradually
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_unreachable = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "neo.*",
+    "pynwb.*",
+    "nwbinspector.*",
+    "ndx_franklab_novela.*",
+    "dask.*",
+    "scipy.*",
+    "pandas.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "UP",  # pyupgrade
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "PL",  # pylint
+]
+ignore = [
+    "E501",    # line too long, handled by black
+    "PLR0913", # too many arguments to function call
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLW2901", # redefined loop variable
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["PLR2004"]                   # magic value used in comparison
+"src/trodes_to_nwb/tests/**/*.py" = ["PLR2004"]
+"notebooks/**/*.py" = ["E402", "F401", "F821"]  # notebook-specific ignores
+
+[tool.ruff.lint.isort]
+known-first-party = ["trodes_to_nwb"]
+force-sort-within-sections = true

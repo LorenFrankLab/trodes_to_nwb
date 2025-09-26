@@ -1,8 +1,15 @@
+"""Handles the conversion of optogenetic stimulation data and metadata from
+state script logs and metadata files into NWB optogenetics extension objects.
+Manages virus injections, optical fibers, and stimulation epoch tracking.
+"""
+
 import logging
+import os
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
+import yaml
+from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 from ndx_optogenetics import (
     ExcitationSource,
     ExcitationSourceModel,
@@ -17,8 +24,10 @@ from ndx_optogenetics import (
 )
 from pynwb import NWBFile
 
+from trodes_to_nwb.tests.utils import data_path
 
-def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dict]):
+
+def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dict]):
     """
     Add optogenetics data to the NWB file.
 
@@ -40,7 +49,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
     ]
 
     if not (
-        all([((x in metadata) and len(metadata[x]) > 0) for x in necessary_metadata])
+        all(((x in metadata) and len(metadata[x]) > 0) for x in necessary_metadata)
     ):
         logger.info("No available optogenetic metadata")
         return
@@ -77,7 +86,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: List[dic
 
 
 def make_optogenetic_source(
-    nwbfile: NWBFile, source_metadata: dict, device_metadata: List[dict]
+    nwbfile: NWBFile, source_metadata: dict, device_metadata: list[dict]
 ) -> ExcitationSource:
     """Create an ExcitationSource object and add it to the NWB file.
 
@@ -117,7 +126,7 @@ def make_optical_fiber(
     nwbfile: NWBFile,
     fiber_metadata_list: dict,
     excitation_source: ExcitationSource,
-    device_metadata: List[dict],
+    device_metadata: list[dict],
 ) -> OpticalFiber:
     """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
 
@@ -186,8 +195,8 @@ def make_optical_fiber(
 
 
 def make_virus_injecton(
-    virus_injection_metadata_list: List[dict], device_metadata: List[dict]
-) -> Tuple[OptogeneticViruses, OptogeneticVirusInjections]:
+    virus_injection_metadata_list: list[dict], device_metadata: list[dict]
+) -> tuple[OptogeneticViruses, OptogeneticVirusInjections]:
     """
     Add virus injection data to the NWB file.
 
@@ -313,8 +322,6 @@ def add_optogenetic_epochs(
         return
     logger.info(f"Adding {len(opto_epochs_metadata)} optogenetic epochs.")
 
-    from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
-
     opto_epochs_table = FrankLabOptogeneticEpochsTable(
         name="optogenetic_epochs",
         description="Metadata about optogenetic stimulation parameters per epoch",
@@ -370,7 +377,7 @@ def compile_opto_entries(
     fs_gui_metadata: dict,
     nwbfile: NWBFile,
     file_dir: str = "",
-) -> List[dict]:
+) -> list[dict]:
     """
     Compile an entry for the optogenetic epochs table.
 
@@ -388,12 +395,10 @@ def compile_opto_entries(
     List[dict]
         A list of dictionaries containing the compiled entries for the optogenetic epochs table.
     """
-    import yaml
-
     # load the fs_gui yaml
     fs_gui_path = Path(file_dir) / fs_gui_metadata["name"]
     protocol_metadata = None
-    with open(fs_gui_path, "r") as stream:
+    with open(fs_gui_path) as stream:
         protocol_metadata = yaml.safe_load(stream)
     protocol_metadata = {
         x["instance_id"]: x for x in protocol_metadata["nodes"]
@@ -415,47 +420,47 @@ def compile_opto_entries(
     # make a new row entry for each epoch this protocol was run
     for epoch in fs_gui_metadata["epochs"]:
         # info about the stimulus and epoch
-        epoch_dict = dict(
-            pulse_length_in_ms=get_epoch_info_entry(
+        epoch_dict = {
+            "pulse_length_in_ms": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "pulseLength"
             ),
-            number_pulses_per_pulse_train=get_epoch_info_entry(
+            "number_pulses_per_pulse_train": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "nPulses"
             ),
-            period_in_ms=get_epoch_info_entry(
+            "period_in_ms": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "sequencePeriod"
             ),
-            number_trains=get_epoch_info_entry(
+            "number_trains": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "nOutputTrains"
             ),
-            intertrain_interval_in_ms=get_epoch_info_entry(
+            "intertrain_interval_in_ms": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "trainInterval"
             ),
-            power_in_mW=fs_gui_metadata["power_in_mW"],
-            stimulation_on=True,
-            start_time=epoch_df.start_time.values[
+            "power_in_mW": fs_gui_metadata["power_in_mW"],
+            "stimulation_on": True,
+            "start_time": epoch_df.start_time.values[
                 epoch - 1
             ],  # get from nwbfile for epoch
-            stop_time=epoch_df.stop_time.values[epoch - 1],
-            epoch_name=epoch_df.tags.values[epoch - 1][0],
-            epoch_number=epoch,
-            convenience_code=opto_metadata["nickname"],
-            epoch_type="optogenetic",
-            stimulus_signal=nwbfile.processing["behavior"]["behavioral_events"][
+            "stop_time": epoch_df.stop_time.values[epoch - 1],
+            "epoch_name": epoch_df.tags.values[epoch - 1][0],
+            "epoch_number": epoch,
+            "convenience_code": opto_metadata["nickname"],
+            "epoch_type": "optogenetic",
+            "stimulus_signal": nwbfile.processing["behavior"]["behavioral_events"][
                 fs_gui_metadata["dio_output_name"]
             ],
-        )
+        }
         # info about the trigger condition
-        trigger_dict = dict(
-            ripple_filter_on=False,
-            ripple_filter_num_above_threshold=-1,
-            ripple_filter_threshold_sd=-1,
-            ripple_filter_lockout_period_in_samples=-1,
-            theta_filter_on=False,
-            theta_filter_lockout_period_in_samples=-1,
-            theta_filter_phase_in_deg=-1,
-            theta_filter_reference_ntrode=-1,
-        )
+        trigger_dict = {
+            "ripple_filter_on": False,
+            "ripple_filter_num_above_threshold": -1,
+            "ripple_filter_threshold_sd": -1,
+            "ripple_filter_lockout_period_in_samples": -1,
+            "theta_filter_on": False,
+            "theta_filter_lockout_period_in_samples": -1,
+            "theta_filter_phase_in_deg": -1,
+            "theta_filter_reference_ntrode": -1,
+        }
         if "trigger_id" in opto_metadata:
             trigger_id = opto_metadata["trigger_id"]["data"]["value"]
             trigger_metadata = protocol_metadata[trigger_id]
@@ -513,7 +518,7 @@ def compile_opto_entries(
         # add camera information if speed or spatial filter is on
         if "speed_filter_on" in condition_dict or "spatial_filter_on" in geometry_dict:
             print("ADDING CAMERA INFO")
-            if (camera_id := fs_gui_metadata.get("camera_id", None)) is None:
+            if (camera_id := fs_gui_metadata.get("camera_id")) is None:
                 raise ValueError(
                     "Camera ID not found in metadata. "
                     "Please provide a camera_id for speed or spatial filters."
@@ -557,7 +562,7 @@ def get_epoch_info_entry(
     Any
         The value corresponding to the specified key, or None if not found.
     """
-    value = opto_metadata.get(key, fs_gui_metadata.get(key, None))
+    value = opto_metadata.get(key, fs_gui_metadata.get(key))
     if value is None:
         raise ValueError(
             f"Key '{key}' not found in either the fsgui yaml script or the experiment "
@@ -566,7 +571,7 @@ def get_epoch_info_entry(
     return value
 
 
-def compile_geometry_filters(geometry_filter_metadata_list: List[str]) -> dict:
+def compile_geometry_filters(geometry_filter_metadata_list: list[str]) -> dict:
     if len(geometry_filter_metadata_list) == 0:
         return {}
 
@@ -606,12 +611,8 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
     - A dictionary with zone IDs as keys and their respective node relative coordinates.
     """
     zones = {i: {} for i in target_zones}
-    import os
-
     if not os.path.exists(geometry_file_path):
         try:
-            from trodes_to_nwb.tests.utils import data_path
-
             geometry_file_path = Path(data_path) / Path(geometry_file_path).name
             os.path.exists(geometry_file_path)
         except Exception as e:
@@ -620,7 +621,7 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
                 "Please check the path and try again."
             ) from e
 
-    with open(geometry_file_path, "r", encoding="utf-8") as f:
+    with open(geometry_file_path, encoding="utf-8") as f:
         zone_id = None
         for line in f:
             if line.startswith("Zone id:"):
@@ -641,7 +642,7 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
     return zones
 
 
-def get_condition_ids(metadata_dict: dict) -> List[str]:
+def get_condition_ids(metadata_dict: dict) -> list[str]:
     """
     Recursively extracts condition IDs from a metadata dictionary.
 

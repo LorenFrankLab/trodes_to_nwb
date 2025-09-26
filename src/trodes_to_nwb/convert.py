@@ -188,7 +188,7 @@ def create_nwbs(
         argument_list = list(file_info.groupby(["date", "animal"]))
         futures = client.map(pass_func, argument_list)
         # print out error results
-        for args, future in zip(argument_list, futures):
+        for args, future in zip(argument_list, futures, strict=True):
             result = future.result()
             if result is not True:
                 print(args, result)
@@ -321,10 +321,7 @@ def _create_nwb(
     add_optogenetic_epochs(nwb_file, metadata, fs_gui_dir)
     logger.info("ADDING POSITION")
     # add position
-    if disable_ptp:
-        ptp_enabled = False
-    else:
-        ptp_enabled = detect_ptp_from_header(rec_header)
+    ptp_enabled = False if disable_ptp else detect_ptp_from_header(rec_header)
     if ptp_enabled:
         add_position(
             nwb_file,

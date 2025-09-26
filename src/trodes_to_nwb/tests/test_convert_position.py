@@ -1,16 +1,12 @@
 import os
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
-from pynwb import NWBHDF5IO, TimeSeries
-from pynwb.behavior import BehavioralEvents, Position
+from pynwb import NWBHDF5IO
+from pynwb.behavior import Position
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
-from trodes_to_nwb.convert_dios import add_dios
-from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
-from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
 from trodes_to_nwb.convert_position import (
     add_position,
     convert_datafile_to_pandas,
@@ -20,7 +16,6 @@ from trodes_to_nwb.convert_position import (
     estimate_camera_time_from_mcu_time,
     estimate_camera_to_mcu_lag,
     find_acquisition_timing_pause,
-    find_camera_dio_channel,
     find_large_frame_jumps,
     get_framerate,
     parse_dtype,
@@ -252,7 +247,7 @@ def test_add_position(prior_position=False):
 
     # Read the created file and its original counterpart
     with NWBHDF5IO(filename, "r", load_namespaces=True) as io:
-        read_nwbfile = io.read()
+        io.read()
 
         rec_to_nwb_file = data_path / "minirec20230622_.nwb"
         with NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
@@ -267,16 +262,15 @@ def test_add_position(prior_position=False):
             ]:
                 # check series in new nwbfile
                 assert (
-                    series
-                    in nwbfile.processing["behavior"]["position"].spatial_series.keys()
+                    series in nwbfile.processing["behavior"]["position"].spatial_series
                 )
                 # find the corresponding data in the old file
                 validated = False
                 for old_series in old_nwbfile.processing["behavior"][
                     "position"
-                ].spatial_series.keys():
+                ].spatial_series:
                     # check that led number matches
-                    if not series.split("_")[1] == old_series.split("_")[1]:
+                    if series.split("_")[1] != old_series.split("_")[1]:
                         continue
                     # check if timestamps end the same
                     timestamps = nwbfile.processing["behavior"]["position"][
@@ -306,9 +300,6 @@ def test_add_position(prior_position=False):
 
 def test_add_position_preexisting():
     test_add_position(prior_position=True)
-
-
-from trodes_to_nwb.convert_position import read_trodes_datafile
 
 
 def test_add_position_non_ptp():
@@ -344,10 +335,7 @@ def test_add_position_non_ptp():
             "led_1_series_2",
         ]:
             # check series in new nwbfile
-            assert (
-                series
-                in nwbfile.processing["behavior"]["position"].spatial_series.keys()
-            )
+            assert series in nwbfile.processing["behavior"]["position"].spatial_series
             # get the data for this series
             t_new = nwbfile.processing["behavior"]["position"][series].timestamps[:]
             pos_new = nwbfile.processing["behavior"]["position"][series].data[:]

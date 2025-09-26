@@ -3,7 +3,6 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 """
 
 import logging
-from typing import Tuple
 from warnings import warn
 
 import numpy as np
@@ -40,7 +39,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
     def __init__(
         self,
         rec_file_path: list[str],
-        nwb_hw_channel_order=[],
+        nwb_hw_channel_order=None,
         conversion: float = 1.0,
         stream_index: int = None,  # TODO use the stream name instead of the index
         stream_id: str = None,
@@ -95,13 +94,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # ECU_digital
         # ECU_analog
         # trodes
-        assert all([neo_io.block_count() == 1 for neo_io in self.neo_io])
-        assert all([neo_io.segment_count(0) == 1 for neo_io in self.neo_io])
+        assert all(neo_io.block_count() == 1 for neo_io in self.neo_io)
+        assert all(neo_io.segment_count(0) == 1 for neo_io in self.neo_io)
         assert all(
-            [
-                neo_io.signal_streams_count() == 4 - behavior_only
-                for neo_io in self.neo_io
-            ]
+            neo_io.signal_streams_count() == 4 - behavior_only for neo_io in self.neo_io
         ), (
             "Unexpected number of signal streams. "
             + "Confirm whether behavior_only is set correctly for this recording"
@@ -117,7 +113,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             ):  # if stream index is not provided, get from the SpikegadgetsRawIO object
                 stream_index = self.neo_io[0].get_stream_index_from_id(stream_id)
             # if both provided, check that they agree
-            elif not self.neo_io[0].get_stream_id_from_index(stream_index) == stream_id:
+            elif self.neo_io[0].get_stream_id_from_index(stream_index) != stream_id:
                 raise ValueError(
                     f"Provided stream index {stream_index} does not match provided stream id {stream_id}"
                 )
@@ -134,12 +130,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # check that all files have the same number of channels.
         if (
             len(
-                set(
-                    [
-                        neo_io.signal_channels_count(stream_index=self.stream_index)
-                        for neo_io in self.neo_io
-                    ]
-                )
+                {
+                    neo_io.signal_channels_count(stream_index=self.stream_index)
+                    for neo_io in self.neo_io
+                }
             )
             > 1
         ):
@@ -152,6 +146,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             self.n_multiplexed_channel += len(self.neo_io[0].multiplexed_channel_xml)
 
         # order that the hw channels are in within the nwb table
+        if nwb_hw_channel_order is None:
+            nwb_hw_channel_order = []
         if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
             self.nwb_hw_channel_order = np.arange(self.n_channel)
         else:
@@ -223,7 +219,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
         if not is_timestamps_sequential:
             warn(
-                "Timestamps are not sequential. This may cause problems with some software or data analysis."
+                "Timestamps are not sequential. This may cause problems with some software or data analysis.",
+                stacklevel=2,
             )
 
         self.n_time = [
@@ -237,7 +234,19 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         super().__init__(**kwargs)
 
-    def _get_data(self, selection: Tuple[slice]) -> np.ndarray:
+    def _get_data(self, selection: tuple[slice]) -> np.ndarray:
+        """Get data chunk from the electrophysiology files.
+
+        Parameters
+        ----------
+        selection : tuple[slice]
+            Tuple of slices for (time, channel) selection.
+
+        Returns
+        -------
+        np.ndarray, shape (n_time_selected, n_channels_selected)
+            Array containing the selected electrophysiology data.
+        """
         # selection is (time, channel)
         assert selection[0].step is None
 
@@ -266,21 +275,19 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             io_stream = np.argmin(i >= file_start_ind) - 1
             # get the data from that stream
             data.append(
-                (
-                    self.neo_io[io_stream].get_analogsignal_chunk(
-                        block_index=self.block_index,
-                        seg_index=self.seg_index,
-                        i_start=int(i - file_start_ind[io_stream]),
-                        i_stop=int(
-                            min(
-                                time_index[-1] - file_start_ind[io_stream],
-                                self.n_time[io_stream],
-                            )
+                self.neo_io[io_stream].get_analogsignal_chunk(
+                    block_index=self.block_index,
+                    seg_index=self.seg_index,
+                    i_start=int(i - file_start_ind[io_stream]),
+                    i_stop=int(
+                        min(
+                            time_index[-1] - file_start_ind[io_stream],
+                            self.n_time[io_stream],
                         )
-                        + 1,
-                        stream_index=self.stream_index,
-                        channel_ids=channel_ids,
                     )
+                    + 1,
+                    stream_index=self.stream_index,
+                    channel_ids=channel_ids,
                 )
             )
             i += min(
@@ -320,7 +327,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         return data
 
-    def _get_maxshape(self) -> Tuple[int, int]:
+    def _get_maxshape(self) -> tuple[int, int]:
+        """Get the maximum shape of the data array.
+
+        Returns
+        -------
+        tuple[int, int]
+            Maximum shape as (n_time_total, n_channels_total).
+        """
         return (
             np.sum(self.n_time),
             self.n_channel + self.n_multiplexed_channel,

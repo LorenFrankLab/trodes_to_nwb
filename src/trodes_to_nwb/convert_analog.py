@@ -26,9 +26,15 @@ def add_analog_data(
     Parameters
     ----------
     nwbfile : NWBFile
-        nwb file being assembled
-    recfile : list[str]
-        ordered list of file paths to all recfiles with session's data
+        NWB file being assembled.
+    rec_file_path : list[str]
+        Ordered list of file paths to all recfiles with session's data.
+    timestamps : np.ndarray, optional, shape (n_samples,)
+        Array of timestamps for the analog data.
+    behavior_only : bool, optional
+        Whether to process only behavior data, by default False.
+    **kwargs
+        Additional keyword arguments.
     """
     # TODO: ADD HEADSTAGE DATA
 

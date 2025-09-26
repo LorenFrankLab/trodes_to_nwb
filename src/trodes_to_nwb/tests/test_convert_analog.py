@@ -5,7 +5,6 @@ import pynwb
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_analog import add_analog_data, get_analog_channel_names
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
-from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
 
 
@@ -18,7 +17,7 @@ def test_add_analog_data():
     rec_header = convert_rec_header.read_header(rec_file)
     # make file with data
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
-    analog_channel_names = get_analog_channel_names(rec_header)
+    get_analog_channel_names(rec_header)
     add_analog_data(nwbfile, [rec_file])
     # save file
     filename = "test_add_analog.nwb"
@@ -94,7 +93,7 @@ def test_selection_of_multiplexed_data():
     assert len(rec_dci.neo_io[0].multiplexed_channel_xml.keys()) == 10
     slice_ind = [(0, 4), (0, 30), (1, 15), (5, 15), (20, 25)]
     expected_channels = [4, 22, 14, 10, 2]
-    for ind, expected in zip(slice_ind, expected_channels):
+    for ind, expected in zip(slice_ind, expected_channels, strict=True):
         data = rec_dci._get_data(
             (
                 slice(0, 100, None),
@@ -102,4 +101,3 @@ def test_selection_of_multiplexed_data():
             )
         )
         assert data.shape[1] == expected
-    return

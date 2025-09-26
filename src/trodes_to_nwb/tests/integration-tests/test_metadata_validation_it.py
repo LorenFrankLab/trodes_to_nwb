@@ -1,6 +1,5 @@
-import os
-
 import pytest
+
 from trodes_to_nwb.metadata_validation import validate
 from trodes_to_nwb.tests.test_data.test_metadata_dict_samples import (
     basic_data,
@@ -32,7 +31,7 @@ from trodes_to_nwb.tests.test_data.test_metadata_dict_samples import (
 
 @pytest.mark.parametrize("metadata", [(None), ("")])
 def test_metadata_validation_only_accepts_right_data_type(metadata):
-    with pytest.raises(AssertionError) as e:
+    with pytest.raises(AssertionError):
         validate(metadata)
 
 

@@ -103,7 +103,7 @@ def test_electrode_creation():
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
     assert len(nwbfile.electrode_groups) == len(metadata["electrode_groups"])
-    for i, group_metadata in enumerate(metadata["electrode_groups"]):
+    for _i, group_metadata in enumerate(metadata["electrode_groups"]):
         group = nwbfile.electrode_groups[str(group_metadata["id"])]
         assert group.description == group_metadata["description"]
         assert group.location == group_metadata["location"]
@@ -133,7 +133,7 @@ def test_electrode_creation():
         shank = probe.shanks[str(j)]
         assert isinstance(shank, Shank)
         assert len(shank.shanks_electrodes) == len(shank_meta["electrodes"])
-        for k, electrode_meta in enumerate(shank_meta["electrodes"]):
+        for _k, electrode_meta in enumerate(shank_meta["electrodes"]):
             electrode = shank.shanks_electrodes[str(electrode_id)]
             assert isinstance(electrode, ShanksElectrode)
             assert electrode.rel_x == float(electrode_meta["rel_x"])
@@ -183,7 +183,7 @@ def test_electrode_creation_reconfigured():
     # Perform assertions to check the results
     # Check if the electrode groups were added correctly
     assert len(nwbfile.electrode_groups) == len(metadata["electrode_groups"])
-    for i, group_metadata in enumerate(metadata["electrode_groups"]):
+    for _i, group_metadata in enumerate(metadata["electrode_groups"]):
         group = nwbfile.electrode_groups[str(group_metadata["id"])]
         assert group.description == group_metadata["description"]
         assert group.location == group_metadata["location"]
@@ -352,7 +352,7 @@ def test_add_associated_files(capsys):
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
             log_file_path = handler.baseFilename
-            with open(log_file_path, "r") as log_file:
+            with open(log_file_path) as log_file:
                 for line in log_file.readlines():
                     if "ERROR: associated file bad_path.txt does not exist" in line:
                         printed_warning = True

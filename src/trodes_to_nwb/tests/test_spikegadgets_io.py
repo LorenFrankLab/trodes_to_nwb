@@ -311,8 +311,9 @@ def test_interpolation_read_timestamps(raw_io_interpolated):
     """Test reading timestamps with interpolation enabled."""
     n_samples_to_read = 100
     interpolated_size = raw_io_interpolated._get_signal_size(0, 0, stream_index=0)
-    if n_samples_to_read > interpolated_size:
-        n_samples_to_read = interpolated_size  # Adjust if file is too short
+    n_samples_to_read = min(
+        n_samples_to_read, interpolated_size
+    )  # Adjust if file is too short
 
     timestamps = raw_io_interpolated.get_analogsignal_timestamps(0, n_samples_to_read)
 
@@ -347,8 +348,9 @@ def test_interpolation_read_data_chunk(raw_io_interpolated):
     interpolated_size = raw_io_interpolated._get_signal_size(
         0, 0, stream_index=stream_index
     )
-    if n_samples_to_read > interpolated_size:
-        n_samples_to_read = interpolated_size  # Adjust if file is too short
+    n_samples_to_read = min(
+        n_samples_to_read, interpolated_size
+    )  # Adjust if file is too short
 
     # Read data chunk
     data_chunk = raw_io_interpolated._get_analogsignal_chunk(
