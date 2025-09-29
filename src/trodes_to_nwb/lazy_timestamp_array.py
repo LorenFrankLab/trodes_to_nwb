@@ -13,6 +13,10 @@ from hdmf.data_utils import AbstractDataChunkIterator, DataChunk
 
 logger = logging.getLogger(__name__)
 
+# Constants for regression parameter computation
+REGRESSION_SAMPLE_SIZE = 10_000  # Target number of samples for regression
+MAX_REGRESSION_POINTS = 1_000    # Maximum points to use for regression
+
 
 class LazyTimestampArray(AbstractDataChunkIterator):
     """
@@ -145,14 +149,14 @@ class LazyTimestampArray(AbstractDataChunkIterator):
             logger.debug(f"Computing regression parameters for file {file_id}")
 
             # Sample strategy: Take every nth sample to avoid loading entire file
-            sample_stride = max(1, neo_io.get_signal_size(0, 0, 0) // 10000)  # ~10k samples max
+            sample_stride = max(1, neo_io.get_signal_size(0, 0, 0) // REGRESSION_SAMPLE_SIZE)
             sample_indices = np.arange(0, neo_io.get_signal_size(0, 0, 0), sample_stride)
 
             # Get sampled timestamps and sysclock - this loads much less data
             sampled_trodes = []
             sampled_sys = []
 
-            for idx in sample_indices[:1000]:  # Limit to 1000 sample points
+            for idx in sample_indices[:MAX_REGRESSION_POINTS]:
                 trodes_chunk = neo_io.get_analogsignal_timestamps(idx, idx + 1)
                 sys_chunk = neo_io.get_sys_clock(idx, idx + 1)
                 sampled_trodes.extend(trodes_chunk.astype(np.float64))
@@ -299,8 +303,11 @@ class LazyTimestampArray(AbstractDataChunkIterator):
         return self[start:stop]
 
     def get_memory_info(self) -> dict:
-        """Get memory usage information."""
+        """Get memory usage information with cache efficiency metrics."""
         estimated_full_size = self.nbytes / (1024**3)  # GB
+
+        # Calculate cache efficiency
+        cache_efficiency = len(self._regression_cache) / len(self.neo_io_list) if self.neo_io_list else 0
 
         return {
             "shape": self.shape,
@@ -308,7 +315,8 @@ class LazyTimestampArray(AbstractDataChunkIterator):
             "estimated_full_size_gb": estimated_full_size,
             "chunk_size": self.chunk_size,
             "num_files": len(self.neo_io_list),
-            "regression_cache_size": len(self._regression_cache)
+            "regression_cache_size": len(self._regression_cache),
+            "cache_efficiency": cache_efficiency,
         }
 
     # AbstractDataChunkIterator required methods
@@ -351,3 +359,7 @@ class LazyTimestampArray(AbstractDataChunkIterator):
     def recommended_data_shape(self) -> tuple:
         """Return recommended data shape for HDF5 storage."""
         return self.shape
+
+    def reset(self) -> None:
+        """Reset iterator to beginning for reuse."""
+        self._current_position = 0
