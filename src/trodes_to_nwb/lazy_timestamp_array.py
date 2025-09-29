@@ -6,16 +6,17 @@ the entire timestamp array into memory, solving Issue #47 where 17-hour
 recordings require 617GB of memory.
 """
 
-import numpy as np
-from typing import Optional, Union, List, Iterator
 import logging
+from typing import Iterator, List, Optional, Union
+
 from hdmf.data_utils import AbstractDataChunkIterator, DataChunk
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # Constants for regression parameter computation
 REGRESSION_SAMPLE_SIZE = 10_000  # Target number of samples for regression
-MAX_REGRESSION_POINTS = 1_000    # Maximum points to use for regression
+MAX_REGRESSION_POINTS = 1_000  # Maximum points to use for regression
 
 
 class LazyTimestampArray(AbstractDataChunkIterator):
@@ -62,8 +63,10 @@ class LazyTimestampArray(AbstractDataChunkIterator):
         # Iterator state
         self._current_position = 0
 
-        logger.info(f"LazyTimestampArray initialized: {self.shape[0]:,} samples, "
-                   f"chunk_size={chunk_size:,}")
+        logger.info(
+            f"LazyTimestampArray initialized: {self.shape[0]:,} samples, "
+            f"chunk_size={chunk_size:,}"
+        )
 
     def _compute_boundaries(self):
         """Compute file boundaries and total shape efficiently."""
@@ -76,7 +79,9 @@ class LazyTimestampArray(AbstractDataChunkIterator):
                 # Need to trigger interpolation setup by accessing timestamps once
                 # This is unavoidable but we'll do it efficiently
                 logger.debug(f"Setting up interpolation for file {i}")
-                _ = neo_io.get_analogsignal_timestamps(0, 100)  # Small sample to trigger setup
+                _ = neo_io.get_analogsignal_timestamps(
+                    0, 100
+                )  # Small sample to trigger setup
 
             # Get signal size - this should work now
             n_samples = neo_io.get_signal_size(
@@ -105,7 +110,9 @@ class LazyTimestampArray(AbstractDataChunkIterator):
             if start <= global_index < stop:
                 return file_idx, global_index - start, global_index - start + 1
 
-        raise IndexError(f"Index {global_index} out of bounds for array of size {self.shape[0]}")
+        raise IndexError(
+            f"Index {global_index} out of bounds for array of size {self.shape[0]}"
+        )
 
     def _compute_timestamp_chunk(self, neo_io, i_start: int, i_stop: int) -> np.ndarray:
         """
@@ -138,7 +145,9 @@ class LazyTimestampArray(AbstractDataChunkIterator):
             # Use Trodes timestamp method
             return self._compute_trodes_systime_chunk(neo_io, i_start, i_stop)
 
-    def _compute_regressed_systime_chunk(self, neo_io, i_start: int, i_stop: int) -> np.ndarray:
+    def _compute_regressed_systime_chunk(
+        self, neo_io, i_start: int, i_stop: int
+    ) -> np.ndarray:
         """Compute regressed systime timestamps for a chunk."""
         NANOSECONDS_PER_SECOND = 1e9
         file_id = id(neo_io)
@@ -149,8 +158,12 @@ class LazyTimestampArray(AbstractDataChunkIterator):
             logger.debug(f"Computing regression parameters for file {file_id}")
 
             # Sample strategy: Take every nth sample to avoid loading entire file
-            sample_stride = max(1, neo_io.get_signal_size(0, 0, 0) // REGRESSION_SAMPLE_SIZE)
-            sample_indices = np.arange(0, neo_io.get_signal_size(0, 0, 0), sample_stride)
+            sample_stride = max(
+                1, neo_io.get_signal_size(0, 0, 0) // REGRESSION_SAMPLE_SIZE
+            )
+            sample_indices = np.arange(
+                0, neo_io.get_signal_size(0, 0, 0), sample_stride
+            )
 
             # Get sampled timestamps and sysclock - this loads much less data
             sampled_trodes = []
@@ -164,14 +177,14 @@ class LazyTimestampArray(AbstractDataChunkIterator):
 
             # Perform regression on sampled data
             from scipy.stats import linregress
+
             slope, intercept, _, _, _ = linregress(sampled_trodes, sampled_sys)
 
-            self._regression_cache[file_id] = {
-                "slope": slope,
-                "intercept": intercept
-            }
+            self._regression_cache[file_id] = {"slope": slope, "intercept": intercept}
 
-            logger.debug(f"Regression parameters cached: slope={slope:.6f}, intercept={intercept:.6f}")
+            logger.debug(
+                f"Regression parameters cached: slope={slope:.6f}, intercept={intercept:.6f}"
+            )
 
         # Use cached parameters for timestamp computation
         params = self._regression_cache[file_id]
@@ -185,7 +198,9 @@ class LazyTimestampArray(AbstractDataChunkIterator):
         adjusted_timestamps = intercept + slope * trodestime_index
         return adjusted_timestamps / NANOSECONDS_PER_SECOND
 
-    def _compute_trodes_systime_chunk(self, neo_io, i_start: int, i_stop: int) -> np.ndarray:
+    def _compute_trodes_systime_chunk(
+        self, neo_io, i_start: int, i_stop: int
+    ) -> np.ndarray:
         """Compute Trodes-based systime timestamps for a chunk."""
         # This method should mirror get_systime_from_trodes_timestamps but for chunks
         # For now, delegate to the original method for the chunk
@@ -241,7 +256,9 @@ class LazyTimestampArray(AbstractDataChunkIterator):
 
                 # Compute how much we can get from this file
                 file_start, file_stop, _ = self._file_boundaries[file_idx]
-                local_stop = min(local_start + (stop - current_pos), file_stop - file_start)
+                local_stop = min(
+                    local_start + (stop - current_pos), file_stop - file_start
+                )
 
                 # Get chunk from this file
                 chunk = self._compute_timestamp_chunk(neo_io, local_start, local_stop)
@@ -251,7 +268,7 @@ class LazyTimestampArray(AbstractDataChunkIterator):
 
             return np.concatenate(result) if result else np.array([])
 
-        elif hasattr(key, '__iter__'):
+        elif hasattr(key, "__iter__"):
             # Array indexing
             indices = np.asarray(key)
             result = np.empty(indices.shape, dtype=self.dtype)
@@ -275,7 +292,9 @@ class LazyTimestampArray(AbstractDataChunkIterator):
         This method exists for compatibility but defeats the purpose of lazy loading.
         Only use for small arrays or when absolutely necessary.
         """
-        logger.warning("Converting LazyTimestampArray to numpy array - this loads all timestamps!")
+        logger.warning(
+            "Converting LazyTimestampArray to numpy array - this loads all timestamps!"
+        )
         return self[:]
 
     @property
@@ -307,7 +326,11 @@ class LazyTimestampArray(AbstractDataChunkIterator):
         estimated_full_size = self.nbytes / (1024**3)  # GB
 
         # Calculate cache efficiency
-        cache_efficiency = len(self._regression_cache) / len(self.neo_io_list) if self.neo_io_list else 0
+        cache_efficiency = (
+            len(self._regression_cache) / len(self.neo_io_list)
+            if self.neo_io_list
+            else 0
+        )
 
         return {
             "shape": self.shape,

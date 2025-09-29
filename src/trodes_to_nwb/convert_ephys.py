@@ -5,16 +5,16 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 import logging
 from warnings import warn
 
-import numpy as np
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
+import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
 from trodes_to_nwb import convert_rec_header
 
-from .spike_gadgets_raw_io import SpikeGadgetsRawIO, SpikeGadgetsRawIOPartial
 from .lazy_timestamp_array import LazyTimestampArray
+from .spike_gadgets_raw_io import SpikeGadgetsRawIO, SpikeGadgetsRawIOPartial
 
 MICROVOLTS_PER_VOLT = 1e6
 VOLTS_PER_MICROVOLT = 1e-6
@@ -206,13 +206,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         else:
             # Create lazy timestamp array for memory-efficient access
             logger.info("Creating lazy timestamp array to avoid memory explosion")
-            timestamp_chunk_size = kwargs.pop('timestamp_chunk_size', 1_000_000)
+            timestamp_chunk_size = kwargs.pop("timestamp_chunk_size", 1_000_000)
             self.timestamps = LazyTimestampArray(
-                neo_io_list=self.neo_io,
-                chunk_size=timestamp_chunk_size
+                neo_io_list=self.neo_io, chunk_size=timestamp_chunk_size
             )
-            logger.info(f"Lazy timestamps initialized: {len(self.timestamps):,} samples "
-                       f"({self.timestamps.nbytes / (1024**3):.2f}GB if fully loaded)")
+            logger.info(
+                f"Lazy timestamps initialized: {len(self.timestamps):,} samples "
+                f"({self.timestamps.nbytes / (1024**3):.2f}GB if fully loaded)"
+            )
 
         logger.info("Reading timestamps COMPLETE")
 
@@ -376,11 +377,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
 
         for start_idx in sample_points:
             try:
-                chunk = self.timestamps[start_idx:start_idx + chunk_size]
+                chunk = self.timestamps[start_idx : start_idx + chunk_size]
                 if not np.all(np.diff(chunk) > 0):
                     return False
             except MemoryError:
-                logger.warning(f"Memory error checking timestamps at position {start_idx}")
+                logger.warning(
+                    f"Memory error checking timestamps at position {start_idx}"
+                )
                 continue  # Skip this chunk and continue
 
         return True
