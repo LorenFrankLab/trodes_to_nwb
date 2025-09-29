@@ -13,7 +13,7 @@ from pynwb.ecephys import ElectricalSeries
 
 from trodes_to_nwb import convert_rec_header
 
-from .lazy_timestamp_array import LazyTimestampArray
+from .lazy_timestamp_array import LazyTimestampArray, REGRESSION_SAMPLE_SIZE, MAX_REGRESSION_POINTS
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO, SpikeGadgetsRawIOPartial
 
 MICROVOLTS_PER_VOLT = 1e6
@@ -174,7 +174,28 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 iterator_loc = len(iterator_size) - i - 1
                 # calculate systime regression on full epoch, parameters stored and inherited by partial iterators
                 if self.neo_io[iterator_loc].sysClock_byte:
-                    self.neo_io[iterator_loc].get_regressed_systime(0, None)
+                    # Use sampling-based regression computation to avoid memory explosion
+                    # This mirrors the LazyTimestampArray approach for consistency
+                    signal_size = self.neo_io[iterator_loc].get_signal_size(0, 0, 0)
+                    sample_stride = max(1, signal_size // REGRESSION_SAMPLE_SIZE)
+                    sample_indices = np.arange(0, signal_size, sample_stride)[:MAX_REGRESSION_POINTS]
+
+                    # Sample timestamps and sysclock for regression
+                    sampled_trodes = []
+                    sampled_sys = []
+                    for idx in sample_indices:
+                        trodes_chunk = self.neo_io[iterator_loc].get_analogsignal_timestamps(idx, idx + 1)
+                        sys_chunk = self.neo_io[iterator_loc].get_sys_clock(idx, idx + 1)
+                        sampled_trodes.extend(trodes_chunk.astype(np.float64))
+                        sampled_sys.extend(sys_chunk)
+
+                    # Compute and cache regression parameters without loading full timestamps
+                    from scipy.stats import linregress
+                    slope, intercept, _, _, _ = linregress(sampled_trodes, sampled_sys)
+                    self.neo_io[iterator_loc].regressed_systime_parameters = {
+                        "slope": slope,
+                        "intercept": intercept,
+                    }
                 while j < size:
                     sub_iterators.append(
                         SpikeGadgetsRawIOPartial(
