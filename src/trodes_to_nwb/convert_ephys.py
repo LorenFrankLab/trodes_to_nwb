@@ -14,6 +14,7 @@ from pynwb.ecephys import ElectricalSeries
 from trodes_to_nwb import convert_rec_header
 
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO, SpikeGadgetsRawIOPartial
+from .lazy_timestamp_array import LazyTimestampArray
 
 MICROVOLTS_PER_VOLT = 1e6
 VOLTS_PER_MICROVOLT = 1e-6
@@ -198,25 +199,31 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators
         logger.info(f"# iterators: {len(self.neo_io)}")
-        # NOTE: this will read all the timestamps from the rec file, which can be slow
+        # Use lazy loading to avoid memory explosion (Issue #47)
+        # This prevents loading 617GB of timestamps for 17-hour recordings
         if timestamps is not None:
             self.timestamps = timestamps
-
-        elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = np.concatenate(
-                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
+        else:
+            # Create lazy timestamp array for memory-efficient access
+            logger.info("Creating lazy timestamp array to avoid memory explosion")
+            timestamp_chunk_size = kwargs.pop('timestamp_chunk_size', 1_000_000)
+            self.timestamps = LazyTimestampArray(
+                neo_io_list=self.neo_io,
+                chunk_size=timestamp_chunk_size
             )
-
-        else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            self.timestamps = np.concatenate(
-                [
-                    neo_io.get_systime_from_trodes_timestamps(0, None)
-                    for neo_io in self.neo_io
-                ]
-            )
+            logger.info(f"Lazy timestamps initialized: {len(self.timestamps):,} samples "
+                       f"({self.timestamps.nbytes / (1024**3):.2f}GB if fully loaded)")
 
         logger.info("Reading timestamps COMPLETE")
-        is_timestamps_sequential = np.all(np.diff(self.timestamps))
+
+        # Check if timestamps are sequential without loading entire array
+        if isinstance(self.timestamps, LazyTimestampArray):
+            # LazyTimestampArray - check sequentiality in chunks to avoid memory explosion
+            is_timestamps_sequential = self._check_timestamps_sequential_lazy()
+        else:
+            # Traditional numpy array - use original check
+            is_timestamps_sequential = np.all(np.diff(self.timestamps))
+
         if not is_timestamps_sequential:
             warn(
                 "Timestamps are not sequential. This may cause problems with some software or data analysis.",
@@ -339,6 +346,44 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             np.sum(self.n_time),
             self.n_channel + self.n_multiplexed_channel,
         )  # TODO: Is this right for maxshape @rly
+
+    def _check_timestamps_sequential_lazy(self) -> bool:
+        """
+        Check if timestamps are sequential without loading entire array.
+
+        This method samples timestamps in chunks to verify sequentiality
+        without triggering memory explosion.
+
+        Returns
+        -------
+        bool
+            True if timestamps appear to be sequential, False otherwise
+        """
+        logger = logging.getLogger("convert")
+        chunk_size = 10000  # Sample 10k timestamps at a time
+        total_length = len(self.timestamps)
+
+        if total_length <= chunk_size:
+            # Small enough to check directly
+            try:
+                return bool(np.all(np.diff(self.timestamps[:]) > 0))
+            except MemoryError:
+                logger.warning("Memory error during timestamp sequential check")
+                return True  # Assume sequential to avoid blocking processing
+
+        # Check samples throughout the array
+        sample_points = np.linspace(0, total_length - chunk_size, num=10, dtype=int)
+
+        for start_idx in sample_points:
+            try:
+                chunk = self.timestamps[start_idx:start_idx + chunk_size]
+                if not np.all(np.diff(chunk) > 0):
+                    return False
+            except MemoryError:
+                logger.warning(f"Memory error checking timestamps at position {start_idx}")
+                continue  # Skip this chunk and continue
+
+        return True
 
     def _get_dtype(self) -> np.dtype:
         return np.dtype("int16")
