@@ -77,6 +77,16 @@ Developers should install from source.
        `-- README.md
     ```
 
+    _Optional_
+
+    > For those using `spyglass` for data management, you can check your yaml against
+    existing database entries prior to conversion with the following code:
+
+    ```python
+    from trodes_to_nwb.database_validation import yaml_database_validation
+    yaml_database_validation("/path/to/yaml/file")
+    ```
+
 3. Run the code in python. This will create a NWB file for each `.rec` file in the output directory.
 
     ```python
