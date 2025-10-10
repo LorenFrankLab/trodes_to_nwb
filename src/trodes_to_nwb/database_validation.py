@@ -35,7 +35,8 @@ def yaml_database_validation(yaml_path: str):
         Path to the YAML file.
     """
 
-    yaml_data = yaml.safe_load(open(yaml_path))
+    with open(yaml_path) as f:
+        yaml_data = yaml.safe_load(f)
     try:
         from spyglass.common import CameraDevice, Task
     except ImportError:
