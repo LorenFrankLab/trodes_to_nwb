@@ -10,6 +10,8 @@ from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
 
+NANOSECONDS_PER_SECOND = 1e9
+
 
 def test_add_epochs():
     metadata_path = data_path / "20230622_sample_metadata.yml"
@@ -69,7 +71,8 @@ def test_add_sample_count():
                 == old_nwbfile.processing["sample_count"]["sample_count"].data[:]
             ).all()
             assert np.allclose(
-                read_nwbfile.processing["sample_count"]["sample_count"].timestamps[:],
+                read_nwbfile.processing["sample_count"]["sample_count"].timestamps[:]
+                * NANOSECONDS_PER_SECOND,  # Account for error in old file timestamps
                 old_nwbfile.processing["sample_count"]["sample_count"].timestamps[:],
                 rtol=0,
                 atol=(1.0 / 30000) * 1e9,
