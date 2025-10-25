@@ -35976,6 +35976,538 @@
                     }
                 }
             }
+        },
+        "opto_excitation_source": {
+            "$id": "#root/opto_excitation_source",
+            "title": "opto_excitation_source",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#root/opto_excitation_source/items",
+                "title": "Items",
+                "type": "object",
+                "required": [
+                    "name",
+                    "model_name",
+                    "description",
+                    "wavelength_in_nm",
+                    "power_in_W",
+                    "intensity_in_W_per_m2"
+                ],
+                "properties": {
+                    "name": {
+                        "$id": "#root/opto_excitation_source/items/name",
+                        "title": "name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "Lux+ 638-200"
+                        ],
+                        "description": "Name of opto excitation source",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "description": {
+                        "$id": "#root/opto_excitation_source/items/description",
+                        "title": "description",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "lux laser"
+                        ],
+                        "description": "Description of opto excitation source",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "model_name": {
+                        "$id": "#root/opto_excitation_source/items/model_name",
+                        "title": "model_name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "Lux+ 638-200"
+                        ],
+                        "description": "Model name of opto excitation source",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "wavelength_in_nm": {
+                        "$id": "#root/opto_excitation_source/items/wavelength_in_nm",
+                        "title": "wavelength_in_nm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            638.0
+                        ],
+                        "description": "Wavelength of opto excitation source in nanometers"
+                    },
+                    "power_in_W": {
+                        "$id": "#root/opto_excitation_source/items/power_in_W",
+                        "title": "power_in_W",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.2
+                        ],
+                        "description": "Power of opto excitation source in Watts"
+                    },
+                    "intensity_in_W_per_m2": {
+                        "$id": "#root/opto_excitation_source/items/intensity_in_W_per_m2",
+                        "title": "intensity_in_W_per_m2",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.1
+                        ],
+                        "description": "Intensity of opto excitation source in Watts per square meter"
+                    }
+                }
+            }
+        },
+        "optical_fiber": {
+            "$id": "#root/optical_fiber",
+            "title": "optical_fiber",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#root/optical_fiber/items",
+                "title": "Items",
+                "type": "object",
+                "required": [
+                    "name",
+                    "hardware_name",
+                    "implanted_fiber_description",
+                    "hemisphere",
+                    "location",
+                    "ap_in_mm",
+                    "ml_in_mm",
+                    "dv_in_mm",
+                    "roll_in_deg",
+                    "pitch_in_deg",
+                    "yaw_in_deg"
+                ],
+                "properties": {
+                    "name": {
+                        "$id": "#root/optical_fiber/items/name",
+                        "title": "name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "Fiber Implant 1"
+                        ],
+                        "description": "Name of optical fiber",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "hardware_name": {
+                        "$id": "#root/optical_fiber/items/hardware_name",
+                        "title": "hardware_name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "Fiber Implant 1"
+                        ],
+                        "description": "Hardware name of optical fiber",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "implanted_fiber_description": {
+                        "$id": "#root/optical_fiber/items/implanted_fiber_description",
+                        "title": "implanted_fiber_description",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "Optical fiber implanted in CA1"
+                        ],
+                        "description": "Description of the implanted fiber",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "hemisphere": {
+                        "$id": "#root/optical_fiber/items/hemisphere",
+                        "title": "hemisphere",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "left",
+                            "right"
+                        ],
+                        "description": "Hemisphere of the brain where the fiber is implanted",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "location": {
+                        "$id": "#root/optical_fiber/items/location",
+                        "title": "location",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "CA1",
+                            "CA3",
+                            "DG"
+                        ],
+                        "description": "Specific location in the brain where the fiber is implanted",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "ap_in_mm": {
+                        "$id": "#root/optical_fiber/items/ap_in_mm",
+                        "title": "ap_in_mm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            1.5
+                        ],
+                        "description": "Anterior-posterior coordinate of the fiber implant in millimeters"
+                    },
+                    "ml_in_mm": {
+                        "$id": "#root/optical_fiber/items/ml_in_mm",
+                        "title": "ml_in_mm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            2.0
+                        ],
+                        "description": "Medial-lateral coordinate of the fiber implant in millimeters"
+                    },
+                    "dv_in_mm": {
+                        "$id": "#root/optical_fiber/items/dv_in_mm",
+                        "title": "dv_in_mm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            1.0
+                        ],
+                        "description": "Dorsal-ventral coordinate of the fiber implant in millimeters"
+                    },
+                    "roll_in_deg": {
+                        "$id": "#root/optical_fiber/items/roll_in_deg",
+                        "title": "roll_in_deg",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.0
+                        ],
+                        "description": "Roll angle of the fiber implant in degrees"
+                    },
+                    "pitch_in_deg": {
+                        "$id": "#root/optical_fiber/items/pitch_in_deg",
+                        "title": "pitch_in_deg",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.0
+                        ],
+                        "description": "Pitch angle of the fiber implant in degrees"
+                    },
+                    "yaw_in_deg": {
+                        "$id": "#root/optical_fiber/items/yaw_in_deg",
+                        "title": "yaw_in_deg",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.0
+                        ],
+                        "description": "Yaw angle of the fiber implant in degrees"
+                    }
+                }
+            }
+        },
+        "virus_injection": {
+            "$id": "#root/virus_injection",
+            "title": "virus_injection",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#root/virus_injection/items",
+                "title": "Items",
+                "type": "object",
+                "required": [
+                    "name",
+                    "description",
+                    "virus_name",
+                    "volume_in_ul",
+                    "titer_in_vg_per_ml",
+                    "location",
+                    "hemisphere",
+                    "ap_in_mm",
+                    "ml_in_mm",
+                    "dv_in_mm",
+                    "roll_in_deg",
+                    "pitch_in_deg",
+                    "yaw_in_deg"
+                ],
+                "properties": {
+                    "name": {
+                        "$id": "#root/virus_injection/items/name",
+                        "title": "name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "AAV-Cre"
+                        ],
+                        "description": "Name of the injection",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "description": {
+                        "$id": "#root/virus_injection/items/description",
+                        "title": "description",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "CA1 injection of AAV expressing Cre recombinase"
+                        ],
+                        "description": "Description of the virus injection",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "virus_name": {
+                        "$id": "#root/virus_injection/items/virus_name",
+                        "title": "virus_name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "AAV-Cre",
+                            "AAV-ChR2"
+                        ],
+                        "description": "Name of the virus used in the injection",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "volume_in_ul": {
+                        "$id": "#root/virus_injection/items/volume_in_ul",
+                        "title": "volume_in_ul",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            1.0
+                        ],
+                        "description": "Volume of the virus injected in microliters (µL)"
+                    },
+                    "titer_in_vg_per_ml": {
+                        "$id": "#root/virus_injection/items/titer_in_vg_per_ml",
+                        "title": "titer_in_vg_per_ml",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            1.0e12
+                        ],
+                        "description": "Titer of the virus in viral genomes per milliliter (vg/mL)"
+                    },
+                    "location": {
+                        "$id": "#root/virus_injection/items/location",
+                        "title": "location",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "CA1",
+                            "CA3",
+                            "DG"
+                        ],
+                        "description": "Specific location in the brain where the virus is injected",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "hemisphere": {
+                        "$id": "#root/virus_injection/items/hemisphere",
+                        "title": "hemisphere",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "left",
+                            "right"
+                        ],
+                        "description": "Hemisphere of the brain where the virus is injected"
+                    },
+                    "ap_in_mm": {
+                        "$id": "#root/virus_injection/items/ap_in_mm",
+                        "title": "ap_in_mm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            1.5
+                        ],
+                        "description": "Anterior-posterior coordinate of the virus injection in millimeters"
+                    },
+                    "ml_in_mm": {
+                        "$id": "#root/virus_injection/items/ml_in_mm",
+                        "title": "ml_in_mm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            2.0
+                        ],
+                        "description": "Medial-lateral coordinate of the virus injection in millimeters"
+                    },
+                    "dv_in_mm": {
+                        "$id": "#root/virus_injection/items/dv_in_mm",
+                        "title": "dv_in_mm",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            1.0
+                        ],
+                        "description": "Dorsal-ventral coordinate of the virus injection in millimeters"
+                    },
+                    "roll_in_deg": {
+                        "$id": "#root/virus_injection/items/roll_in_deg",
+                        "title": "roll_in_deg",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.0
+                        ],
+                        "description": "Roll angle of the virus injection in degrees"
+                    },
+                    "pitch_in_deg": {
+                        "$id": "#root/virus_injection/items/pitch_in_deg",
+                        "title": "pitch_in_deg",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.0
+                        ],
+                        "description": "Pitch angle of the virus injection in degrees"
+                    },
+                    "yaw_in_deg": {
+                        "$id": "#root/virus_injection/items/yaw_in_deg",
+                        "title": "yaw_in_deg",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            0.0
+                        ],
+                        "description": "Yaw angle of the virus injection in degrees"
+                    }
+                }
+            }
+        },
+        "fs_gui_yamls": {
+            "$id": "#root/fs_gui_yamls",
+            "title": "fs_gui_yamls",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#root/fs_gui_yamls/items",
+                "title": "Items",
+                "type": "object",
+                "required": [
+                    "name",
+                    "power_in_mW",
+                    "epochs",
+                    "dio_output_name",
+                    "camera_id"
+                ],
+                "properties": {
+                    "name": {
+                        "$id": "#root/fs_gui_yamls/items/name",
+                        "title": "name",
+                        "type": "string",
+                        "default": "",
+                        "description": "path to file",
+                        "examples": [
+                            "20210606_J16_01_s1.1.yaml"
+                        ],
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "power_in_mW": {
+                        "$id": "#root/fs_gui_yamls/items/power_in_mW",
+                        "title": "power_in_mW",
+                        "type": "number",
+                        "default": 0.0,
+                        "examples": [
+                            5.0
+                        ],
+                        "description": "Power in milliwatts (mW)"
+                    },
+                    "epochs": {
+                        "$id": "#root/fs_gui_yamls/items/epochs",
+                        "title": "epochs",
+                        "type": "array",
+                        "default": [],
+                        "items": {
+                            "$id": "#root/fs_gui_yamls/items/epochs/items",
+                            "title": "Items",
+                            "type": "integer",
+                            "uniqueItems": true,
+                            "examples": [
+                                1,
+                                2,
+                                3
+                            ],
+                            "default": 0,
+                            "description": "Epochs for the fs_gui yaml file"
+                        }
+                    },
+                    "dio_output_name": {
+                        "$id": "#root/fs_gui_yamls/items/dio_output_name",
+                        "title": "dio_output_name",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "Laser"
+                        ],
+                        "description": "Name of the digital output for the fs_gui yaml file",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+                    },
+                    "camera_id": {
+                        "$id": "#root/fs_gui_yamls/items/camera_id",
+                        "title": "camera_id",
+                        "type": "integer",
+                        "default": [],
+                        "description": "Camera ID associated with the fs_gui yaml file",
+                        "examples": [
+                            0
+                        ]
+                    },
+                    "pulseLength": {
+                        "$id": "#root/fs_gui_yamls/items/pulseLength",
+                        "title": "pulseLength",
+                        "type": "number",
+                        "default": [],
+                        "examples": [
+                            10
+                        ],
+                        "description": "Pulse length in ms for the fs_gui yaml file"
+                    },
+                    "nPulses": {
+                        "$id": "#root/fs_gui_yamls/items/nPulses",
+                        "title": "nPulses",
+                        "type": "integer",
+                        "default": [],
+                        "examples": [
+                            5
+                        ],
+                        "description": "Number of pulses per train"
+                    },
+                    "sequencePeriod": {
+                        "$id": "#root/fs_gui_yamls/items/sequencePeriod",
+                        "title": "sequencePeriod",
+                        "type": "number",
+                        "default": [],
+                        "examples": [
+                            1000
+                        ],
+                        "description": "Time between sequences in ms"
+                    },
+                    "nOutputTrains": {
+                        "$id": "#root/fs_gui_yamls/items/nOutputTrains",
+                        "title": "nOutputTrains",
+                        "type": "integer",
+                        "default": [],
+                        "examples": [
+                            10
+                        ],
+                        "description": "Number of output trains"
+                    },
+                    "trainInterval": {
+                        "$id": "#root/fs_gui_yamls/items/trainInterval",
+                        "title": "trainInterval",
+                        "type": "number",
+                        "default": [],
+                        "examples": [
+                            5000
+                        ],
+                        "description": "Time between output trains in ms"
+                    }
+                }
+            }
+        },
+        "opto_software": {
+            "$id": "#root/opto_software",
+            "title": "opto_software",
+            "type": "string",
+            "default": "fsgui",
+            "description": "Software used for optogenetic stimulation"
         }
     }
 }
