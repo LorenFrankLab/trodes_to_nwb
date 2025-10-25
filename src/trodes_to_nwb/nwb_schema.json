@@ -36306,7 +36306,8 @@
                             "left",
                             "right"
                         ],
-                        "description": "Hemisphere of the brain where the virus is injected"
+                        "description": "Hemisphere of the brain where the virus is injected",
+                        "pattern": "^(.|\\s)*\\S(.|\\s)*$"
                     },
                     "ap_in_mm": {
                         "$id": "#root/virus_injection/items/ap_in_mm",
@@ -36371,6 +36372,14 @@
                 }
             }
         },
+        "opto_software": {
+            "$id": "#root/opto_software",
+            "title": "opto_software",
+            "type": "string",
+            "default": "fsgui",
+            "description": "Software used for optogenetic stimulation",
+            "pattern": "^(.|\\s)*\\S(.|\\s)*$"
+        },
         "fs_gui_yamls": {
             "$id": "#root/fs_gui_yamls",
             "title": "fs_gui_yamls",
@@ -36414,6 +36423,7 @@
                         "title": "epochs",
                         "type": "array",
                         "default": [],
+                        "minItems": 1,
                         "items": {
                             "$id": "#root/fs_gui_yamls/items/epochs/items",
                             "title": "Items",
@@ -36501,13 +36511,6 @@
                     }
                 }
             }
-        },
-        "opto_software": {
-            "$id": "#root/opto_software",
-            "title": "opto_software",
-            "type": "string",
-            "default": "fsgui",
-            "description": "Software used for optogenetic stimulation"
         }
     }
 }
