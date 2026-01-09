@@ -23,6 +23,7 @@ from ndx_franklab_novela import (
     ShanksElectrode,
 )
 from pynwb import NWBFile
+from pynwb.device import DeviceModel
 from pynwb.file import ProcessingModule, Subject
 
 import trodes_to_nwb.metadata_validation
@@ -135,12 +136,19 @@ def add_cameras(nwbfile: NWBFile, metadata: dict) -> None:
     """
     # add each camera device to the nwb
     for camera_metadata in metadata["cameras"]:
+        model_obj = nwbfile.device_models.get(camera_metadata["model"], None)
+        if model_obj is None:
+            model_obj = DeviceModel(
+                name=camera_metadata["model"],
+                manufacturer=camera_metadata["manufacturer"],
+            )
+            nwbfile.add_device_model(model_obj)
         nwbfile.add_device(
             CameraDevice(
                 name="camera_device " + str(camera_metadata["id"]),
                 meters_per_pixel=camera_metadata["meters_per_pixel"],
                 manufacturer=camera_metadata["manufacturer"],
-                model=camera_metadata["model"],
+                model=model_obj,
                 lens=camera_metadata["lens"],
                 camera_name=camera_metadata["camera_name"],
             )
