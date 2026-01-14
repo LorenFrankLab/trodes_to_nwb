@@ -10,16 +10,21 @@ from pathlib import Path
 import numpy as np
 import yaml
 from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
-from ndx_optogenetics import (
+from ndx_ophys_devices import (
+    Effector,
     ExcitationSource,
     ExcitationSourceModel,
+    FiberInsertion,
     OpticalFiber,
-    OpticalFiberLocationsTable,
     OpticalFiberModel,
+    ViralVector,
+    ViralVectorInjection,
+)
+from ndx_optogenetics import (
+    OptogeneticEffectors,
     OptogeneticExperimentMetadata,
-    OptogeneticVirus,
+    OptogeneticSitesTable,
     OptogeneticViruses,
-    OptogeneticVirusInjection,
     OptogeneticVirusInjections,
 )
 from pynwb import NWBFile
@@ -56,7 +61,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dic
 
     # Add optogenetic experiment metadata
     logger.info("Adding optogenetic experiment metadata")
-    virus, virus_injection = make_virus_injecton(
+    virus, virus_injection, virus_effectors = make_virus_injecton(
         metadata.get("virus_injection"), device_metadata
     )
     excitation_metadata = metadata.get("opto_excitation_source")
@@ -71,15 +76,20 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dic
         nwbfile, excitation_metadata, device_metadata
     )
     fiber_table = make_optical_fiber(
-        nwbfile, metadata.get("optical_fiber"), excitation_source, device_metadata
+        nwbfile,
+        metadata.get("optical_fiber"),
+        excitation_source,
+        list(virus_effectors.effectors.values())[0],
+        device_metadata,
     )
 
     # add them combined metadata to the nwb file
     # Create experiment metadata container
     optogenetic_experiment_metadata = OptogeneticExperimentMetadata(
-        optical_fiber_locations_table=fiber_table,
+        optogenetic_sites_table=fiber_table,
         optogenetic_viruses=virus,
         optogenetic_virus_injections=virus_injection,
+        optogenetic_effectors=virus_effectors,
         stimulation_software=metadata["optogenetic_stimulation_software"],
     )
     nwbfile.add_lab_meta_data(optogenetic_experiment_metadata)
@@ -107,17 +117,21 @@ def make_optogenetic_source(
         name=source_metadata["model_name"],
         description=model_metadata["description"],
         manufacturer=model_metadata["manufacturer"],
-        illumination_type=model_metadata["illumination_type"],
+        source_type=model_metadata.get(
+            "source_type", model_metadata.get("illumination_type", "unknown")
+        ),  # dual option to maintain backwards compatability
+        excitation_mode=model_metadata.get(
+            "excitation_mode", "unknown"
+        ),  # default option to maintain backwards compatability
         wavelength_range_in_nm=model_metadata["wavelength_range_in_nm"],
     )
     excitation_source = ExcitationSource(
         name=source_metadata["name"],
         model=excitation_source_model,
-        wavelength_in_nm=float(source_metadata["wavelength_in_nm"]),
         power_in_W=float(source_metadata["power_in_W"]),
         intensity_in_W_per_m2=float(source_metadata["intensity_in_W_per_m2"]),
     )
-    nwbfile.add_device(excitation_source_model)
+    nwbfile.add_device_model(excitation_source_model)
     nwbfile.add_device(excitation_source)
     return excitation_source
 
@@ -126,25 +140,31 @@ def make_optical_fiber(
     nwbfile: NWBFile,
     fiber_metadata_list: dict,
     excitation_source: ExcitationSource,
+    effector: Effector,
     device_metadata: list[dict],
 ) -> OpticalFiber:
     """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
+
+    Note: Currently assumes all fibers have the same optogenetic source and effector.
+    Please submit a feature request if this is not the case.
 
     Parameters:
     ----------
         nwbfile (NWBFile): The NWB file to which the optical fiber locations table will be added.
         fiber_metadata_list (dict): Metadata for the optical fibers.
         excitation_source (ExcitationSource): The excitation source associated with the optical fibers.
+        effector (Effector): The effector associated with the optical fibers.
+        device_metadata (List[dict]): list of available device metadata for lookup.
 
     Returns:
     -------
         OpticalFiber: The created OpticalFiber object.
     """
-    # make the locations table
-    optical_fiber_locations_table = OpticalFiberLocationsTable(
-        description="Information about implanted optical fiber locations",
-        reference=fiber_metadata_list[0]["reference"],
+    # make the sites table
+    optogenetic_sites_table = OptogeneticSitesTable(
+        description="Information about optogenetic stimulation sites",
     )
+
     added_fiber_models = {}
     for fiber_metadata in fiber_metadata_list:
         model_name = fiber_metadata["hardware_name"]
@@ -157,8 +177,7 @@ def make_optical_fiber(
             optical_fiber_model = OpticalFiberModel(
                 name=fiber_metadata["hardware_name"],
                 description=fiber_model_metadata["description"],
-                fiber_name=fiber_model_metadata["hardware_name"],
-                fiber_model=fiber_model_metadata["fiber_model"],
+                model_number=fiber_model_metadata["fiber_model"],
                 manufacturer=fiber_model_metadata["manufacturer"],
                 numerical_aperture=fiber_model_metadata["numerical_aperture"],
                 core_diameter_in_um=fiber_model_metadata["core_diameter_in_um"],
@@ -167,31 +186,37 @@ def make_optical_fiber(
                 ferrule_diameter_in_mm=fiber_model_metadata["ferrule_diameter_in_mm"],
             )
             added_fiber_models[model_name] = optical_fiber_model
-            nwbfile.add_device(optical_fiber_model)
+            nwbfile.add_device_model(optical_fiber_model)
+
+        fiber_insertion = FiberInsertion(
+            insertion_position_ap_in_mm=fiber_metadata["ap_in_mm"],
+            insertion_position_ml_in_mm=fiber_metadata["ml_in_mm"],
+            insertion_position_dv_in_mm=fiber_metadata["dv_in_mm"],
+            insertion_angle_roll_in_deg=fiber_metadata["roll_in_deg"],
+            insertion_angle_pitch_in_deg=fiber_metadata["pitch_in_deg"],
+            insertion_angle_yaw_in_deg=fiber_metadata["yaw_in_deg"],
+            position_reference=fiber_metadata["reference"],
+            hemisphere=fiber_metadata["hemisphere"],
+            depth_in_mm=fiber_metadata.get("depth_in_mm", np.nan),
+        )
 
         # make the fiber object
         optical_fiber = OpticalFiber(
             name=fiber_metadata["name"],
+            description=fiber_metadata["implanted_fiber_description"],
             model=optical_fiber_model,
+            fiber_insertion=fiber_insertion,
         )
         # add the fiber to the NWB file
         nwbfile.add_device(optical_fiber)
-        # add the fiber to the locations table
-        optical_fiber_locations_table.add_row(
-            implanted_fiber_description=fiber_metadata["implanted_fiber_description"],
-            location=fiber_metadata["location"],
-            hemisphere=fiber_metadata["hemisphere"],
-            ap_in_mm=fiber_metadata["ap_in_mm"],
-            ml_in_mm=fiber_metadata["ml_in_mm"],
-            dv_in_mm=fiber_metadata["dv_in_mm"],
-            roll_in_deg=fiber_metadata["roll_in_deg"],
-            pitch_in_deg=fiber_metadata["pitch_in_deg"],
-            yaw_in_deg=fiber_metadata["yaw_in_deg"],
+
+        optogenetic_sites_table.add_row(
             excitation_source=excitation_source,
             optical_fiber=optical_fiber,
+            effector=effector,
         )
 
-    return optical_fiber_locations_table
+    return optogenetic_sites_table
 
 
 def make_virus_injecton(
@@ -209,11 +234,13 @@ def make_virus_injecton(
 
     Returns
     -------
-    Tuple[OptogeneticViruses, OptogeneticVirusInjections]
-        A tuple containing the OptogeneticViruses and OptogeneticVirusInjections objects.
+    Tuple[OptogeneticViruses, OptogeneticVirusInjections, OptogeneticEffectors]
+        A tuple containing the OptogeneticViruses, OptogeneticVirusInjections,
+        and OptogeneticEffectors objects.
     """
     included_viruses = {}
     injections_list = []
+    effectors_list = []
     for virus_injection_metadata in virus_injection_metadata_list:
         # get virus "device"
         virus_name = virus_injection_metadata["virus_name"]
@@ -225,7 +252,7 @@ def make_virus_injecton(
                 device_metadata=device_metadata,
             )
             # make the virus object
-            virus = OptogeneticVirus(
+            virus = ViralVector(
                 name=virus_name,
                 construct_name=virus_metadata["construct_name"],
                 description=virus_metadata["description"],
@@ -245,7 +272,7 @@ def make_virus_injecton(
             )
 
         # make the injection object referencing the virus
-        virus_injection = OptogeneticVirusInjection(
+        virus_injection = ViralVectorInjection(
             name=virus_injection_metadata["name"],
             description=virus_injection_metadata["description"],
             hemisphere=hemisphere,
@@ -257,20 +284,28 @@ def make_virus_injecton(
             pitch_in_deg=float(virus_injection_metadata["pitch_in_deg"]),
             yaw_in_deg=float(virus_injection_metadata["yaw_in_deg"]),
             reference=virus_injection_metadata["reference"],
-            virus=virus,
+            viral_vector=virus,
             volume_in_uL=virus_injection_metadata["volume_in_uL"],
         )
         injections_list.append(virus_injection)
 
+        effector = Effector(
+            name=virus_injection.name,
+            description=virus_injection.description,
+            label=f"{virus_injection.name} {virus_injection.location}",
+        )
+        effectors_list.append(effector)
+
     # make the compiled objects
     optogenetic_viruses = OptogeneticViruses(
-        optogenetic_virus=list(included_viruses.values())
+        viral_vectors=list(included_viruses.values())
     )
     optogenetic_virus_injections = OptogeneticVirusInjections(
-        optogenetic_virus_injections=injections_list
+        viral_vector_injections=injections_list
     )
+    optogenetic_effectors = OptogeneticEffectors(effectors=effectors_list)
 
-    return optogenetic_viruses, optogenetic_virus_injections
+    return optogenetic_viruses, optogenetic_virus_injections, optogenetic_effectors
 
 
 def get_virus_device(virus_name, device_metadata) -> dict:
@@ -306,6 +341,11 @@ def add_optogenetic_epochs(
     """
     Add optogenetic epochs to the NWB file.
 
+    Notes:
+    - Assumes all epochs are stimulated with the same wavelength unless otherwise specified
+    - Assumes that all optogenetic sites are included in each epoch
+    If not, please submit a feature request.
+
     Parameters
     ----------
     nwbfile : NWBFile
@@ -322,10 +362,26 @@ def add_optogenetic_epochs(
         return
     logger.info(f"Adding {len(opto_epochs_metadata)} optogenetic epochs.")
 
+    sites_table = nwbfile.lab_meta_data[
+        "optogenetic_experiment_metadata"
+    ].optogenetic_sites_table
     opto_epochs_table = FrankLabOptogeneticEpochsTable(
         name="optogenetic_epochs",
         description="Metadata about optogenetic stimulation parameters per epoch",
+        target_tables={"optogenetic_sites": sites_table},
     )
+
+    # add the opto_sites and wavelength to each epoch metadata if not present
+    opto_source = metadata.get("opto_excitation_source", [None])[0]
+    default_wavelength = (
+        opto_source.get("wavelength_in_nm", None) if opto_source else None
+    )
+    default_sites = np.arange(len(sites_table)).tolist()
+    for fs_gui_metadata in opto_epochs_metadata:
+        if "wavelength_in_nm" not in fs_gui_metadata and default_wavelength is not None:
+            fs_gui_metadata["wavelength_in_nm"] = default_wavelength
+        if "optogenetic_sites" not in fs_gui_metadata:
+            fs_gui_metadata["optogenetic_sites"] = default_sites
 
     # loop through each fsgui script, which can apply to multiple epochs
     rows = []
@@ -449,6 +505,8 @@ def compile_opto_entries(
             "stimulus_signal": nwbfile.processing["behavior"]["behavioral_events"][
                 fs_gui_metadata["dio_output_name"]
             ],
+            "wavelength_in_nm": fs_gui_metadata.get("wavelength_in_nm", np.nan),
+            "optogenetic_sites": fs_gui_metadata.get("optogenetic_sites", []),
         }
         # info about the trigger condition
         trigger_dict = {
