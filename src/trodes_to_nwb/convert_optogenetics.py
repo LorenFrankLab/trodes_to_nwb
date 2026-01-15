@@ -143,14 +143,14 @@ def make_optical_fiber(
     effector: Effector,
     device_metadata: list[dict],
 ) -> OpticalFiber:
-    """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
+    """Create an OptogeneticSitesTable and populate it with optical fiber site data.
 
     Note: Currently assumes all fibers have the same optogenetic source and effector.
     Please submit a feature request if this is not the case.
 
     Parameters:
     ----------
-        nwbfile (NWBFile): The NWB file to which the optical fiber locations table will be added.
+        nwbfile (NWBFile): The NWB file to which the optogenetic sites table will be added.
         fiber_metadata_list (dict): Metadata for the optical fibers.
         excitation_source (ExcitationSource): The excitation source associated with the optical fibers.
         effector (Effector): The effector associated with the optical fibers.
