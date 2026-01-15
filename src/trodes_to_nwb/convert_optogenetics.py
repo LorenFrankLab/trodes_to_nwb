@@ -119,10 +119,10 @@ def make_optogenetic_source(
         manufacturer=model_metadata["manufacturer"],
         source_type=model_metadata.get(
             "source_type", model_metadata.get("illumination_type", "unknown")
-        ),  # dual option to maintain backwards compatability
+        ),  # dual option to maintain backwards compatibility
         excitation_mode=model_metadata.get(
             "excitation_mode", "unknown"
-        ),  # default option to maintain backwards compatability
+        ),  # default option to maintain backwards compatibility
         wavelength_range_in_nm=model_metadata["wavelength_range_in_nm"],
     )
     excitation_source = ExcitationSource(
