@@ -198,6 +198,7 @@ def make_optical_fiber(
             position_reference=fiber_metadata["reference"],
             hemisphere=fiber_metadata["hemisphere"],
             depth_in_mm=fiber_metadata.get("depth_in_mm", np.nan),
+            description=fiber_metadata.get("location"),
         )
 
         # make the fiber object
