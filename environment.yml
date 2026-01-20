@@ -19,6 +19,6 @@ dependencies:
 - ffmpeg
 - pip
 - pip:
-    - ndx-franklab-novela
+    - ndx-franklab-novela>=0.2.4
     - ndx-optogenetics
     - neo>=0.13.4

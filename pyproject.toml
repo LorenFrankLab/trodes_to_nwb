@@ -26,7 +26,7 @@ dependencies = [
     "pandas",
     "pynwb>=3.1.1",
     "nwbinspector>=0.5.0",
-    "ndx_franklab_novela",
+    "ndx_franklab_novela>=0.2.4",
     "ndx_optogenetics>=0.3.0",
     "pyyaml",
     "neo>=0.13.4",
