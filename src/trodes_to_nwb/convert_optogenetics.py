@@ -119,10 +119,10 @@ def make_optogenetic_source(
         manufacturer=model_metadata["manufacturer"],
         source_type=model_metadata.get(
             "source_type", model_metadata.get("illumination_type", "unknown")
-        ),  # dual option to maintain backwards compatability
+        ),  # dual option to maintain backwards compatibility
         excitation_mode=model_metadata.get(
             "excitation_mode", "unknown"
-        ),  # default option to maintain backwards compatability
+        ),  # default option to maintain backwards compatibility
         wavelength_range_in_nm=model_metadata["wavelength_range_in_nm"],
     )
     excitation_source = ExcitationSource(
@@ -143,14 +143,14 @@ def make_optical_fiber(
     effector: Effector,
     device_metadata: list[dict],
 ) -> OpticalFiber:
-    """Create an OpticalFiberLocationsTable and populate it with optical fiber data.
+    """Create an OptogeneticSitesTable and populate it with optical fiber site data.
 
     Note: Currently assumes all fibers have the same optogenetic source and effector.
     Please submit a feature request if this is not the case.
 
     Parameters:
     ----------
-        nwbfile (NWBFile): The NWB file to which the optical fiber locations table will be added.
+        nwbfile (NWBFile): The NWB file to which the optogenetic sites table will be added.
         fiber_metadata_list (dict): Metadata for the optical fibers.
         excitation_source (ExcitationSource): The excitation source associated with the optical fibers.
         effector (Effector): The effector associated with the optical fibers.
