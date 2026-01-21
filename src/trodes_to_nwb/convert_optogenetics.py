@@ -61,7 +61,7 @@ def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dic
 
     # Add optogenetic experiment metadata
     logger.info("Adding optogenetic experiment metadata")
-    virus, virus_injection, virus_effectors = make_virus_injecton(
+    virus, virus_injection, virus_effectors = make_virus_injection(
         metadata.get("virus_injection"), device_metadata
     )
     excitation_metadata = metadata.get("opto_excitation_source")
@@ -158,7 +158,7 @@ def make_optical_fiber(
 
     Returns:
     -------
-        OpticalFiber: The created OpticalFiber object.
+        OptogeneticSitesTable: The created OptogeneticSitesTable object.
     """
     # make the sites table
     optogenetic_sites_table = OptogeneticSitesTable(
@@ -219,7 +219,7 @@ def make_optical_fiber(
     return optogenetic_sites_table
 
 
-def make_virus_injecton(
+def make_virus_injection(
     virus_injection_metadata_list: list[dict], device_metadata: list[dict]
 ) -> tuple[OptogeneticViruses, OptogeneticVirusInjections]:
     """
