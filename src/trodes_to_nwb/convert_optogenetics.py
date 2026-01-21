@@ -378,8 +378,14 @@ def add_optogenetic_epochs(
     )
     default_sites = np.arange(len(sites_table)).tolist()
     for fs_gui_metadata in opto_epochs_metadata:
-        if "wavelength_in_nm" not in fs_gui_metadata and default_wavelength is not None:
-            fs_gui_metadata["wavelength_in_nm"] = default_wavelength
+        if "wavelength_in_nm" not in fs_gui_metadata:
+            if default_wavelength is not None:
+                fs_gui_metadata["wavelength_in_nm"] = default_wavelength
+            else:
+                raise ValueError(
+                    "wavelength_in_nm not specified in either the fsgui yaml script or "
+                    + "the experiment metadata yaml."
+                )
         if "optogenetic_sites" not in fs_gui_metadata:
             fs_gui_metadata["optogenetic_sites"] = default_sites
 
