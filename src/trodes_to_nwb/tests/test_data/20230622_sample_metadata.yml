@@ -681,4 +681,6 @@ fs_gui_yamls:
     power_in_mW: 77
     dio_output_name: Light_1
     camera_id: 0
+    wavelength_in_nm: 500.0
+    optogenetic_sites: [0,]
 

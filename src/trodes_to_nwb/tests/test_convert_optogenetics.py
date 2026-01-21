@@ -90,3 +90,4 @@ def test_add_optogenetic_epochs():
     assert isinstance(stim_obj, TimeSeries)
     assert stim_obj.name == "Light_1"
     assert np.allclose(stim_obj.timestamps, np.array([1.68747480e09, 1.68747483e09]))
+    assert np.allclose(opto_df.wavelength_in_nm.values, np.array([488.0, 500.0]))
