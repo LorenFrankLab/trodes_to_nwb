@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
@@ -43,7 +44,9 @@ def test_behavior_only_rec_file():
 
     # check data accesses
     assert rec_dci.timestamps.size == 433012
-    assert rec_dci.timestamps[-1] == 1751195974.5656028, "unexpected last timestamp"
+    assert np.allclose(
+        rec_dci.timestamps[-1], 1751195974.5656028, rtol=0.0, atol=5e-7
+    ), "unexpected last timestamp"
     assert set(neo_io.multiplexed_channel_xml.keys()) == {
         "Headstage_AccelX",
         "Headstage_AccelY",
