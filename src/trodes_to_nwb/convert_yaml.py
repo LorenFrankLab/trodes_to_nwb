@@ -10,8 +10,8 @@ from datetime import datetime
 from xml.etree import ElementTree
 
 import pandas as pd
-import pytz
 import yaml
+from dateutil.tz import tzutc
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
     AssociatedFiles,
@@ -96,7 +96,7 @@ def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:
         session_start_time=datetime.fromtimestamp(
             int(gconf.attrib["systemTimeAtCreation"].strip()) / 1000
         ),
-        timestamps_reference_time=datetime.fromtimestamp(0, pytz.utc),
+        timestamps_reference_time=datetime.fromtimestamp(0, tz=tzutc()),
         identifier=str(uuid.uuid1()),
         session_id=metadata["session_id"],
         # notes=self.link_to_notes, TODO
