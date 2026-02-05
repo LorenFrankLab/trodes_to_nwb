@@ -179,25 +179,27 @@ def make_optical_fiber(
                 description=fiber_model_metadata["description"],
                 model_number=fiber_model_metadata["fiber_model"],
                 manufacturer=fiber_model_metadata["manufacturer"],
-                numerical_aperture=fiber_model_metadata["numerical_aperture"],
-                core_diameter_in_um=fiber_model_metadata["core_diameter_in_um"],
-                active_length_in_mm=fiber_model_metadata["active_length_in_mm"],
+                numerical_aperture=float(fiber_model_metadata["numerical_aperture"]),
+                core_diameter_in_um=float(fiber_model_metadata["core_diameter_in_um"]),
+                active_length_in_mm=float(fiber_model_metadata["active_length_in_mm"]),
                 ferrule_name=fiber_model_metadata["ferrule_name"],
-                ferrule_diameter_in_mm=fiber_model_metadata["ferrule_diameter_in_mm"],
+                ferrule_diameter_in_mm=float(
+                    fiber_model_metadata["ferrule_diameter_in_mm"]
+                ),
             )
             added_fiber_models[model_name] = optical_fiber_model
             nwbfile.add_device_model(optical_fiber_model)
 
         fiber_insertion = FiberInsertion(
-            insertion_position_ap_in_mm=fiber_metadata["ap_in_mm"],
-            insertion_position_ml_in_mm=fiber_metadata["ml_in_mm"],
-            insertion_position_dv_in_mm=fiber_metadata["dv_in_mm"],
-            insertion_angle_roll_in_deg=fiber_metadata["roll_in_deg"],
-            insertion_angle_pitch_in_deg=fiber_metadata["pitch_in_deg"],
-            insertion_angle_yaw_in_deg=fiber_metadata["yaw_in_deg"],
+            insertion_position_ap_in_mm=float(fiber_metadata["ap_in_mm"]),
+            insertion_position_ml_in_mm=float(fiber_metadata["ml_in_mm"]),
+            insertion_position_dv_in_mm=float(fiber_metadata["dv_in_mm"]),
+            insertion_angle_roll_in_deg=float(fiber_metadata["roll_in_deg"]),
+            insertion_angle_pitch_in_deg=float(fiber_metadata["pitch_in_deg"]),
+            insertion_angle_yaw_in_deg=float(fiber_metadata["yaw_in_deg"]),
             position_reference=fiber_metadata["reference"],
             hemisphere=fiber_metadata["hemisphere"],
-            depth_in_mm=fiber_metadata.get("depth_in_mm", np.nan),
+            depth_in_mm=float(fiber_metadata.get("depth_in_mm", np.nan)),
         )
 
         # make the fiber object
@@ -285,7 +287,7 @@ def make_virus_injection(
             yaw_in_deg=float(virus_injection_metadata["yaw_in_deg"]),
             reference=virus_injection_metadata["reference"],
             viral_vector=virus,
-            volume_in_uL=virus_injection_metadata["volume_in_uL"],
+            volume_in_uL=float(virus_injection_metadata["volume_in_uL"]),
         )
         injections_list.append(virus_injection)
 
@@ -483,22 +485,22 @@ def compile_opto_entries(
     for epoch in fs_gui_metadata["epochs"]:
         # info about the stimulus and epoch
         epoch_dict = {
-            "pulse_length_in_ms": get_epoch_info_entry(
-                opto_metadata, fs_gui_metadata, "pulseLength"
+            "pulse_length_in_ms": float(
+                get_epoch_info_entry(opto_metadata, fs_gui_metadata, "pulseLength")
             ),
             "number_pulses_per_pulse_train": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "nPulses"
             ),
-            "period_in_ms": get_epoch_info_entry(
-                opto_metadata, fs_gui_metadata, "sequencePeriod"
+            "period_in_ms": float(
+                get_epoch_info_entry(opto_metadata, fs_gui_metadata, "sequencePeriod")
             ),
             "number_trains": get_epoch_info_entry(
                 opto_metadata, fs_gui_metadata, "nOutputTrains"
             ),
-            "intertrain_interval_in_ms": get_epoch_info_entry(
-                opto_metadata, fs_gui_metadata, "trainInterval"
+            "intertrain_interval_in_ms": float(
+                get_epoch_info_entry(opto_metadata, fs_gui_metadata, "trainInterval")
             ),
-            "power_in_mW": fs_gui_metadata["power_in_mW"],
+            "power_in_mW": float(fs_gui_metadata["power_in_mW"]),
             "stimulation_on": True,
             "start_time": epoch_df.start_time.values[
                 epoch - 1
@@ -511,7 +513,7 @@ def compile_opto_entries(
             "stimulus_signal": nwbfile.processing["behavior"]["behavioral_events"][
                 fs_gui_metadata["dio_output_name"]
             ],
-            "wavelength_in_nm": fs_gui_metadata.get("wavelength_in_nm", np.nan),
+            "wavelength_in_nm": float(fs_gui_metadata.get("wavelength_in_nm", np.nan)),
             "optogenetic_sites": fs_gui_metadata.get("optogenetic_sites", []),
         }
         # info about the trigger condition
@@ -571,7 +573,7 @@ def compile_opto_entries(
 
             elif condition_metadata["type_id"] == "speed-filter-type":
                 condition_dict["speed_filter_on"] = True
-                condition_dict["speed_filter_threshold_in_cm_per_s"] = (
+                condition_dict["speed_filter_threshold_in_cm_per_s"] = float(
                     condition_metadata["threshold"]
                 )
                 condition_dict["speed_filter_on_above_threshold"] = condition_metadata[

@@ -6,7 +6,7 @@
 
 ### General
 
-- Update conversions for use of `pynwb>=3.1` # 153
+- Update conversions for use of `pynwb>=3.1` #153, #155
 
 ### Optogenetics
 
