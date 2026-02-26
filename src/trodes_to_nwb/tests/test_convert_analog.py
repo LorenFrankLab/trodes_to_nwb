@@ -60,10 +60,13 @@ def test_add_analog_data():
                 ]
             ).all()
             # compare one channel across all timepoints
+            test_index = 14  # channel with non-zero data
             assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data[:, 0]
+                read_nwbfile.processing["analog"]["analog"]["analog"].data[
+                    :, test_index
+                ]
                 == old_nwbfile.processing["analog"]["analog"]["analog"].data[
-                    :, index_order[0]
+                    :, index_order[test_index]
                 ]
             ).all()
     # cleanup
