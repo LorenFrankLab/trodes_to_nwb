@@ -105,6 +105,7 @@ def add_analog_data(
 
 
 _NWB_ANALOG_DATA_PATH = "processing/analog/analog/analog/data"
+_NWB_ANALOG_TIMESTAMPS_PATH = "processing/analog/analog/analog/timestamps"
 
 
 def update_analog_data(
@@ -128,7 +129,7 @@ def update_analog_data(
         Must be the same files used during the original conversion.
     timestamps : np.ndarray, optional, shape (n_samples,)
         Array of timestamps for the analog data. If ``None``, timestamps are
-        recomputed from the rec files.
+        read from the existing NWB file.
     behavior_only : bool, optional
         Whether to process only behavior data, by default False.
 
@@ -140,6 +141,11 @@ def update_analog_data(
     """
     # Reconstruct the same analog channel ID list used in the original conversion
     analog_channel_ids = _get_ecu_analog_channel_ids(rec_file_path[0])
+
+    # Read timestamps from the existing NWB file if not provided
+    if timestamps is None:
+        with h5py.File(nwb_file_path, "r") as f:
+            timestamps = f[_NWB_ANALOG_TIMESTAMPS_PATH][:]
 
     # Build the iterator with the corrected demuxing logic
     rec_dci = RecFileDataChunkIterator(

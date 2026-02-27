@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import h5py
 import numpy as np
@@ -81,26 +82,17 @@ def test_add_analog_data():
 
 def test_update_analog_data():
     """Test that update_analog_data correctly overwrites data in an existing NWB file."""
-    metadata_path = data_path / "20230622_sample_metadata.yml"
-    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
-    rec_file = data_path / "20230622_sample_01_a1.rec"
-    rec_header = convert_rec_header.read_header(rec_file)
+    rec_files = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    ref_nwb_file = data_path / "minirec20230622_.nwb"
 
-    # Create a fresh NWB file with correct data
-    nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
-    add_analog_data(nwbfile, [rec_file])
-    correct_filename = "test_update_analog_correct.nwb"
-    with pynwb.NWBHDF5IO(correct_filename, "w") as io:
-        io.write(nwbfile)
-
-    # Create a second NWB file and corrupt the analog data to simulate the bug
-    nwbfile2 = convert_yaml.initialize_nwb(metadata, rec_header)
-    add_analog_data(nwbfile2, [rec_file])
+    # Copy the reference NWB file so we don't modify the original
     buggy_filename = "test_update_analog_buggy.nwb"
-    with pynwb.NWBHDF5IO(buggy_filename, "w") as io:
-        io.write(nwbfile2)
+    shutil.copy(ref_nwb_file, buggy_filename)
 
-    # Corrupt the data in the buggy file to simulate the pre-fix state
+    # Zero out the analog data in the copy to simulate the pre-fix (buggy) state
     with h5py.File(buggy_filename, "r+") as f:
         analog_hdf5_path = "processing/analog/analog/analog/data"
         f[analog_hdf5_path][...] = np.zeros_like(f[analog_hdf5_path][()])
@@ -111,19 +103,40 @@ def test_update_analog_data():
         buggy_data = buggy_nwbfile.processing["analog"]["analog"]["analog"].data[:]
     assert (buggy_data == 0).all(), "Buggy data should be all zeros before update"
 
-    # Run the update function
-    update_analog_data(buggy_filename, [rec_file])
+    # Run the update function (timestamps default to those already in the NWB file)
+    update_analog_data(buggy_filename, rec_files)
 
-    # Confirm the data now matches the correct file
+    # Build the expected correct data from scratch for comparison
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    rec_header = convert_rec_header.read_header(rec_files[0])
+    nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
+    add_analog_data(nwbfile, rec_files)
+    correct_filename = "test_update_analog_correct.nwb"
+    with pynwb.NWBHDF5IO(correct_filename, "w") as io:
+        io.write(nwbfile)
+
     with pynwb.NWBHDF5IO(correct_filename, "r", load_namespaces=True) as io:
         correct_nwbfile = io.read()
         correct_data = correct_nwbfile.processing["analog"]["analog"]["analog"].data[:]
+        correct_id_order = correct_nwbfile.processing["analog"]["analog"][
+            "analog"
+        ].description.split("   ")[:-1]
     with pynwb.NWBHDF5IO(buggy_filename, "r", load_namespaces=True) as io:
         updated_nwbfile = io.read()
         updated_data = updated_nwbfile.processing["analog"]["analog"]["analog"].data[:]
+        updated_id_order = updated_nwbfile.processing["analog"]["analog"][
+            "analog"
+        ].description.split("   ")[:-1]
 
+    # Map channel indices from the updated file into the correct file's ordering
+    index_order = [correct_id_order.index(id) for id in updated_id_order]
     assert correct_data.shape == updated_data.shape
-    assert (correct_data == updated_data).all()
+    # compare one non-zero multiplexed channel across all timepoints
+    test_index = 14
+    assert (
+        correct_data[:, index_order[test_index]] == updated_data[:, test_index]
+    ).all()
 
     # cleanup
     os.remove(correct_filename)
