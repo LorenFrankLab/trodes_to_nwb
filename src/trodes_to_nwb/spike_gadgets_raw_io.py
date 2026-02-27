@@ -758,7 +758,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
             data_offsets[j, 0] = int(
                 self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
             )
-            data_offsets[j, 1] = int(ch_xml.attrib["interleavedDataIDByte"])
+            data_offsets[j, 1] = int(
+                self._multiplexed_byte_start
+                + int(ch_xml.attrib["interleavedDataIDByte"])
+            )
             data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
         interleaved_data_id_byte_values = self._raw_memmap[:, data_offsets[:, 1]]
         interleaved_data_id_bit_values = (
@@ -843,7 +846,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
             data_offsets[j, 0] = int(
                 self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
             )
-            data_offsets[j, 1] = int(ch_xml.attrib["interleavedDataIDByte"])
+            data_offsets[j, 1] = int(
+                self._multiplexed_byte_start
+                + int(ch_xml.attrib["interleavedDataIDByte"])
+            )
             data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
         interleaved_data_id_byte_values = self._raw_memmap[
             i_start:i_stop, data_offsets[:, 1]
@@ -1284,7 +1290,10 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
             data_offsets[j, 0] = int(
                 self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
             )
-            data_offsets[j, 1] = int(ch_xml.attrib["interleavedDataIDByte"])
+            data_offsets[j, 1] = int(
+                self._multiplexed_byte_start
+                + int(ch_xml.attrib["interleavedDataIDByte"])
+            )
             data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
         interleaved_data_id_byte_values = self._raw_memmap[:, data_offsets[:, 1]]
         interleaved_data_id_bit_values = (
