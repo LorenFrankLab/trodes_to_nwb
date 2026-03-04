@@ -60,24 +60,19 @@ def test_add_raw_ephys_single_rec():
             conversion = (
                 read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
             )
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[0, :]
-            ).all()
             # check data shapes match
             assert (
                 read_nwbfile.acquisition["e-series"].data.shape
                 == old_nwbfile.acquisition["e-series"].data.shape
             )
-            # check all values of one of the streams
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[:, 0]
-            ).all()
+            # compare ALL channels across ALL timepoints
+            new_data = (
+                read_nwbfile.acquisition["e-series"].data[:] * conversion
+            ).astype("int16")
+            old_data = old_nwbfile.acquisition["e-series"].data[:]
+            np.testing.assert_array_equal(new_data, old_data)
+            # check dtype
+            assert read_nwbfile.acquisition["e-series"].data.dtype == np.int16
             # check that timestamps are less than one sample different
             assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
@@ -138,24 +133,19 @@ def test_add_raw_ephys_single_rec_probe_configuration():
             conversion = (
                 read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
             )
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[0, :]
-            ).all()
             # check data shapes match
             assert (
                 read_nwbfile.acquisition["e-series"].data.shape
                 == old_nwbfile.acquisition["e-series"].data.shape
             )
-            # check all values of one of the streams
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[:, 0]
-            ).all()
+            # compare ALL channels across ALL timepoints
+            new_data = (
+                read_nwbfile.acquisition["e-series"].data[:] * conversion
+            ).astype("int16")
+            old_data = old_nwbfile.acquisition["e-series"].data[:]
+            np.testing.assert_array_equal(new_data, old_data)
+            # check dtype
+            assert read_nwbfile.acquisition["e-series"].data.dtype == np.int16
             # check that timestamps are less than one sample different
             assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
@@ -214,33 +204,23 @@ def test_add_raw_ephys_two_epoch():
 
         with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
             old_nwbfile = io2.read()
-            print(
-                read_nwbfile.acquisition["e-series"].data.shape,
-                old_nwbfile.acquisition["e-series"].data.shape,
-            )
-
             # check ordering worked correctly
             conversion = (
                 read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
             )
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[0, :]
-            ).all()
             # check data shapes match
             assert (
                 read_nwbfile.acquisition["e-series"].data.shape
                 == old_nwbfile.acquisition["e-series"].data.shape
             )
-            # check all values of one of the streams
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[:, 0]
-            ).all()
+            # compare ALL channels across ALL timepoints
+            new_data = (
+                read_nwbfile.acquisition["e-series"].data[:] * conversion
+            ).astype("int16")
+            old_data = old_nwbfile.acquisition["e-series"].data[:]
+            np.testing.assert_array_equal(new_data, old_data)
+            # check dtype
+            assert read_nwbfile.acquisition["e-series"].data.dtype == np.int16
             # check that timestamps are less than one sample different
             assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],

@@ -200,7 +200,7 @@ def test_correct_timestamps_for_camera_to_mcu_lag():
     expected_corrected_camera_systime = np.arange(0, 50, 10)
 
     # Assert that the corrected timestamps are as expected
-    np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
+    assert np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
 
 
 def test_add_position(prior_position=False):

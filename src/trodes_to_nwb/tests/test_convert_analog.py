@@ -1,4 +1,3 @@
-import os
 import shutil
 
 import h5py
@@ -15,7 +14,7 @@ from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.tests.utils import data_path
 
 
-def test_add_analog_data():
+def test_add_analog_data(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -27,7 +26,7 @@ def test_add_analog_data():
     get_analog_channel_names(rec_header)
     add_analog_data(nwbfile, [rec_file])
     # save file
-    filename = "test_add_analog.nwb"
+    filename = tmp_path / "test_add_analog.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
     # read new and rec_to_nwb_file. Compare.
@@ -52,35 +51,24 @@ def test_add_analog_data():
                 "analog"
             ].description.split("   ")[:-1]
             index_order = [old_id_order.index(id) for id in id_order]
-            # TODO check that all the same channels are present
 
-            # compare data
-            assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data.shape
-                == old_nwbfile.processing["analog"]["analog"]["analog"].data.shape
-            )
-            # compare matching for first timepoint
-            assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data[0, :]
-                == old_nwbfile.processing["analog"]["analog"]["analog"].data[0, :][
-                    index_order
-                ]
-            ).all()
-            # compare one channel across all timepoints
-            test_index = 14  # channel with non-zero data
-            assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data[
-                    :, test_index
-                ]
-                == old_nwbfile.processing["analog"]["analog"]["analog"].data[
-                    :, index_order[test_index]
-                ]
-            ).all()
-    # cleanup
-    # os.remove(filename)
+            # check that all the same channels are present
+            assert set(id_order) == set(old_id_order)
+
+            # compare data shapes
+            new_data = read_nwbfile.processing["analog"]["analog"]["analog"].data[:]
+            old_data = old_nwbfile.processing["analog"]["analog"]["analog"].data[:]
+            assert new_data.shape == old_data.shape
+
+            # compare ALL channels across ALL timepoints
+            old_data_reordered = old_data[:, index_order]
+            np.testing.assert_array_equal(new_data, old_data_reordered)
+
+            # check dtype
+            assert new_data.dtype == np.int16
 
 
-def test_update_analog_data():
+def test_update_analog_data(tmp_path):
     """Test that update_analog_data correctly overwrites data in an existing NWB file."""
     rec_files = [
         data_path / "20230622_sample_01_a1.rec",
@@ -97,12 +85,12 @@ def test_update_analog_data():
     add_analog_data(nwbfile, rec_files)
 
     # save file
-    ref_filename = "correctly_added_analog.nwb"
+    ref_filename = tmp_path / "correctly_added_analog.nwb"
     with pynwb.NWBHDF5IO(ref_filename, "w") as io:
         io.write(nwbfile)
 
     # Copy the reference NWB file so we don't modify the original
-    buggy_filename = "test_update_analog_buggy.nwb"
+    buggy_filename = tmp_path / "test_update_analog_buggy.nwb"
     shutil.copy(ref_filename, buggy_filename)
 
     # Zero out the analog data in the copy to simulate the pre-fix (buggy) state
@@ -119,7 +107,6 @@ def test_update_analog_data():
     # Run the update function (timestamps default to those already in the NWB file)
     update_analog_data(buggy_filename, rec_files)
 
-    print("buggy file name: \n", buggy_filename)
     with pynwb.NWBHDF5IO(ref_filename, "r", load_namespaces=True) as io:
         correct_nwbfile = io.read()
         correct_data = correct_nwbfile.processing["analog"]["analog"]["analog"].data[:]
@@ -128,15 +115,12 @@ def test_update_analog_data():
         updated_nwbfile = io.read()
         updated_data = updated_nwbfile.processing["analog"]["analog"]["analog"].data[:]
 
-    # Map channel indices from the updated file into the correct file's ordering
+    # Compare ALL channels across ALL timepoints
     assert correct_data.shape == updated_data.shape
-    # compare one non-zero multiplexed channel across all timepoints
-    test_index = 14
-    assert (correct_data[:, test_index] == updated_data[:, test_index]).all()
+    np.testing.assert_array_equal(correct_data, updated_data)
 
-    # cleanup
-    os.remove(buggy_filename)
-    os.remove(ref_filename)
+    # check dtype
+    assert updated_data.dtype == np.int16
 
 
 def test_selection_of_multiplexed_data():
@@ -160,6 +144,7 @@ def test_selection_of_multiplexed_data():
         is_analog=True,
     )
     assert len(rec_dci.neo_io[0].multiplexed_channel_xml.keys()) == 10
+
     slice_ind = [(0, 4), (0, 30), (1, 15), (5, 15), (20, 25)]
     expected_channels = [4, 22, 14, 10, 2]
     for ind, expected in zip(slice_ind, expected_channels, strict=True):
@@ -169,4 +154,7 @@ def test_selection_of_multiplexed_data():
                 slice(ind[0], ind[1], None),
             )
         )
+        # check shape
         assert data.shape[1] == expected
+        # check dtype
+        assert data.dtype == np.int16

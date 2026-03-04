@@ -6,6 +6,7 @@ import shutil
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
+import pytest
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_position import add_associated_video_files
@@ -400,3 +401,11 @@ def test_add_associated_video_files():
 
     # cleanup
     shutil.rmtree(video_directory)
+
+
+def test_load_metadata_raises_on_invalid_yaml(tmp_path):
+    """Test that load_metadata raises ValueError when YAML metadata is invalid."""
+    invalid_yaml = tmp_path / "invalid_metadata.yml"
+    invalid_yaml.write_text("not_a_valid_field: true\n")
+    with pytest.raises(ValueError, match="Metadata validation failed"):
+        convert_yaml.load_metadata(invalid_yaml, [])

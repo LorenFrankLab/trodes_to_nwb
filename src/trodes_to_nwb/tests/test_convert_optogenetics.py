@@ -75,8 +75,12 @@ def test_add_optogenetic_epochs():
     # test added info
     assert isinstance(nwbfile.intervals["optogenetic_epochs"], OptogeneticEpochsTable)
     opto_df = nwbfile.intervals["optogenetic_epochs"].to_dataframe()
-    np.allclose(opto_df.start_time.values, np.array([1.68747480e09, 1.68747482e09]))
-    np.allclose(opto_df.stop_time.values, np.array([1.68747481e09, 1.68747484e09]))
+    assert np.allclose(
+        opto_df.start_time.values, np.array([1.68747480e09, 1.68747482e09])
+    )
+    assert np.allclose(
+        opto_df.stop_time.values, np.array([1.68747481e09, 1.68747484e09])
+    )
     assert opto_df.stimulation_on.values[0]
     assert opto_df.spatial_filter_region_node_coordinates_in_pixels.values[0].shape == (
         3,
