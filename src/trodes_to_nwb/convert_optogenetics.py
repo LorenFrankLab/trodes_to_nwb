@@ -555,7 +555,9 @@ def compile_opto_entries(
                     "reference_ntrode"
                 ]
         else:
-            print("WARNING: Trigger info can not be pulled from statescript")
+            logging.getLogger("convert").warning(
+                "Trigger info can not be pulled from statescript"
+            )
 
         # conditions for trigger activation (can be multiple)
         condition_dict = {}
@@ -583,7 +585,7 @@ def compile_opto_entries(
 
         # add camera information if speed or spatial filter is on
         if "speed_filter_on" in condition_dict or "spatial_filter_on" in geometry_dict:
-            print("ADDING CAMERA INFO")
+            logging.getLogger("convert").info("Adding camera info")
             if (camera_id := fs_gui_metadata.get("camera_id")) is None:
                 raise ValueError(
                     "Camera ID not found in metadata. "
