@@ -58,7 +58,9 @@ def load_metadata(
     ) = trodes_to_nwb.metadata_validation.validate(metadata)
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
-        logger.exception("".join(metadata_errors))
+        error_msg = "Metadata validation failed:\n" + "\n".join(metadata_errors)
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     device_metadata = []
     for path in device_metadata_paths:
         with open(path) as stream:

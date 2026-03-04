@@ -214,7 +214,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
 
         logger.info("Reading timestamps COMPLETE")
-        is_timestamps_sequential = np.all(np.diff(self.timestamps))
+        is_timestamps_sequential = np.all(np.diff(self.timestamps) > 0)
         if not is_timestamps_sequential:
             warn(
                 "Timestamps are not sequential. This may cause problems with some software or data analysis.",

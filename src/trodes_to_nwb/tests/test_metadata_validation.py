@@ -14,7 +14,7 @@ def test_path_to_json_schema_is_correct():
 
 
 @patch("trodes_to_nwb.metadata_validation._get_json_schema")
-@patch("jsonschema.Draft202012Validator")
+@patch("jsonschema.Draft7Validator")
 def test_verify_validation_called(jsonValidator, getSchema):
     basic_test_data = copy.deepcopy(test_metadata_dict_samples.basic_data)
     basic_test_data["subject"]["date_of_birth"] = datetime.datetime.now().isoformat()

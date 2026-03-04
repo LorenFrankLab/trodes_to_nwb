@@ -60,12 +60,12 @@ def validate(metadata: dict) -> tuple:
         and metadata_content["subject"]["date_of_birth"]
         and type(metadata_content["subject"]["date_of_birth"]) is datetime.datetime
     ):
-        metadata_content["subject"]["date_of_birth"] = (
-            metadata_content["subject"]["date_of_birth"].utcnow().isoformat()
-        )
+        metadata_content["subject"]["date_of_birth"] = metadata_content["subject"][
+            "date_of_birth"
+        ].isoformat()
 
     schema = _get_json_schema()
-    validator = jsonschema.Draft202012Validator(schema)
+    validator = jsonschema.Draft7Validator(schema)
     metadata_validation_errors = validator.iter_errors(metadata_content)
     errors = []
 
