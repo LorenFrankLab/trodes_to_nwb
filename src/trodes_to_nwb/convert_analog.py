@@ -18,17 +18,7 @@ DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 def _get_ecu_analog_channel_ids(rec_file_path: str) -> list[str]:
     """Returns the ordered list of ECU analog channel IDs from the rec file header."""
     root = convert_rec_header.read_header(rec_file_path)
-    hconf = root.find("HardwareConfiguration")
-    ecu_conf = None
-    for conf in hconf:
-        if conf.attrib["name"] == "ECU":
-            ecu_conf = conf
-            break
-    return [
-        channel.attrib["id"]
-        for channel in ecu_conf
-        if channel.attrib["dataType"] == "analog"
-    ]
+    return get_analog_channel_names(root)
 
 
 def add_analog_data(
@@ -189,6 +179,11 @@ def get_analog_channel_names(header: ElementTree) -> list[str]:
     -------
     list[str]
         List of the names of the analog channels in the rec file
+
+    Raises
+    ------
+    ValueError
+        If no ECU device is found in the rec file header.
     """
     hconf = header.find("HardwareConfiguration")
     ecu_conf = None
@@ -197,9 +192,12 @@ def get_analog_channel_names(header: ElementTree) -> list[str]:
         if conf.attrib["name"] == "ECU":
             ecu_conf = conf
             break
-    # get the names of the analog channels
-    analog_channel_names = []
-    for channel in ecu_conf:
-        if channel.attrib["dataType"] == "analog":
-            analog_channel_names.append(channel.attrib["id"])
-    return analog_channel_names
+    if ecu_conf is None:
+        raise ValueError(
+            "No ECU device found in rec file header. Cannot extract analog channel IDs."
+        )
+    return [
+        channel.attrib["id"]
+        for channel in ecu_conf
+        if channel.attrib["dataType"] == "analog"
+    ]

@@ -438,11 +438,9 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
             with open(file["path"]) as open_file:
                 content = open_file.read()
         except FileNotFoundError as err:
-            logger.info(f"ERROR: associated file {file['path']} does not exist")
-            logger.info(str(err))
+            logger.warning(f"Associated file {file['path']} does not exist: {err}")
         except OSError as err:
-            logger.info(f"ERROR: Cannot read file at {file['path']}")
-            logger.info(str(err))
+            logger.warning(f"Cannot read file at {file['path']}: {err}")
         # convert task epoch values into strings
         task_epochs = "".join([str(element) + ", " for element in file["task_epochs"]])
         associated_files.append(
