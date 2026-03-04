@@ -221,6 +221,8 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         ]
         new_data_reordered = new_data[:, index_order]
         np.testing.assert_array_equal(new_data_reordered, old_data)
+        # check dtype
+        assert new_data.dtype == np.int16
 
     # compare dio data
     for dio_name in old_nwbfile.processing["behavior"]["behavioral_events"].time_series:

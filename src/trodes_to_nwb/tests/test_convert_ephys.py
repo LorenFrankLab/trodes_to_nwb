@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import pynwb
 
@@ -11,7 +9,7 @@ from trodes_to_nwb.tests.utils import data_path
 MICROVOLTS_PER_VOLT = 1e6
 
 
-def test_add_raw_ephys_single_rec():
+def test_add_raw_ephys_single_rec(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadata.yml"
     probe_metadata = [data_path / "tetrode_12.5.yml"]
@@ -45,7 +43,7 @@ def test_add_raw_ephys_single_rec():
         map_row_ephys_data_to_row_electrodes_table,
     )
 
-    filename = "test_add_raw_ephys_single_rec.nwb"
+    filename = tmp_path / "test_add_raw_ephys_single_rec.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
 
@@ -80,10 +78,9 @@ def test_add_raw_ephys_single_rec():
                 rtol=0,
                 atol=1.0 / 30000,
             )
-    os.remove(filename)
 
 
-def test_add_raw_ephys_single_rec_probe_configuration():
+def test_add_raw_ephys_single_rec_probe_configuration(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
     probe_metadata = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
@@ -118,7 +115,7 @@ def test_add_raw_ephys_single_rec_probe_configuration():
         map_row_ephys_data_to_row_electrodes_table,
     )
 
-    filename = "test_add_raw_ephys_single_rec.nwb"
+    filename = tmp_path / "test_add_raw_ephys_probe_reconfig.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
 
@@ -154,10 +151,8 @@ def test_add_raw_ephys_single_rec_probe_configuration():
                 atol=1.0 / 30000,
             )
 
-    os.remove(filename)
 
-
-def test_add_raw_ephys_two_epoch():
+def test_add_raw_ephys_two_epoch(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadata.yml"
     probe_metadata = [data_path / "tetrode_12.5.yml"]
@@ -193,7 +188,7 @@ def test_add_raw_ephys_two_epoch():
         map_row_ephys_data_to_row_electrodes_table,
     )
 
-    filename = "test_add_raw_ephys_single_rec.nwb"
+    filename = tmp_path / "test_add_raw_ephys_two_epoch.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
 
@@ -228,5 +223,3 @@ def test_add_raw_ephys_two_epoch():
                 rtol=0,
                 atol=1.0 / 30000,
             )
-
-    os.remove(filename)

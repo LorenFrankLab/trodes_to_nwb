@@ -25,7 +25,8 @@ pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
 **Linting:**
 
 ```bash
-black .
+ruff format .
+ruff check .
 ```
 
 **Build Package:**

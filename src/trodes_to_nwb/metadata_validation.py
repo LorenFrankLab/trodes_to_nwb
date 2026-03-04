@@ -56,8 +56,8 @@ def validate(metadata: dict) -> tuple:
     # This code converts date_of_birth  to string
     metadata_content = copy.deepcopy(metadata) or {}
     if (
-        metadata_content["subject"]
-        and metadata_content["subject"]["date_of_birth"]
+        metadata_content.get("subject")
+        and metadata_content["subject"].get("date_of_birth")
         and type(metadata_content["subject"]["date_of_birth"]) is datetime.datetime
     ):
         metadata_content["subject"]["date_of_birth"] = metadata_content["subject"][

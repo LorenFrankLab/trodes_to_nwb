@@ -356,7 +356,7 @@ def test_add_associated_files(capsys):
             log_file_path = handler.baseFilename
             with open(log_file_path) as log_file:
                 for line in log_file.readlines():
-                    if "ERROR: associated file bad_path.txt does not exist" in line:
+                    if "Associated file bad_path.txt does not exist" in line:
                         printed_warning = True
                     break
     assert printed_warning
@@ -406,6 +406,14 @@ def test_add_associated_video_files():
 def test_load_metadata_raises_on_invalid_yaml(tmp_path):
     """Test that load_metadata raises ValueError when YAML metadata is invalid."""
     invalid_yaml = tmp_path / "invalid_metadata.yml"
-    invalid_yaml.write_text("not_a_valid_field: true\n")
+    # Use a structure with required top-level keys but invalid values
+    # so it passes dict key access but fails schema validation
+    invalid_yaml.write_text(
+        "subject:\n"
+        "  description: test\n"
+        "  sex: M\n"
+        "session_description: test\n"
+        "session_id: '1'\n"
+    )
     with pytest.raises(ValueError, match="Metadata validation failed"):
-        convert_yaml.load_metadata(invalid_yaml, [])
+        convert_yaml.load_metadata(str(invalid_yaml), [])

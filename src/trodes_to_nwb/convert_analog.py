@@ -186,6 +186,11 @@ def get_analog_channel_names(header: ElementTree) -> list[str]:
         If no ECU device is found in the rec file header.
     """
     hconf = header.find("HardwareConfiguration")
+    if hconf is None:
+        raise ValueError(
+            "Rec file header missing HardwareConfiguration element. "
+            "Cannot extract analog channel IDs."
+        )
     ecu_conf = None
     # find the ECU configuration
     for conf in hconf:

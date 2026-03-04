@@ -105,6 +105,13 @@ def test_validate_yaml_header_electrode_map():
         convert_rec_header.validate_yaml_header_electrode_map(
             metadata, rec_header.find("SpikeConfiguration")
         )
+    # check if error is raised when make_hw_channel_map has no matching channel map
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    metadata["ntrode_electrode_group_channel_map"].pop(0)
+    with pytest.raises(ValueError, match="No channel map metadata found for ntrode_id"):
+        convert_rec_header.make_hw_channel_map(
+            metadata, rec_header.find("SpikeConfiguration")
+        )
     # check if error is raised when channel map has wrong number of channels
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     metadata["ntrode_electrode_group_channel_map"][0]["map"]["4"] = 4

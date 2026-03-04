@@ -318,12 +318,10 @@ def add_electrode_groups(
             ][0]
         )
     # add the ref electrode id list to the electrodes table
-    (
-        nwbfile.electrodes.add_column(
-            name="ref_elect_id",
-            description="Experimenter selected reference electrode id",
-            data=ref_electrode_id,
-        ),
+    nwbfile.electrodes.add_column(
+        name="ref_elect_id",
+        description="Experimenter selected reference electrode id",
+        data=ref_electrode_id,
     )
 
 
