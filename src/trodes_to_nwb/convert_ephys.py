@@ -5,9 +5,9 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 import logging
 from warnings import warn
 
-import numpy as np
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
+import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
@@ -191,9 +191,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                             i_start=partial_size - 10,
                             i_stop=partial_size,
                             padding=30000,
-                        )[
-                            -1
-                        ]
+                        )[-1]
                     j += MAXIMUM_ITERATOR_SIZE
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators

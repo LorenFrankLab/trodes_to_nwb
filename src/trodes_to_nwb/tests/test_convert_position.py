@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 import pandas as pd
-import pytest
 from pynwb import NWBHDF5IO
 from pynwb.behavior import Position
+import pytest
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_position import (

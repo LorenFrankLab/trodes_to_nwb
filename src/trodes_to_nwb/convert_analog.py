@@ -3,9 +3,9 @@
 from xml.etree import ElementTree
 
 import h5py
+from hdmf.backends.hdf5 import H5DataIO
 import numpy as np
 import pynwb
-from hdmf.backends.hdf5 import H5DataIO
 from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header

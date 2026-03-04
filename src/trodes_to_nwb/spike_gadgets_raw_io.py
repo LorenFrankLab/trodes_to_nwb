@@ -11,7 +11,6 @@ Intended as a temporary solution until official support is available in Neo.
 import functools
 from xml.etree import ElementTree
 
-import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
     _event_channel_dtype,
@@ -19,6 +18,7 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
+import numpy as np
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
@@ -218,9 +218,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
         packet_size += TIMESTAMP_SIZE_BYTES
-        assert (
-            "sysTimeIncluded" not in hconf.attrib
-        ), "sysTimeIncluded not supported yet"
+        assert "sysTimeIncluded" not in hconf.attrib, (
+            "sysTimeIncluded not supported yet"
+        )
         # if sysTimeIncluded, then 8-byte system clock is included after timestamp
 
         packet_size += EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels
@@ -663,9 +663,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
             self.interpolate_index = np.where(
                 np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
+            )[0]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
 
         # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
@@ -910,9 +908,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
             if chan_id == channel_id:
                 channel_index = i
                 break
-        assert (
-            channel_index >= 0
-        ), f"channel_id {channel_id} not found in stream {stream_id}"
+        assert channel_index >= 0, (
+            f"channel_id {channel_id} not found in stream {stream_id}"
+        )
 
         # num_chan = len(self._mask_channels_bytes[stream_id])
         # re_order = None
@@ -1254,9 +1252,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
             )
             self.interpolate_index = np.where(
                 np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
+            )[0]  # find locations of single dropped packets
             self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)

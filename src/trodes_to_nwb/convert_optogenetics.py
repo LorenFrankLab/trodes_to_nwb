@@ -7,8 +7,6 @@ import logging
 import os
 from pathlib import Path
 
-import numpy as np
-import yaml
 from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 from ndx_ophys_devices import (
     Effector,
@@ -27,7 +25,9 @@ from ndx_optogenetics import (
     OptogeneticViruses,
     OptogeneticVirusInjections,
 )
+import numpy as np
 from pynwb import NWBFile
+import yaml
 
 from trodes_to_nwb.tests.utils import data_path
 

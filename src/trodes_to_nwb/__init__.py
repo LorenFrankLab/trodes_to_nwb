@@ -8,4 +8,4 @@ into standardized NWB format for DANDI archive compatibility.
 import contextlib
 
 with contextlib.suppress(ImportError):
-    from ._version import __version__
+    from ._version import __version__ as __version__

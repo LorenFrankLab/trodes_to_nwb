@@ -1,4 +1,3 @@
-import numpy as np
 from ndx_franklab_novela import CameraDevice
 from ndx_ophys_devices import (
     ExcitationSource,
@@ -13,6 +12,7 @@ from ndx_optogenetics import (
     OptogeneticViruses,
     OptogeneticVirusInjections,
 )
+import numpy as np
 from pynwb import TimeSeries
 
 from trodes_to_nwb import convert, convert_optogenetics, convert_yaml
