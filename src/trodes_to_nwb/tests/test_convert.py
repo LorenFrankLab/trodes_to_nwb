@@ -8,6 +8,9 @@ from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
 from trodes_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.tests.test_convert_ephys import (
+    _assert_ephys_match_with_epoch_boundary_masking,
+)
 from trodes_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
@@ -178,16 +181,11 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
     ) or truncated_size
     ephys_size = nwbfile.acquisition["e-series"].data.shape[0]
     # compare ALL channels across ALL timepoints
+    # Verify zeros in reference data only occur near epoch boundaries.
     new_data = (nwbfile.acquisition["e-series"].data[:] * conversion).astype("int16")
     old_data = old_nwbfile.acquisition["e-series"].data[:ephys_size, :]
-    # Ignore zero-valued elements from rec_to_nwb conversion at epoch
-    # boundaries. With 128-channel recordings, the artifact can zero out
-    # individual elements within a row (not just full rows), so we use an
-    # element-wise mask rather than a row-wise one.
-    nonzero_mask = old_data != 0
-    # Guard: the mask should exclude < 0.1% of elements
-    assert nonzero_mask.sum() / nonzero_mask.size > 0.999
-    np.testing.assert_array_equal(new_data[nonzero_mask], old_data[nonzero_mask])
+    timestamps = old_nwbfile.acquisition["e-series"].timestamps[:ephys_size]
+    _assert_ephys_match_with_epoch_boundary_masking(new_data, old_data, timestamps)
     # check that timestamps are less than one sample different
     assert np.allclose(
         nwbfile.acquisition["e-series"].timestamps[:],
