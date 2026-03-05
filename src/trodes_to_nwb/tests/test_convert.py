@@ -180,8 +180,13 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
     # compare ALL channels across ALL timepoints
     new_data = (nwbfile.acquisition["e-series"].data[:] * conversion).astype("int16")
     old_data = old_nwbfile.acquisition["e-series"].data[:ephys_size, :]
-    # Ignore artifact zero-valued points from rec_to_nwb conversion
-    nonzero_mask = np.any(np.abs(old_data) > 0, axis=1)
+    # Ignore zero-valued elements from rec_to_nwb conversion at epoch
+    # boundaries. With 128-channel recordings, the artifact can zero out
+    # individual elements within a row (not just full rows), so we use an
+    # element-wise mask rather than a row-wise one.
+    nonzero_mask = old_data != 0
+    # Guard: the mask should exclude < 0.1% of elements
+    assert nonzero_mask.sum() / nonzero_mask.size > 0.999
     np.testing.assert_array_equal(new_data[nonzero_mask], old_data[nonzero_mask])
     # check that timestamps are less than one sample different
     assert np.allclose(

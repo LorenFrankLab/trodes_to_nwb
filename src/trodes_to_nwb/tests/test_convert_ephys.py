@@ -210,13 +210,16 @@ def test_add_raw_ephys_two_epoch(tmp_path):
             )
             # compare ALL channels across ALL timepoints
             # The rec_to_nwb reference file (minirec) has zero-valued artifact
-            # rows at epoch boundaries that we fill with real data. Mask these
-            # out for the comparison.
+            # elements at epoch boundaries that we fill with real data. Use
+            # element-wise mask since individual elements (not just full rows)
+            # can be zeroed out.
             new_data = (
                 read_nwbfile.acquisition["e-series"].data[:] * conversion
             ).astype("int16")
             old_data = old_nwbfile.acquisition["e-series"].data[:]
-            nonzero_mask = np.any(old_data != 0, axis=1)
+            nonzero_mask = old_data != 0
+            # Guard: the mask should exclude < 0.1% of elements
+            assert nonzero_mask.sum() / nonzero_mask.size > 0.999
             np.testing.assert_array_equal(
                 new_data[nonzero_mask], old_data[nonzero_mask]
             )
