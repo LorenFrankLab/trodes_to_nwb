@@ -4,67 +4,12 @@ import pynwb
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_ephys import add_raw_ephys
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from trodes_to_nwb.tests.utils import data_path
+from trodes_to_nwb.tests.utils import (
+    assert_ephys_match_with_epoch_boundary_masking,
+    data_path,
+)
 
 MICROVOLTS_PER_VOLT = 1e6
-SAMPLING_RATE = 30_000
-
-
-def _find_epoch_boundary_rows(timestamps, sampling_rate=SAMPLING_RATE, window=1):
-    """Return a boolean mask of rows near epoch boundaries.
-
-    An epoch boundary is detected where the timestamp gap between consecutive
-    samples exceeds 10x the expected inter-sample interval.  A window of
-    ``window`` rows on each side of the boundary is included to account for
-    off-by-one differences in how rec_to_nwb stitches epochs.
-    """
-    dt = np.diff(timestamps)
-    expected_dt = 1.0 / sampling_rate
-    boundary_indices = np.where(dt > 10 * expected_dt)[0]
-
-    n_rows = len(timestamps)
-    boundary_mask = np.zeros(n_rows, dtype=bool)
-    for idx in boundary_indices:
-        lo = max(0, idx - window)
-        hi = min(
-            n_rows, idx + window + 2
-        )  # +2 because boundary is between idx and idx+1
-        boundary_mask[lo:hi] = True
-    return boundary_mask
-
-
-def _assert_ephys_match_with_epoch_boundary_masking(new_data, old_data, timestamps):
-    """Assert ephys data matches, allowing zeros only at epoch boundaries.
-
-    The rec_to_nwb reference files contain zero-valued elements at epoch
-    boundaries (where multiple .rec files are stitched together).  Rather than
-    masking zeros with an arbitrary percentage guard, this function verifies
-    that ALL zeros in the reference data fall within a small window around
-    detected epoch boundaries, then compares non-zero elements exactly.
-    """
-    boundary_mask = _find_epoch_boundary_rows(timestamps)
-
-    # Verify that every zero in old_data falls in a boundary row
-    zero_rows = np.where(np.any(old_data == 0, axis=1))[0]
-    non_boundary_zeros = zero_rows[~boundary_mask[zero_rows]]
-    assert len(non_boundary_zeros) == 0, (
-        f"Found {len(non_boundary_zeros)} rows with zeros outside epoch boundaries "
-        f"(rows: {non_boundary_zeros[:10]})"
-    )
-
-    # Non-boundary rows: exact match, no masking
-    if np.any(~boundary_mask):
-        np.testing.assert_array_equal(
-            new_data[~boundary_mask], old_data[~boundary_mask]
-        )
-
-    # Boundary rows: compare only non-zero elements
-    if np.any(boundary_mask):
-        boundary_old = old_data[boundary_mask]
-        boundary_new = new_data[boundary_mask]
-        nonzero = boundary_old != 0
-        if np.any(nonzero):
-            np.testing.assert_array_equal(boundary_new[nonzero], boundary_old[nonzero])
 
 
 def test_add_raw_ephys_single_rec(tmp_path):
@@ -275,7 +220,7 @@ def test_add_raw_ephys_two_epoch(tmp_path):
             ).astype("int16")
             old_data = old_nwbfile.acquisition["e-series"].data[:]
             timestamps = old_nwbfile.acquisition["e-series"].timestamps[:]
-            _assert_ephys_match_with_epoch_boundary_masking(
+            assert_ephys_match_with_epoch_boundary_masking(
                 new_data, old_data, timestamps
             )
             # check dtype

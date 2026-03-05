@@ -8,10 +8,10 @@ from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
 from trodes_to_nwb.data_scanner import get_file_info
-from trodes_to_nwb.tests.test_convert_ephys import (
-    _assert_ephys_match_with_epoch_boundary_masking,
+from trodes_to_nwb.tests.utils import (
+    assert_ephys_match_with_epoch_boundary_masking,
+    data_path,
 )
-from trodes_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
 
@@ -185,7 +185,7 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
     new_data = (nwbfile.acquisition["e-series"].data[:] * conversion).astype("int16")
     old_data = old_nwbfile.acquisition["e-series"].data[:ephys_size, :]
     timestamps = old_nwbfile.acquisition["e-series"].timestamps[:ephys_size]
-    _assert_ephys_match_with_epoch_boundary_masking(new_data, old_data, timestamps)
+    assert_ephys_match_with_epoch_boundary_masking(new_data, old_data, timestamps)
     # check that timestamps are less than one sample different
     assert np.allclose(
         nwbfile.acquisition["e-series"].timestamps[:],
