@@ -1,6 +1,7 @@
 
 experiment_description: Hippocampus content feedback
-experimenter_name: Michael Coulter
+experimenter_name:
+- Michael Coulter
 institution: University of California, San Francisco
 lab: Loren Frank
 raw_data_to_volts: 1.95e-07
@@ -9,10 +10,10 @@ session_id: ginny_20211027
 subject:
   description: Long Evans Rat
   genotype: Wild Type
-  sex: Male
+  sex: M
   species: Rat
   subject_id: ginny
-  weight: Unknown
+  weight: 0
   date_of_birth: 2000-01-01T00:00:00.000Z
 
 associated_files:

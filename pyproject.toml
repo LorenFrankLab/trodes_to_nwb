@@ -137,7 +137,8 @@ ignore = [
 "src/trodes_to_nwb/tests/**/*.py" = ["PLR2004"]
 "src/trodes_to_nwb/convert_position.py" = ["PLR2004"]      # thresholds in position processing
 "src/trodes_to_nwb/spike_gadgets_raw_io.py" = ["B019"]     # lru_cache on methods is intentional for performance
-"notebooks/**/*.py" = ["E402", "F401", "F821"]             # notebook-specific ignores
+"notebooks/**/*.py" = ["E402", "E722", "E741", "F401", "F821", "PLC0207"]  # notebook-specific ignores
+"notebooks/**/*.ipynb" = ["E402", "E722", "E741", "F401", "F821", "PLC0207"]  # notebook-specific ignores
 
 [tool.ruff.lint.isort]
 known-first-party = ["trodes_to_nwb"]

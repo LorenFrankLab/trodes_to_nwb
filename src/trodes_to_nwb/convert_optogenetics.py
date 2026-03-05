@@ -579,7 +579,9 @@ def compile_opto_entries(
                 condition_dict["speed_filter_on_above_threshold"] = condition_metadata[
                     "threshold_above"
                 ]
-        geometry_dict = compile_geometry_filters(geometry_filter_metadata_list)
+        geometry_dict = compile_geometry_filters(
+            geometry_filter_metadata_list, file_dir
+        )
 
         # add camera information if speed or spatial filter is on
         if "speed_filter_on" in condition_dict or "spatial_filter_on" in geometry_dict:
@@ -637,12 +639,17 @@ def get_epoch_info_entry(
     return value
 
 
-def compile_geometry_filters(geometry_filter_metadata_list: list[str]) -> dict:
+def compile_geometry_filters(
+    geometry_filter_metadata_list: list[str], file_dir: str = ""
+) -> dict:
     if len(geometry_filter_metadata_list) == 0:
         return {}
 
     geometry_dict = {"spatial_filter_on": True}
     geometry_file_path = geometry_filter_metadata_list[0]["trackgeometry"]["filename"]
+    # Resolve relative geometry file paths against file_dir
+    if not os.path.isabs(geometry_file_path) and file_dir:
+        geometry_file_path = str(Path(file_dir) / geometry_file_path)
     target_zones = [
         x["trackgeometry"]["zone_id"] for x in geometry_filter_metadata_list
     ]

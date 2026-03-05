@@ -13,6 +13,7 @@
 - Fix JSON Schema version mismatch: code used `Draft202012Validator` but schema declares draft-07
 - Halt conversion on invalid metadata instead of silently continuing with bad data
 - Fix `convert_optogenetics.py` importing from test utilities in production code
+- Fix geometry file path resolution in `convert_optogenetics.py`: resolve relative paths against `file_dir`
 - Remove debug `print()` statements from `spike_gadgets_raw_io.py`
 
 ### General
@@ -34,6 +35,8 @@
 - Add dtype assertions to analog and ephys tests
 - Migrate analog and ephys tests to use `tmp_path` fixture for reliable cleanup
 - Add tests for metadata validation error propagation, `date_of_birth` serialization, and missing channel map errors
+- Fix `test_correct_timestamps_for_camera_to_mcu_lag` expected values (units were seconds instead of nanoseconds)
+- Fix `nonptp_metadata.yml` to comply with JSON schema (`experimenter_name` array, `sex` enum, `weight` number)
 
 ### Optogenetics
 
