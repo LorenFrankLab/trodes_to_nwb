@@ -358,7 +358,7 @@ def test_add_associated_files(capsys):
                 for line in log_file.readlines():
                     if "Associated file bad_path.txt does not exist" in line:
                         printed_warning = True
-                    break
+                        break
     assert printed_warning
 
 

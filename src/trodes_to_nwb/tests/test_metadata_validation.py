@@ -30,11 +30,19 @@ def test_date_of_birth_serialized_correctly():
     known_dob = datetime.datetime(2020, 1, 15, 10, 30, 0)
     basic_test_data["subject"]["date_of_birth"] = known_dob
 
-    # validate() internally converts datetime to string for schema validation.
-    # It should use the actual value, not datetime.utcnow().
-    # We can verify by checking the function doesn't raise and the
-    # metadata is not mutated (deepcopy is used internally).
-    is_valid, errors = validate(basic_test_data)
+    # Patch the validator to capture the metadata dict passed to it
+    with patch(
+        "trodes_to_nwb.metadata_validation.jsonschema.Draft7Validator"
+    ) as mock_validator:
+        mock_validator.return_value.iter_errors.return_value = iter([])
+        is_valid, errors = validate(basic_test_data)
+
+    assert is_valid
+    assert not errors
+
+    # Verify the validator received the known date_of_birth serialized correctly
+    call_args = mock_validator.return_value.iter_errors.call_args[0][0]
+    assert call_args["subject"]["date_of_birth"] == known_dob.isoformat()
 
     # The original datetime should not be mutated
     assert basic_test_data["subject"]["date_of_birth"] == known_dob
