@@ -29,8 +29,6 @@ import numpy as np
 from pynwb import NWBFile
 import yaml
 
-from trodes_to_nwb.tests.utils import data_path
-
 
 def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dict]):
     """
@@ -680,14 +678,10 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
     """
     zones = {i: {} for i in target_zones}
     if not os.path.exists(geometry_file_path):
-        try:
-            geometry_file_path = Path(data_path) / Path(geometry_file_path).name
-            os.path.exists(geometry_file_path)
-        except Exception as e:
-            raise FileNotFoundError(
-                f"Geometry file {geometry_file_path} not found. "
-                "Please check the path and try again."
-            ) from e
+        raise FileNotFoundError(
+            f"Geometry file {geometry_file_path} not found. "
+            "Please check the path and try again."
+        )
 
     with open(geometry_file_path, encoding="utf-8") as f:
         zone_id = None

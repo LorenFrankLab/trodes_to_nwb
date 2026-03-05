@@ -9,3 +9,5 @@ import contextlib
 
 with contextlib.suppress(ImportError):
     from ._version import __version__ as __version__
+
+from trodes_to_nwb.convert import create_nwbs as create_nwbs

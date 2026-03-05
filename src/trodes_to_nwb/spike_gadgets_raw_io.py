@@ -9,6 +9,7 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
+import logging
 from xml.etree import ElementTree
 
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
@@ -27,6 +28,8 @@ TIMESTAMP_SIZE_BYTES = 4  # uint32
 SYSCLOCK_SIZE_BYTES = 8  # int64
 EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
 EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
+
+logger = logging.getLogger(__name__)
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -733,7 +736,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             If any specified `channel_names` are not found in the file.
         """
-        print("compute multiplex cache", self.filename)
+        logger.info("Computing multiplex cache: %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -817,7 +820,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             _description_
         """
-        print("compute multiplex cache", self.filename)
+        logger.info("Computing multiplex cache: %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -1049,7 +1052,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self,
     ):
         # """Interpolates single dropped packets in the analog data."""
-        print("Interpolate memmap: ", self.filename)
+        logger.info("Interpolating memmap: %s", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
 
     def get_stream_index_from_id(self, stream_id: int) -> int:
@@ -1263,7 +1266,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
         """
-        print("compute multiplex cache", self.filename)
+        logger.info("Computing multiplex cache: %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
