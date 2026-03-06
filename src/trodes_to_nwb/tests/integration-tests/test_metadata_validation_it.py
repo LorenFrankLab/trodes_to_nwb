@@ -31,7 +31,7 @@ from trodes_to_nwb.tests.test_data.test_metadata_dict_samples import (
 
 @pytest.mark.parametrize("metadata", [(None), ("")])
 def test_metadata_validation_only_accepts_right_data_type(metadata):
-    with pytest.raises(AssertionError):
+    with pytest.raises((ValueError, TypeError)):
         validate(metadata)
 
 
@@ -183,6 +183,6 @@ def test_metadata_validation_verification_on_invalid_data(metadata, key, expecte
     assert len(errors) == len(expected), f"Not all the errors are occurring in - {key}"
     assert not is_valid, f"{key} should be invalid"
     for index, error in enumerate(errors):
-        assert (
-            expected[index] in error
-        ), f"Expected error not found - ${expected[index]}"
+        assert expected[index] in error, (
+            f"Expected error not found - ${expected[index]}"
+        )

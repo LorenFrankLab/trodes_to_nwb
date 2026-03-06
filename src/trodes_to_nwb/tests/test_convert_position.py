@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 import pandas as pd
-import pytest
 from pynwb import NWBHDF5IO
 from pynwb.behavior import Position
+import pytest
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_position import (
@@ -197,10 +197,10 @@ def test_correct_timestamps_for_camera_to_mcu_lag():
         frame_count, camera_systime, camera_to_mcu_lag
     )
 
-    expected_corrected_camera_systime = np.arange(0, 50, 10)
+    expected_corrected_camera_systime = np.arange(5) * 10 * NANOSECONDS_PER_SECOND
 
     # Assert that the corrected timestamps are as expected
-    np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
+    assert np.allclose(corrected_camera_systime, expected_corrected_camera_systime)
 
 
 def test_add_position(prior_position=False):

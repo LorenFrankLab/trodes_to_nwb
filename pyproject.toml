@@ -32,7 +32,7 @@ dependencies = [
     "neo>=0.13.4",
     "dask[complete]",
     "ffmpeg",
-    "jsonschema<4.21.0",
+    "jsonschema<4.21.0",  # pinned: >=4.21 changes validation error messages, breaking integration tests
 ]
 dynamic = ["version"]
 
@@ -42,8 +42,8 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-mock"]
-dev = ["black", "pytest", "pytest-cov", "pytest-mock", "mypy", "ruff"]
-lint = ["black", "ruff", "mypy"]
+dev = ["pytest", "pytest-cov", "pytest-mock", "mypy", "ruff"]
+lint = ["ruff", "mypy"]
 docs = ["sphinx", "sphinx-rtd-theme", "myst-parser"]
 
 [tool.hatch.version]
@@ -58,30 +58,15 @@ exclude = [".git_archival.txt"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trodes_to_nwb"]
-exclude = ["src/trodes_to_nwb/data/test_data"]
+exclude = ["src/trodes_to_nwb/tests/test_data"]
 
 [tool.coverage.run]
 source = ["src/trodes_to_nwb"]
 omit = ["src/trodes_to_nwb/tests/*"]
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.pytest_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = [
@@ -140,7 +125,7 @@ select = [
     "PL",  # pylint
 ]
 ignore = [
-    "E501",    # line too long, handled by black
+    "E501",    # line too long, handled by formatter
     "PLR0913", # too many arguments to function call
     "PLR0912", # too many branches
     "PLR0915", # too many statements
@@ -148,9 +133,12 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004"]                   # magic value used in comparison
+"tests/**/*.py" = ["PLR2004"]                              # magic value used in comparison
 "src/trodes_to_nwb/tests/**/*.py" = ["PLR2004"]
-"notebooks/**/*.py" = ["E402", "F401", "F821"]  # notebook-specific ignores
+"src/trodes_to_nwb/convert_position.py" = ["PLR2004"]      # thresholds in position processing
+"src/trodes_to_nwb/spike_gadgets_raw_io.py" = ["B019"]     # lru_cache on methods is intentional for performance
+"notebooks/**/*.py" = ["E402", "E722", "E741", "F401", "F821", "PLC0207"]  # notebook-specific ignores
+"notebooks/**/*.ipynb" = ["E402", "E722", "E741", "F401", "F821", "PLC0207"]  # notebook-specific ignores
 
 [tool.ruff.lint.isort]
 known-first-party = ["trodes_to_nwb"]

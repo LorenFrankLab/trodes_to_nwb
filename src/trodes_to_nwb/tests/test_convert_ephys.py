@@ -1,17 +1,18 @@
-import os
-
 import numpy as np
 import pynwb
 
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_ephys import add_raw_ephys
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
-from trodes_to_nwb.tests.utils import data_path
+from trodes_to_nwb.tests.utils import (
+    assert_ephys_match_with_epoch_boundary_masking,
+    data_path,
+)
 
 MICROVOLTS_PER_VOLT = 1e6
 
 
-def test_add_raw_ephys_single_rec():
+def test_add_raw_ephys_single_rec(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadata.yml"
     probe_metadata = [data_path / "tetrode_12.5.yml"]
@@ -45,7 +46,7 @@ def test_add_raw_ephys_single_rec():
         map_row_ephys_data_to_row_electrodes_table,
     )
 
-    filename = "test_add_raw_ephys_single_rec.nwb"
+    filename = tmp_path / "test_add_raw_ephys_single_rec.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
 
@@ -60,24 +61,19 @@ def test_add_raw_ephys_single_rec():
             conversion = (
                 read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
             )
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[0, :]
-            ).all()
             # check data shapes match
             assert (
                 read_nwbfile.acquisition["e-series"].data.shape
                 == old_nwbfile.acquisition["e-series"].data.shape
             )
-            # check all values of one of the streams
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[:, 0]
-            ).all()
+            # compare ALL channels across ALL timepoints
+            new_data = (
+                read_nwbfile.acquisition["e-series"].data[:] * conversion
+            ).astype("int16")
+            old_data = old_nwbfile.acquisition["e-series"].data[:]
+            np.testing.assert_array_equal(new_data, old_data)
+            # check dtype
+            assert read_nwbfile.acquisition["e-series"].data.dtype == np.int16
             # check that timestamps are less than one sample different
             assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
@@ -85,10 +81,9 @@ def test_add_raw_ephys_single_rec():
                 rtol=0,
                 atol=1.0 / 30000,
             )
-    os.remove(filename)
 
 
-def test_add_raw_ephys_single_rec_probe_configuration():
+def test_add_raw_ephys_single_rec_probe_configuration(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
     probe_metadata = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
@@ -123,7 +118,7 @@ def test_add_raw_ephys_single_rec_probe_configuration():
         map_row_ephys_data_to_row_electrodes_table,
     )
 
-    filename = "test_add_raw_ephys_single_rec.nwb"
+    filename = tmp_path / "test_add_raw_ephys_probe_reconfig.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
 
@@ -138,24 +133,19 @@ def test_add_raw_ephys_single_rec_probe_configuration():
             conversion = (
                 read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
             )
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[0, :]
-            ).all()
             # check data shapes match
             assert (
                 read_nwbfile.acquisition["e-series"].data.shape
                 == old_nwbfile.acquisition["e-series"].data.shape
             )
-            # check all values of one of the streams
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[:, 0]
-            ).all()
+            # compare ALL channels across ALL timepoints
+            new_data = (
+                read_nwbfile.acquisition["e-series"].data[:] * conversion
+            ).astype("int16")
+            old_data = old_nwbfile.acquisition["e-series"].data[:]
+            np.testing.assert_array_equal(new_data, old_data)
+            # check dtype
+            assert read_nwbfile.acquisition["e-series"].data.dtype == np.int16
             # check that timestamps are less than one sample different
             assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
@@ -164,10 +154,8 @@ def test_add_raw_ephys_single_rec_probe_configuration():
                 atol=1.0 / 30000,
             )
 
-    os.remove(filename)
 
-
-def test_add_raw_ephys_two_epoch():
+def test_add_raw_ephys_two_epoch(tmp_path):
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadata.yml"
     probe_metadata = [data_path / "tetrode_12.5.yml"]
@@ -203,7 +191,7 @@ def test_add_raw_ephys_two_epoch():
         map_row_ephys_data_to_row_electrodes_table,
     )
 
-    filename = "test_add_raw_ephys_single_rec.nwb"
+    filename = tmp_path / "test_add_raw_ephys_two_epoch.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
 
@@ -214,33 +202,29 @@ def test_add_raw_ephys_two_epoch():
 
         with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
             old_nwbfile = io2.read()
-            print(
-                read_nwbfile.acquisition["e-series"].data.shape,
-                old_nwbfile.acquisition["e-series"].data.shape,
-            )
-
             # check ordering worked correctly
             conversion = (
                 read_nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
             )
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[0, :] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[0, :]
-            ).all()
             # check data shapes match
             assert (
                 read_nwbfile.acquisition["e-series"].data.shape
                 == old_nwbfile.acquisition["e-series"].data.shape
             )
-            # check all values of one of the streams
-            assert (
-                (read_nwbfile.acquisition["e-series"].data[:, 0] * conversion).astype(
-                    "int16"
-                )
-                == old_nwbfile.acquisition["e-series"].data[:, 0]
-            ).all()
+            # compare ALL channels across ALL timepoints
+            # The rec_to_nwb reference file (minirec) has zero-valued artifact
+            # elements at epoch boundaries that we fill with real data.
+            # Verify zeros only occur near detected epoch boundaries.
+            new_data = (
+                read_nwbfile.acquisition["e-series"].data[:] * conversion
+            ).astype("int16")
+            old_data = old_nwbfile.acquisition["e-series"].data[:]
+            timestamps = old_nwbfile.acquisition["e-series"].timestamps[:]
+            assert_ephys_match_with_epoch_boundary_masking(
+                new_data, old_data, timestamps
+            )
+            # check dtype
+            assert read_nwbfile.acquisition["e-series"].data.dtype == np.int16
             # check that timestamps are less than one sample different
             assert np.allclose(
                 read_nwbfile.acquisition["e-series"].timestamps[:],
@@ -248,5 +232,3 @@ def test_add_raw_ephys_two_epoch():
                 rtol=0,
                 atol=1.0 / 30000,
             )
-
-    os.remove(filename)

@@ -8,9 +8,9 @@ and final NWB file writing and validation.
 import logging
 from pathlib import Path
 
+from dask.distributed import Client
 import nwbinspector
 import pandas as pd
-from dask.distributed import Client
 from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert_analog import add_analog_data
@@ -179,7 +179,7 @@ def create_nwbs(
                 )
                 return True
             except Exception as e:
-                print(session, e)
+                logging.getLogger("convert").error(f"{session}: {e}")
                 return e
 
         # initialize the workers
@@ -191,7 +191,7 @@ def create_nwbs(
         for args, future in zip(argument_list, futures, strict=True):
             result = future.result()
             if result is not True:
-                print(args, result)
+                logging.getLogger("convert").error(f"{args}: {result}")
 
     else:
         for session, session_df in file_info.groupby(["date", "animal"]):
@@ -388,7 +388,7 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
         filter(lambda x: x.importance in flagged_error_levels, messages)
     )
     if critical_errors:
-        print(
+        logger.warning(
             f"NWB Inspector found the following {len(critical_errors)} critical errors:"
         )
         formatted_critical_errors = nwbinspector.format_messages(
@@ -396,7 +396,7 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
         )
         nwbinspector.print_to_console(formatted_messages=formatted_critical_errors)
     else:
-        print("NWB Inspector found 0 critical errors")
+        logger.info("NWB Inspector found 0 critical errors")
 
     best_practice_violations = list(
         filter(
@@ -404,7 +404,7 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
             messages,
         )
     )
-    print(
+    logger.info(
         f"NWB Inspector found {len(best_practice_violations)} best practice violations"
     )
 
@@ -414,10 +414,10 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
             messages,
         )
     )
-    print(
+    logger.info(
         f"NWB Inspector found {len(best_practice_suggestions)} best practice suggestions"
     )
 
-    print(
+    logger.info(
         f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report"
     )

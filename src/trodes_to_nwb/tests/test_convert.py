@@ -1,6 +1,6 @@
 import os
-import shutil
 from pathlib import Path
+import shutil
 from unittest.mock import patch
 
 import numpy as np
@@ -8,7 +8,10 @@ from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
 from trodes_to_nwb.data_scanner import get_file_info
-from trodes_to_nwb.tests.utils import data_path
+from trodes_to_nwb.tests.utils import (
+    assert_ephys_match_with_epoch_boundary_masking,
+    data_path,
+)
 
 MICROVOLTS_PER_VOLT = 1e6
 
@@ -171,25 +174,18 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
 
     # check ephys data values
     conversion = nwbfile.acquisition["e-series"].conversion * MICROVOLTS_PER_VOLT
-    assert (
-        (nwbfile.acquisition["e-series"].data[0, :] * conversion).astype("int16")
-        == old_nwbfile.acquisition["e-series"].data[0, :]
-    ).all()
     # check data shapes match if untruncated
     assert (
         nwbfile.acquisition["e-series"].data.shape
         == old_nwbfile.acquisition["e-series"].data.shape
     ) or truncated_size
     ephys_size = nwbfile.acquisition["e-series"].data.shape[0]
-    # check all values of one of the streams
-    old_data = old_nwbfile.acquisition["e-series"].data[:, 0]
-    ind = np.where(np.abs(old_data[:ephys_size]) > 0)[
-        0
-    ]  # Ignore the artifact zero valued points from rec_to_nwb_conversion
-    assert (
-        (nwbfile.acquisition["e-series"].data[ind, 0] * conversion).astype("int16")
-        == old_data[ind]
-    ).all()
+    # compare ALL channels across ALL timepoints
+    # Verify zeros in reference data only occur near epoch boundaries.
+    new_data = (nwbfile.acquisition["e-series"].data[:] * conversion).astype("int16")
+    old_data = old_nwbfile.acquisition["e-series"].data[:ephys_size, :]
+    timestamps = old_nwbfile.acquisition["e-series"].timestamps[:ephys_size]
+    assert_ephys_match_with_epoch_boundary_masking(new_data, old_data, timestamps)
     # check that timestamps are less than one sample different
     assert np.allclose(
         nwbfile.acquisition["e-series"].timestamps[:],
@@ -206,32 +202,30 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
     old_id_order = old_nwbfile.processing["analog"]["analog"][
         "analog"
     ].description.split("   ")[:-1]
-    # TODO check that all the same channels are present
     if (
         old_nwbfile.processing["analog"]["analog"]["analog"].data.size > 0
-    ):  # analog data not included in all old files. Shouldn't fail because we include it now
+    ):  # analog data not included in all old files
         # compare analog data on channels present in rec conversion
         if "timestamps" in old_id_order:
             old_id_order.remove("timestamps")
         index_order = [id_order.index(id) for id in old_id_order]
+        # check that all the same channels are present
+        assert set(id_order) >= set(old_id_order)
 
         assert (
             nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
             == old_nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
         ) or truncated_size
         analog_size = nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
-        # compare matching for first timepoint
-        assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data[0, :][index_order]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data[0, :]
-        ).all()
-        # compare one channel across all timepoints
-        assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data[:, index_order[0]]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data[
-                :analog_size, 0
-            ]
-        ).all()
+        # compare ALL channels across ALL timepoints
+        new_data = nwbfile.processing["analog"]["analog"]["analog"].data[:]
+        old_data = old_nwbfile.processing["analog"]["analog"]["analog"].data[
+            :analog_size, :
+        ]
+        new_data_reordered = new_data[:, index_order]
+        np.testing.assert_array_equal(new_data_reordered, old_data)
+        # check dtype
+        assert new_data.dtype == np.int16
 
     # compare dio data
     for dio_name in old_nwbfile.processing["behavior"]["behavioral_events"].time_series:

@@ -61,44 +61,59 @@ def add_header_device(nwbfile: NWBFile, rec_header: ElementTree.Element) -> None
     """
 
     global_configuration = rec_header.find("GlobalConfiguration")
+    if global_configuration is None:
+        raise ValueError("Rec file header missing GlobalConfiguration element")
 
-    nwbfile.add_device(
-        HeaderDevice(
-            name="header_device",
-            headstage_serial=global_configuration.attrib["headstageSerial"],
-            headstage_smart_ref_on=global_configuration.attrib["headstageSmartRefOn"],
-            realtime_mode=global_configuration.attrib["realtimeMode"],
-            headstage_auto_settle_on=global_configuration.attrib[
-                "headstageAutoSettleOn"
-            ],
-            timestamp_at_creation=global_configuration.attrib["timestampAtCreation"],
-            controller_firmware_version=global_configuration.attrib[
-                "controllerFirmwareVersion"
-            ],
-            controller_serial=global_configuration.attrib["controllerSerial"],
-            save_displayed_chan_only=global_configuration.attrib[
-                "saveDisplayedChanOnly"
-            ],
-            headstage_firmware_version=global_configuration.attrib[
-                "headstageFirmwareVersion"
-            ],
-            qt_version=global_configuration.attrib["qtVersion"],
-            compile_date=global_configuration.attrib["compileDate"],
-            compile_time=global_configuration.attrib["compileTime"],
-            file_prefix=global_configuration.attrib["filePrefix"],
-            headstage_gyro_sensor_on=global_configuration.attrib[
-                "headstageGyroSensorOn"
-            ],
-            headstage_mag_sensor_on=global_configuration.attrib["headstageMagSensorOn"],
-            trodes_version=global_configuration.attrib["trodesVersion"],
-            headstage_accel_sensor_on=global_configuration.attrib[
-                "headstageAccelSensorOn"
-            ],
-            commit_head=global_configuration.attrib["commitHead"],
-            system_time_at_creation=global_configuration.attrib["systemTimeAtCreation"],
-            file_path=global_configuration.attrib["filePath"],
+    try:
+        nwbfile.add_device(
+            HeaderDevice(
+                name="header_device",
+                headstage_serial=global_configuration.attrib["headstageSerial"],
+                headstage_smart_ref_on=global_configuration.attrib[
+                    "headstageSmartRefOn"
+                ],
+                realtime_mode=global_configuration.attrib["realtimeMode"],
+                headstage_auto_settle_on=global_configuration.attrib[
+                    "headstageAutoSettleOn"
+                ],
+                timestamp_at_creation=global_configuration.attrib[
+                    "timestampAtCreation"
+                ],
+                controller_firmware_version=global_configuration.attrib[
+                    "controllerFirmwareVersion"
+                ],
+                controller_serial=global_configuration.attrib["controllerSerial"],
+                save_displayed_chan_only=global_configuration.attrib[
+                    "saveDisplayedChanOnly"
+                ],
+                headstage_firmware_version=global_configuration.attrib[
+                    "headstageFirmwareVersion"
+                ],
+                qt_version=global_configuration.attrib["qtVersion"],
+                compile_date=global_configuration.attrib["compileDate"],
+                compile_time=global_configuration.attrib["compileTime"],
+                file_prefix=global_configuration.attrib["filePrefix"],
+                headstage_gyro_sensor_on=global_configuration.attrib[
+                    "headstageGyroSensorOn"
+                ],
+                headstage_mag_sensor_on=global_configuration.attrib[
+                    "headstageMagSensorOn"
+                ],
+                trodes_version=global_configuration.attrib["trodesVersion"],
+                headstage_accel_sensor_on=global_configuration.attrib[
+                    "headstageAccelSensorOn"
+                ],
+                commit_head=global_configuration.attrib["commitHead"],
+                system_time_at_creation=global_configuration.attrib[
+                    "systemTimeAtCreation"
+                ],
+                file_path=global_configuration.attrib["filePath"],
+            )
         )
-    )
+    except KeyError as e:
+        raise ValueError(
+            f"Rec file header GlobalConfiguration missing required attribute: {e}"
+        ) from e
 
 
 def validate_yaml_header_electrode_map(
@@ -119,8 +134,7 @@ def validate_yaml_header_electrode_map(
         ntrode_id = group.attrib["id"]
         # find appropriate channel map metadata
         channel_map = None
-        map_number = None
-        for _, test_meta in enumerate(metadata["ntrode_electrode_group_channel_map"]):
+        for test_meta in metadata["ntrode_electrode_group_channel_map"]:
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
@@ -132,14 +146,12 @@ def validate_yaml_header_electrode_map(
             )
         else:
             # add this channel map to the validated list
-            validated_channel_maps.append(map_number)
+            validated_channel_maps.append(ntrode_id)
 
     if len(validated_channel_maps) < len(
         metadata["ntrode_electrode_group_channel_map"]
     ):
         raise (IndexError("XML Header contains less ntrodes than the yaml indicates"))
-
-    pass
 
 
 def make_hw_channel_map(
@@ -168,6 +180,8 @@ def make_hw_channel_map(
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
+        if channel_map is None:
+            raise ValueError(f"No channel map metadata found for ntrode_id {ntrode_id}")
         nwb_group_id = channel_map["electrode_group_id"]
         # make a dictinary for the nwbgroup to map nwb_electrode_id -> hwchan, may not be necessary for probes with multiple ntrode groups per nwb group
         if nwb_group_id not in hw_channel_map:

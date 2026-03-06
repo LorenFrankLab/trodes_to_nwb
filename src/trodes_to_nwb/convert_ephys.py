@@ -5,9 +5,9 @@ into an NWB ElectricalSeries object. Includes a DataChunkIterator for efficient 
 import logging
 from warnings import warn
 
-import numpy as np
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
+import numpy as np
 from pynwb import NWBFile
 from pynwb.ecephys import ElectricalSeries
 
@@ -41,11 +41,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         rec_file_path: list[str],
         nwb_hw_channel_order=None,
         conversion: float = 1.0,
-        stream_index: int = None,  # TODO use the stream name instead of the index
-        stream_id: str = None,
+        stream_index: int
+        | None = None,  # TODO use the stream name instead of the index
+        stream_id: str | None = None,
         is_analog: bool = False,
         interpolate_dropped_packets: bool = False,
-        timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
+        timestamps: np.ndarray
+        | None = None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         behavior_only: bool = False,
         **kwargs,
     ):
@@ -191,9 +193,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                             i_start=partial_size - 10,
                             i_stop=partial_size,
                             padding=30000,
-                        )[
-                            -1
-                        ]
+                        )[-1]
                     j += MAXIMUM_ITERATOR_SIZE
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators
@@ -216,7 +216,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
 
         logger.info("Reading timestamps COMPLETE")
-        is_timestamps_sequential = np.all(np.diff(self.timestamps))
+        is_timestamps_sequential = np.all(np.diff(self.timestamps) > 0)
         if not is_timestamps_sequential:
             warn(
                 "Timestamps are not sequential. This may cause problems with some software or data analysis.",

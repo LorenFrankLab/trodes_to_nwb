@@ -1,11 +1,11 @@
-import logging
+from datetime import datetime
 import os
 import shutil
-from datetime import datetime
 
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
+import pytest
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_position import add_associated_video_files
@@ -299,6 +299,7 @@ def test_add_tasks():
                 "task_epochs",
                 "task_environment",
             ),
+            strict=False,
         ):
             assert a == b
 
@@ -313,9 +314,10 @@ def test_add_tasks():
         assert task_df["task_environment"][0] == task_metadata["task_environment"]
 
 
-def test_add_associated_files(capsys):
-    # Create a logger
-    logger = convert.setup_logger("convert", "testing.log")
+def test_add_associated_files(tmp_path):
+    # Create a logger with log file in tmp_path for automatic cleanup
+    log_file_path = tmp_path / "testing.log"
+    convert.setup_logger("convert", str(log_file_path))
     # Set up test data
     metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -343,21 +345,11 @@ def test_add_associated_files(capsys):
     )
 
     # Test printed errormessage for missing file
-    # Change path of files to be relative to this directory
     metadata["associated_files"][0]["path"] = "bad_path.txt"
     metadata["associated_files"][0]["name"] = "bad_path.txt"
     metadata["associated_files"].pop(1)
     convert_yaml.add_associated_files(nwbfile, metadata)
-    printed_warning = False
-    for handler in logger.handlers:
-        if isinstance(handler, logging.FileHandler):
-            log_file_path = handler.baseFilename
-            with open(log_file_path) as log_file:
-                for line in log_file.readlines():
-                    if "ERROR: associated file bad_path.txt does not exist" in line:
-                        printed_warning = True
-                    break
-    assert printed_warning
+    assert "Associated file bad_path.txt does not exist" in log_file_path.read_text()
 
 
 def test_add_associated_video_files():
@@ -387,6 +379,7 @@ def test_add_associated_video_files():
     for video, video_meta in zip(
         nwbfile.processing["video_files"]["video"].time_series,
         metadata["associated_video_files"],
+        strict=False,
     ):
         video = nwbfile.processing["video_files"]["video"][video]
         assert video.name == video_meta["name"]
@@ -398,3 +391,19 @@ def test_add_associated_video_files():
 
     # cleanup
     shutil.rmtree(video_directory)
+
+
+def test_load_metadata_raises_on_invalid_yaml(tmp_path):
+    """Test that load_metadata raises ValueError when YAML metadata is invalid."""
+    invalid_yaml = tmp_path / "invalid_metadata.yml"
+    # Use a structure with required top-level keys but invalid values
+    # so it passes dict key access but fails schema validation
+    invalid_yaml.write_text(
+        "subject:\n"
+        "  description: test\n"
+        "  sex: M\n"
+        "session_description: test\n"
+        "session_id: '1'\n"
+    )
+    with pytest.raises(ValueError, match="Metadata validation failed"):
+        convert_yaml.load_metadata(str(invalid_yaml), [])

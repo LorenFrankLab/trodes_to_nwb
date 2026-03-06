@@ -9,9 +9,9 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
+import logging
 from xml.etree import ElementTree
 
-import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
     _event_channel_dtype,
@@ -19,6 +19,7 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
+import numpy as np
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
@@ -27,6 +28,8 @@ TIMESTAMP_SIZE_BYTES = 4  # uint32
 SYSCLOCK_SIZE_BYTES = 8  # int64
 EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
 EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
+
+logger = logging.getLogger(__name__)
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -218,9 +221,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # timestamps 4 uint32
         self._timestamp_byte = packet_size
         packet_size += TIMESTAMP_SIZE_BYTES
-        assert (
-            "sysTimeIncluded" not in hconf.attrib
-        ), "sysTimeIncluded not supported yet"
+        assert "sysTimeIncluded" not in hconf.attrib, (
+            "sysTimeIncluded not supported yet"
+        )
         # if sysTimeIncluded, then 8-byte system clock is included after timestamp
 
         packet_size += EPHYS_SAMPLE_SIZE_BYTES * num_ephy_channels
@@ -663,9 +666,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
             self.interpolate_index = np.where(
                 np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
+            )[0]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
 
         # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
@@ -735,7 +736,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             If any specified `channel_names` are not found in the file.
         """
-        print("compute multiplex cache", self.filename)
+        logger.info("Computing multiplex cache: %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -819,7 +820,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             _description_
         """
-        print("compute multiplex cache", self.filename)
+        logger.info("Computing multiplex cache: %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -910,9 +911,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
             if chan_id == channel_id:
                 channel_index = i
                 break
-        assert (
-            channel_index >= 0
-        ), f"channel_id {channel_id} not found in stream {stream_id}"
+        assert channel_index >= 0, (
+            f"channel_id {channel_id} not found in stream {stream_id}"
+        )
 
         # num_chan = len(self._mask_channels_bytes[stream_id])
         # re_order = None
@@ -1051,7 +1052,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self,
     ):
         # """Interpolates single dropped packets in the analog data."""
-        print("Interpolate memmap: ", self.filename)
+        logger.info("Interpolating memmap: %s", self.filename)
         self._raw_memmap = InsertedMemmap(self._raw_memmap, self.interpolate_index)
 
     def get_stream_index_from_id(self, stream_id: int) -> int:
@@ -1254,9 +1255,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
             )
             self.interpolate_index = np.where(
                 np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
+            )[0]  # find locations of single dropped packets
             self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)
@@ -1267,7 +1266,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
         """
-        print("compute multiplex cache", self.filename)
+        logger.info("Computing multiplex cache: %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())

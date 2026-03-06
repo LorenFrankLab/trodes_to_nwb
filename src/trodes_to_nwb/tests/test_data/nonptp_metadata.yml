@@ -1,6 +1,7 @@
 
 experiment_description: Hippocampus content feedback
-experimenter_name: Michael Coulter
+experimenter_name:
+- Michael Coulter
 institution: University of California, San Francisco
 lab: Loren Frank
 raw_data_to_volts: 1.95e-07
@@ -9,28 +10,25 @@ session_id: ginny_20211027
 subject:
   description: Long Evans Rat
   genotype: Wild Type
-  sex: Male
+  sex: M
   species: Rat
   subject_id: ginny
-  weight: Unknown
+  weight: 100
   date_of_birth: 2000-01-01T00:00:00.000Z
 
 associated_files:
 - description: Statescript log run 1
   name: statescript_r1
   path: /cumulus/mcoulter/ginny/raw/20211027/20211027_ginny_02_r1.stateScriptLog
-  task_epochs:
-  - 2
+  task_epochs: 2
 - description: Statescript log run 2
   name: statescript_r2
   path: /cumulus/mcoulter/ginny/raw/20211027/20211027_ginny_04_r2.stateScriptLog
-  task_epochs:
-  - 4
+  task_epochs: 4
 - description: Statescript log run 3
   name: statescript_r3
   path: /cumulus/mcoulter/ginny/raw/20211027/20211027_ginny_06_r3.stateScriptLog
-  task_epochs:
-  - 6
+  task_epochs: 6
 
 associated_video_files:
 - name: 20211027_ginny_01_s1.1.h264
@@ -125,7 +123,8 @@ behavioral_events:
   description: Din16
 
 data_acq_device:
-- adc_circuit: Intan
+- name: SpikeGadgets
+  adc_circuit: Intan
   amplifier: Intan
   system: SpikeGadgets
 default_header_file_path: default_header.xml
@@ -172,7 +171,7 @@ electrode_groups:
 - description: tetrode
   device_type: tetrode_12.5
   id: 4
-  location: ''
+  location: unknown
   targeted_location: CA1
   targeted_x: 0.0
   targeted_y: 0.0

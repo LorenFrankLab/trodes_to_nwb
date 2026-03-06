@@ -7,8 +7,6 @@ import logging
 import os
 from pathlib import Path
 
-import numpy as np
-import yaml
 from ndx_franklab_novela import FrankLabOptogeneticEpochsTable
 from ndx_ophys_devices import (
     Effector,
@@ -27,9 +25,9 @@ from ndx_optogenetics import (
     OptogeneticViruses,
     OptogeneticVirusInjections,
 )
+import numpy as np
 from pynwb import NWBFile
-
-from trodes_to_nwb.tests.utils import data_path
+import yaml
 
 
 def add_optogenetics(nwbfile: NWBFile, metadata: dict, device_metadata: list[dict]):
@@ -555,7 +553,9 @@ def compile_opto_entries(
                     "reference_ntrode"
                 ]
         else:
-            print("WARNING: Trigger info can not be pulled from statescript")
+            logging.getLogger("convert").warning(
+                "Trigger info can not be pulled from statescript"
+            )
 
         # conditions for trigger activation (can be multiple)
         condition_dict = {}
@@ -579,11 +579,13 @@ def compile_opto_entries(
                 condition_dict["speed_filter_on_above_threshold"] = condition_metadata[
                     "threshold_above"
                 ]
-        geometry_dict = compile_geometry_filters(geometry_filter_metadata_list)
+        geometry_dict = compile_geometry_filters(
+            geometry_filter_metadata_list, file_dir
+        )
 
         # add camera information if speed or spatial filter is on
         if "speed_filter_on" in condition_dict or "spatial_filter_on" in geometry_dict:
-            print("ADDING CAMERA INFO")
+            logging.getLogger("convert").info("Adding camera info")
             if (camera_id := fs_gui_metadata.get("camera_id")) is None:
                 raise ValueError(
                     "Camera ID not found in metadata. "
@@ -637,12 +639,17 @@ def get_epoch_info_entry(
     return value
 
 
-def compile_geometry_filters(geometry_filter_metadata_list: list[str]) -> dict:
+def compile_geometry_filters(
+    geometry_filter_metadata_list: list[str], file_dir: str = ""
+) -> dict:
     if len(geometry_filter_metadata_list) == 0:
         return {}
 
     geometry_dict = {"spatial_filter_on": True}
     geometry_file_path = geometry_filter_metadata_list[0]["trackgeometry"]["filename"]
+    # Resolve relative geometry file paths against file_dir
+    if not os.path.isabs(geometry_file_path) and file_dir:
+        geometry_file_path = str(Path(file_dir) / geometry_file_path)
     target_zones = [
         x["trackgeometry"]["zone_id"] for x in geometry_filter_metadata_list
     ]
@@ -678,14 +685,10 @@ def get_geometry_zones_info(geometry_file_path, target_zones):
     """
     zones = {i: {} for i in target_zones}
     if not os.path.exists(geometry_file_path):
-        try:
-            geometry_file_path = Path(data_path) / Path(geometry_file_path).name
-            os.path.exists(geometry_file_path)
-        except Exception as e:
-            raise FileNotFoundError(
-                f"Geometry file {geometry_file_path} not found. "
-                "Please check the path and try again."
-            ) from e
+        raise FileNotFoundError(
+            f"Geometry file {geometry_file_path} not found. "
+            "Please check the path and try again."
+        )
 
     with open(geometry_file_path, encoding="utf-8") as f:
         zone_id = None

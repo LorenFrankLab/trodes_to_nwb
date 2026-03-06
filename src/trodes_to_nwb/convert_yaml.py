@@ -3,14 +3,12 @@
 initial NWB file setup, subject info, device entries, electrode tables, etc.
 """
 
-import logging
-import uuid
 from copy import deepcopy
 from datetime import datetime
+import logging
+import uuid
 from xml.etree import ElementTree
 
-import pandas as pd
-import yaml
 from dateutil.tz import tzutc
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
@@ -22,12 +20,14 @@ from ndx_franklab_novela import (
     Shank,
     ShanksElectrode,
 )
+import pandas as pd
 from pynwb import NWBFile
 from pynwb.device import DeviceModel
 from pynwb.file import ProcessingModule, Subject
+import yaml
 
-import trodes_to_nwb.metadata_validation
 from trodes_to_nwb import __version__
+import trodes_to_nwb.metadata_validation
 
 
 def load_metadata(
@@ -58,7 +58,9 @@ def load_metadata(
     ) = trodes_to_nwb.metadata_validation.validate(metadata)
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
-        logger.exception("".join(metadata_errors))
+        error_msg = "Metadata validation failed:\n" + "\n".join(metadata_errors)
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     device_metadata = []
     for path in device_metadata_paths:
         with open(path) as stream:
@@ -198,9 +200,7 @@ def add_electrode_groups(
         A dictionary of dictionaries mapping {nwb_group_id->{nwb_electrode_id->hwChan}}
     """
 
-    electrode_df_list = (
-        []
-    )  # dataframe to track non-default electrode data. add to electrodes table at end
+    electrode_df_list = []  # dataframe to track non-default electrode data. add to electrodes table at end
     # loop through the electrode groups
     for egroup_metadata in metadata["electrode_groups"]:
         # find correct channel map info
@@ -322,7 +322,7 @@ def add_electrode_groups(
         name="ref_elect_id",
         description="Experimenter selected reference electrode id",
         data=ref_electrode_id,
-    ),
+    )
 
 
 def extend_electrode_table(nwbfile, electrode_df):
@@ -436,11 +436,9 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
             with open(file["path"]) as open_file:
                 content = open_file.read()
         except FileNotFoundError as err:
-            logger.info(f"ERROR: associated file {file['path']} does not exist")
-            logger.info(str(err))
+            logger.warning(f"Associated file {file['path']} does not exist: {err}")
         except OSError as err:
-            logger.info(f"ERROR: Cannot read file at {file['path']}")
-            logger.info(str(err))
+            logger.warning(f"Cannot read file at {file['path']}: {err}")
         # convert task epoch values into strings
         task_epochs = "".join([str(element) + ", " for element in file["task_epochs"]])
         associated_files.append(

@@ -25,7 +25,8 @@ pytest --cov=src --cov-report=xml --doctest-modules -v --pyargs trodes_to_nwb
 **Linting:**
 
 ```bash
-black .
+ruff format .
+ruff check .
 ```
 
 **Build Package:**
@@ -91,7 +92,7 @@ Required files per session:
 
 ## Important Notes
 
-- Package supports Python >=3.8
+- Package supports Python >=3.10
 - Requires `ffmpeg` for video conversion
 - Uses hatch for build system with VCS-based versioning
 - Main branch protected, requires PR reviews

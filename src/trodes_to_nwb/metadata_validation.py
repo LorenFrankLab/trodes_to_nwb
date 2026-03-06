@@ -49,23 +49,25 @@ def validate(metadata: dict) -> tuple:
     tuple
         information of the validity of the metadata data and any errors
     """
-    assert metadata is not None  # metadata cannot be null
-    assert isinstance(metadata, dict)  # cannot proceed if metadata is not a dictionary
+    if metadata is None:
+        raise ValueError("metadata cannot be None")
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be a dict, got {type(metadata).__name__}")
 
     # date_of_birth is set to a datetime by the YAML-to-dict converter.
     # This code converts date_of_birth  to string
     metadata_content = copy.deepcopy(metadata) or {}
     if (
-        metadata_content["subject"]
-        and metadata_content["subject"]["date_of_birth"]
+        metadata_content.get("subject")
+        and metadata_content["subject"].get("date_of_birth")
         and type(metadata_content["subject"]["date_of_birth"]) is datetime.datetime
     ):
-        metadata_content["subject"]["date_of_birth"] = (
-            metadata_content["subject"]["date_of_birth"].utcnow().isoformat()
-        )
+        metadata_content["subject"]["date_of_birth"] = metadata_content["subject"][
+            "date_of_birth"
+        ].isoformat()
 
     schema = _get_json_schema()
-    validator = jsonschema.Draft202012Validator(schema)
+    validator = jsonschema.Draft7Validator(schema)
     metadata_validation_errors = validator.iter_errors(metadata_content)
     errors = []
 
