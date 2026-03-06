@@ -50,8 +50,8 @@ def assert_ephys_match_with_epoch_boundary_masking(
     """
     # Find elements that differ between new and old
     mismatch_mask = new_data != old_data
-    if not np.any(mismatch_mask):
-        return  # perfect match, nothing to check
+    if mismatch_mask.size == 0 or not np.any(mismatch_mask):
+        return  # empty or perfect match, nothing to check
 
     # --- Check 1: every mismatch must be where old_data is zero ---
     mismatch_but_nonzero = mismatch_mask & (old_data != 0)

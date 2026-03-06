@@ -134,8 +134,7 @@ def validate_yaml_header_electrode_map(
         ntrode_id = group.attrib["id"]
         # find appropriate channel map metadata
         channel_map = None
-        map_number = None
-        for _, test_meta in enumerate(metadata["ntrode_electrode_group_channel_map"]):
+        for test_meta in metadata["ntrode_electrode_group_channel_map"]:
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
@@ -147,14 +146,12 @@ def validate_yaml_header_electrode_map(
             )
         else:
             # add this channel map to the validated list
-            validated_channel_maps.append(map_number)
+            validated_channel_maps.append(ntrode_id)
 
     if len(validated_channel_maps) < len(
         metadata["ntrode_electrode_group_channel_map"]
     ):
         raise (IndexError("XML Header contains less ntrodes than the yaml indicates"))
-
-    pass
 
 
 def make_hw_channel_map(

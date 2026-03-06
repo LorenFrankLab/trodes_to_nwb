@@ -41,11 +41,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         rec_file_path: list[str],
         nwb_hw_channel_order=None,
         conversion: float = 1.0,
-        stream_index: int = None,  # TODO use the stream name instead of the index
-        stream_id: str = None,
+        stream_index: int
+        | None = None,  # TODO use the stream name instead of the index
+        stream_id: str | None = None,
         is_analog: bool = False,
         interpolate_dropped_packets: bool = False,
-        timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
+        timestamps: np.ndarray
+        | None = None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         behavior_only: bool = False,
         **kwargs,
     ):

@@ -49,8 +49,10 @@ def validate(metadata: dict) -> tuple:
     tuple
         information of the validity of the metadata data and any errors
     """
-    assert metadata is not None  # metadata cannot be null
-    assert isinstance(metadata, dict)  # cannot proceed if metadata is not a dictionary
+    if metadata is None:
+        raise ValueError("metadata cannot be None")
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be a dict, got {type(metadata).__name__}")
 
     # date_of_birth is set to a datetime by the YAML-to-dict converter.
     # This code converts date_of_birth  to string

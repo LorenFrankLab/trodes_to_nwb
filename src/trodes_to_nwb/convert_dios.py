@@ -92,8 +92,14 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
     ):
         timestamps = np.concatenate(timestamps)
         state_changes = np.concatenate(state_changes)
-        assert isinstance(timestamps[0], np.float64)
-        assert isinstance(timestamps, np.ndarray)
+        if not isinstance(timestamps, np.ndarray):
+            raise TypeError(
+                f"timestamps must be np.ndarray, got {type(timestamps).__name__}"
+            )
+        if not isinstance(timestamps[0], np.float64):
+            raise TypeError(
+                f"timestamps elements must be np.float64, got {type(timestamps[0]).__name__}"
+            )
         ts = TimeSeries(
             name=channel_name_map[channel_name]["name"],
             comments=channel_name_map[channel_name]["comments"],

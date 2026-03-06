@@ -1,5 +1,4 @@
 from datetime import datetime
-import logging
 import os
 import shutil
 
@@ -315,9 +314,10 @@ def test_add_tasks():
         assert task_df["task_environment"][0] == task_metadata["task_environment"]
 
 
-def test_add_associated_files(capsys):
-    # Create a logger
-    logger = convert.setup_logger("convert", "testing.log")
+def test_add_associated_files(tmp_path):
+    # Create a logger with log file in tmp_path for automatic cleanup
+    log_file_path = tmp_path / "testing.log"
+    convert.setup_logger("convert", str(log_file_path))
     # Set up test data
     metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -345,21 +345,11 @@ def test_add_associated_files(capsys):
     )
 
     # Test printed errormessage for missing file
-    # Change path of files to be relative to this directory
     metadata["associated_files"][0]["path"] = "bad_path.txt"
     metadata["associated_files"][0]["name"] = "bad_path.txt"
     metadata["associated_files"].pop(1)
     convert_yaml.add_associated_files(nwbfile, metadata)
-    printed_warning = False
-    for handler in logger.handlers:
-        if isinstance(handler, logging.FileHandler):
-            log_file_path = handler.baseFilename
-            with open(log_file_path) as log_file:
-                for line in log_file.readlines():
-                    if "Associated file bad_path.txt does not exist" in line:
-                        printed_warning = True
-                        break
-    assert printed_warning
+    assert "Associated file bad_path.txt does not exist" in log_file_path.read_text()
 
 
 def test_add_associated_video_files():
