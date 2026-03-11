@@ -1,7 +1,8 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
-from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
 from trodes_to_nwb.tests.utils import data_path
 from trodes_to_nwb.validate_conversion import (
     _compare_1d_arrays,
@@ -102,6 +103,8 @@ def test_resolve_report_filepath_accepts_custom_path(tmp_path):
 
 @pytest.mark.integration
 def test_validate_conversion_generated_nwb(tmp_path):
+    from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
+
     rec_files = [
         data_path / "20230622_sample_01_a1.rec",
         data_path / "20230622_sample_02_a1.rec",
