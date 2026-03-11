@@ -9,3 +9,5 @@ import contextlib
 
 with contextlib.suppress(ImportError):
     from ._version import __version__
+
+from .validate_conversion import validate_conversion
