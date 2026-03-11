@@ -7,6 +7,7 @@ from trodes_to_nwb.validate_conversion import (
     _compare_1d_arrays,
     _compare_chunked_time_series,
     _parse_session_from_metadata_filepath,
+    _resolve_report_filepath,
     _resolve_rec_filepaths,
     validate_conversion,
 )
@@ -78,6 +79,27 @@ def test_resolve_rec_filepaths_from_data_path(tmp_path):
     assert rec_paths == [rec_path_1, rec_path_2]
 
 
+def test_resolve_report_filepath_defaults_to_nwb_directory(tmp_path):
+    nwb_path = tmp_path / "session.nwb"
+    report_path = _resolve_report_filepath(
+        nwb_filepath=nwb_path,
+        report_filepath=None,
+    )
+
+    assert report_path == tmp_path / "session_conversion_validation_report.json"
+
+
+def test_resolve_report_filepath_accepts_custom_path(tmp_path):
+    nwb_path = tmp_path / "session.nwb"
+    custom_path = tmp_path / "reports" / "custom.json"
+    report_path = _resolve_report_filepath(
+        nwb_filepath=nwb_path,
+        report_filepath=custom_path,
+    )
+
+    assert report_path == custom_path
+
+
 @pytest.mark.integration
 def test_validate_conversion_generated_nwb(tmp_path):
     rec_files = [
@@ -110,4 +132,5 @@ def test_validate_conversion_generated_nwb(tmp_path):
     )
 
     assert report["passed"] is True
+    assert Path(report["report_filepath"]).exists()
     assert all(check["passed"] for check in report["checks"])

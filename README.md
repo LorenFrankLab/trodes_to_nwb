@@ -93,7 +93,6 @@ Developers should install from source.
         convert_video=False,
         n_workers=1,
         query_expression=None,
-        validate_conversion=False,
     )
     ```
 
@@ -109,8 +108,6 @@ Developers should install from source.
     + `convert_video`: Converts the .h264 video file to .mp4. This requires `ffmpeg` to be installed on your system.
     + `n_workers`: Number of workers to use for parallel processing. Defaults to 1.
     + `query_expression`: A query expression to select which files to convert. For example, if you have several animals in your folder, you could write `"animal == 'sample'"` to select only the sample animal. Defaults to `None` which converts all files in the directory.
-    + `validate_conversion`: Runs a post-conversion validation pass that compares the source `.rec` files and metadata YAML against the generated NWB, and writes a JSON report next to the NWB file.
-
     For complete example code of the conversion, see the [tutorial notebook](notebooks/conversion_tutorial.ipynb)
 
 ## Conversion Validation
@@ -124,6 +121,10 @@ report = validate_conversion(
     data_path="/path/to/session/root",
     nwb_filepath="/path/to/output/session.nwb",
     metadata_filepath="/path/to/20240609_L14_metadata.yml",
+    # if conversion used a reconfigured Trodes header:
+    # reconfig_header_path="/path/to/reconfig_probeDevice.trodesconf",
+    # optional:
+    # report_filepath="/path/to/custom_report.json",
 )
 
 print(report["passed"])
@@ -132,3 +133,7 @@ print(report["passed"])
 The validation report includes per-section checks for header and metadata consistency, electrode mappings, ephys, analog data, DIO events, and sample-count timing.
 
 When `rec_filepaths` are not provided, the validator scans `data_path` using the same filename-based discovery logic as the converter and selects the `.rec` files that match the `{date, animal}` session encoded in the metadata YAML filename.
+
+By default, `validate_conversion(...)` also writes a JSON report next to the NWB file as `<nwb stem>_conversion_validation_report.json`. You can override that location with `report_filepath=...`.
+
+If conversion used an alternative Trodes header (`header_reconfig_path` in the converter), pass the same file to the validator with `reconfig_header_path=...` or `header_reconfig_path=...`. The validator uses that reconfigured header the same way the converter does for YAML/header compatibility and channel-mapping reconstruction.

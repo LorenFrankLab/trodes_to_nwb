@@ -6,7 +6,6 @@ and final NWB file writing and validation.
 """
 
 import logging
-import json
 from pathlib import Path
 
 import nwbinspector
@@ -115,7 +114,6 @@ def create_nwbs(
     query_expression: str | None = None,
     disable_ptp: bool = False,
     behavior_only: bool = False,
-    validate_conversion: bool = False,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -147,9 +145,6 @@ def create_nwbs(
     behavior_only : bool, optional
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
-    validate_conversion : bool, optional
-        Whether to validate the generated NWB against the source rec files and
-        metadata after writing, by default False.
 
     """
 
@@ -181,7 +176,6 @@ def create_nwbs(
                     fs_gui_dir,
                     disable_ptp,
                     behavior_only=behavior_only,
-                    validate_conversion=validate_conversion,
                 )
                 return True
             except Exception as e:
@@ -212,7 +206,6 @@ def create_nwbs(
                 fs_gui_dir,
                 disable_ptp,
                 behavior_only=behavior_only,
-                validate_conversion=validate_conversion,
             )
 
 
@@ -227,7 +220,6 @@ def _create_nwb(
     fs_gui_dir: str = "",
     disable_ptp: bool = False,
     behavior_only: bool = False,
-    validate_conversion: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
@@ -354,18 +346,6 @@ def _create_nwb(
     with NWBHDF5IO(output_path, "w") as io:
         io.write(nwb_file)
 
-    if validate_conversion:
-        logger.info("RUNNING CONVERSION VALIDATION")
-        _validate_conversion(
-            output_path=output_path,
-            rec_filepaths=rec_filepaths,
-            metadata_filepath=metadata_filepaths,
-            header_reconfig_path=header_reconfig_path,
-            device_metadata_paths=device_metadata_paths,
-            behavior_only=behavior_only,
-            logger=logger,
-        )
-
     # run NWB Inspector to validate file for best practices before upload to DANDI
     logger.info("RUNNING NWB INSPECTOR")
     _inspect_nwb(output_path, logger)
@@ -440,37 +420,4 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
 
     print(
         f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report"
-    )
-
-
-def _validate_conversion(
-    output_path: Path,
-    rec_filepaths: list[str],
-    metadata_filepath: str,
-    header_reconfig_path: Path | None,
-    device_metadata_paths: list[Path] | None,
-    behavior_only: bool,
-    logger: logging.Logger,
-):
-    from trodes_to_nwb.validate_conversion import validate_conversion as run_validation
-
-    report = run_validation(
-        rec_filepaths=rec_filepaths,
-        nwb_filepath=output_path,
-        metadata_filepath=metadata_filepath,
-        header_reconfig_path=header_reconfig_path,
-        device_metadata_paths=device_metadata_paths,
-        behavior_only=behavior_only,
-    )
-    report_path = (
-        output_path.parent / f"{output_path.stem}_conversion_validation_report.json"
-    )
-    with open(report_path, "w", encoding="utf-8") as stream:
-        json.dump(report, stream, indent=2)
-
-    logger.info(
-        "Conversion validation %s with %s failed checks. Report saved to %s",
-        "passed" if report["passed"] else "failed",
-        report["summary"]["n_failed"],
-        str(report_path.absolute()),
     )

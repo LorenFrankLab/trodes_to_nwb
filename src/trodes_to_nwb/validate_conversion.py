@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -49,6 +50,61 @@ HEADER_DEVICE_FIELDS = {
     "file_path": "filePath",
 }
 
+CHECK_METADATA = {
+    "initialization": {
+        "title": "Initialization and Input Resolution",
+        "description": (
+            "Resolve input paths, discover rec files for the session, load the "
+            "metadata YAML and NWB file, and verify that the YAML is compatible "
+            "with the rec header before deeper comparisons."
+        ),
+    },
+    "header_and_metadata": {
+        "title": "Header and Session Metadata",
+        "description": (
+            "Compare header-derived fields and core session metadata between the "
+            "rec header, metadata YAML, and NWB file."
+        ),
+    },
+    "electrodes": {
+        "title": "Electrode Table and Channel Mapping",
+        "description": (
+            "Check that the NWB electrodes table matches the electrode groups, "
+            "hardware channel mapping, and reference-electrode mapping implied by "
+            "the metadata YAML and rec header."
+        ),
+    },
+    "sample_count": {
+        "title": "Sample Count Time Series",
+        "description": (
+            "Check that the NWB sample-count series matches the raw Trodes sample "
+            "timestamps and corresponding rec-derived system timestamps."
+        ),
+    },
+    "dios": {
+        "title": "Digital Input/Output Events",
+        "description": (
+            "Compare DIO event names, metadata, state changes, and timestamps "
+            "between the raw rec data and the NWB behavioral events module."
+        ),
+    },
+    "analog": {
+        "title": "Analog Data",
+        "description": (
+            "Compare analog and multiplexed analog channels, including channel "
+            "ordering and timestamps, between the raw rec streams and the NWB "
+            "analog processing module."
+        ),
+    },
+    "ephys": {
+        "title": "Electrical Series",
+        "description": (
+            "Compare raw ephys samples and timestamps between the rec files and "
+            "the NWB ElectricalSeries, allowing the configured microvolt tolerance."
+        ),
+    },
+}
+
 
 @dataclass
 class ValidationContext:
@@ -74,7 +130,9 @@ def validate_conversion(
     nwb_filepath: Path | str,
     metadata_filepath: Path | str,
     data_path: Path | str | None = None,
+    report_filepath: Path | str | None = None,
     header_reconfig_path: Path | str | None = None,
+    reconfig_header_path: Path | str | None = None,
     device_metadata_paths: list[Path] | list[str] | None = None,
     behavior_only: bool = False,
     max_ephys_frames_per_chunk: int = DEFAULT_CHUNK_TIME_DIM,
@@ -94,8 +152,15 @@ def validate_conversion(
         Path to the YAML metadata used during conversion.
     data_path : Path | str | None, optional
         Root directory to scan for rec files when `rec_filepaths` is not provided.
+    report_filepath : Path | str | None, optional
+        Output path for the JSON validation report. Defaults to
+        `<nwb stem>_conversion_validation_report.json` in the NWB directory.
     header_reconfig_path : Path | str | None, optional
         Optional header override used during conversion.
+    reconfig_header_path : Path | str | None, optional
+        Alias for `header_reconfig_path`. If provided, the validator uses this
+        alternative Trodes header in the same way as the converter does when it
+        validates YAML/header compatibility and reconstructs channel mappings.
     device_metadata_paths : list[Path] | list[str] | None, optional
         Optional list of device metadata YAML files. Uses included metadata by default.
     behavior_only : bool, optional
@@ -112,20 +177,33 @@ def validate_conversion(
     dict[str, Any]
         JSON-serializable validation report.
     """
-    context = _load_validation_context(
-        rec_filepaths=rec_filepaths,
-        nwb_filepath=nwb_filepath,
-        metadata_filepath=metadata_filepath,
-        data_path=data_path,
+    nwb_path = Path(nwb_filepath)
+    metadata_path = Path(metadata_filepath)
+    report_path = _resolve_report_filepath(
+        nwb_filepath=nwb_path,
+        report_filepath=report_filepath,
+    )
+    effective_reconfig_path = _resolve_header_reconfig_path(
         header_reconfig_path=header_reconfig_path,
-        device_metadata_paths=device_metadata_paths,
-        behavior_only=behavior_only,
-        max_ephys_frames_per_chunk=max_ephys_frames_per_chunk,
-        ephys_tolerance_uv=ephys_tolerance_uv,
-        timestamp_tolerance_s=timestamp_tolerance_s,
+        reconfig_header_path=reconfig_header_path,
     )
 
+    context = None
+    report: dict[str, Any]
     try:
+        context = _load_validation_context(
+            rec_filepaths=rec_filepaths,
+            nwb_filepath=nwb_filepath,
+            metadata_filepath=metadata_filepath,
+            data_path=data_path,
+            header_reconfig_path=effective_reconfig_path,
+            device_metadata_paths=device_metadata_paths,
+            behavior_only=behavior_only,
+            max_ephys_frames_per_chunk=max_ephys_frames_per_chunk,
+            ephys_tolerance_uv=ephys_tolerance_uv,
+            timestamp_tolerance_s=timestamp_tolerance_s,
+        )
+
         checks: list[dict[str, Any]] = []
         warnings: list[str] = []
         errors: list[str] = []
@@ -151,8 +229,9 @@ def validate_conversion(
                 )
 
         passed = all(check["passed"] for check in checks) and not errors
-        return {
+        report = {
             "passed": passed,
+            "status": "passed" if passed else "failed",
             "summary": {
                 "n_checks": len(checks),
                 "n_passed": sum(check["passed"] for check in checks),
@@ -162,14 +241,61 @@ def validate_conversion(
                 "rec_filepaths": [str(path) for path in context.rec_filepaths],
                 "nwb_filepath": str(context.nwb_filepath),
                 "metadata_filepath": str(context.metadata_filepath),
+                "header_reconfig_path": (
+                    str(effective_reconfig_path)
+                    if effective_reconfig_path is not None
+                    else None
+                ),
                 "behavior_only": context.behavior_only,
             },
             "checks": checks,
             "warnings": warnings,
             "errors": errors,
         }
+    except Exception as exc:
+        report = {
+            "passed": False,
+            "status": "failed",
+            "summary": {
+                "n_checks": 1,
+                "n_passed": 0,
+                "n_failed": 1,
+            },
+            "inputs": {
+                "rec_filepaths": (
+                    [str(path) for path in rec_filepaths] if rec_filepaths else []
+                ),
+                "nwb_filepath": str(nwb_path),
+                "metadata_filepath": str(metadata_path),
+                "header_reconfig_path": (
+                    str(effective_reconfig_path)
+                    if effective_reconfig_path is not None
+                    else None
+                ),
+                "behavior_only": behavior_only,
+                "data_path": str(data_path) if data_path is not None else None,
+            },
+            "checks": [
+                _make_check(
+                    name="initialization",
+                    passed=False,
+                    details=str(exc),
+                    mismatch_count=1,
+                )
+            ],
+            "warnings": [],
+            "errors": [str(exc)],
+        }
     finally:
-        context.nwb_io.close()
+        if context is not None:
+            context.nwb_io.close()
+
+    report = _humanize_report(report)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(report_path, "w", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2)
+    report["report_filepath"] = str(report_path)
+    return report
 
 
 def _load_validation_context(
@@ -653,6 +779,93 @@ def _get_included_device_metadata_paths() -> list[Path]:
     package_dir = Path(__file__).parent.resolve()
     device_folder = package_dir / "device_metadata"
     return list(device_folder.rglob("*.yml"))
+
+
+def _resolve_report_filepath(
+    *,
+    nwb_filepath: Path,
+    report_filepath: Path | str | None,
+) -> Path:
+    if report_filepath is not None:
+        return Path(report_filepath)
+    return nwb_filepath.parent / f"{nwb_filepath.stem}_conversion_validation_report.json"
+
+
+def _resolve_header_reconfig_path(
+    *,
+    header_reconfig_path: Path | str | None,
+    reconfig_header_path: Path | str | None,
+) -> Path | str | None:
+    if header_reconfig_path is None:
+        return reconfig_header_path
+    if reconfig_header_path is None:
+        return header_reconfig_path
+    if Path(header_reconfig_path) != Path(reconfig_header_path):
+        raise ValueError(
+            "header_reconfig_path and reconfig_header_path were both provided "
+            "but do not point to the same file."
+        )
+    return header_reconfig_path
+
+
+def _humanize_report(report: dict[str, Any]) -> dict[str, Any]:
+    report["checks"] = [_humanize_check(check) for check in report["checks"]]
+    failed_checks = [check["title"] for check in report["checks"] if not check["passed"]]
+    if report["passed"]:
+        summary_text = (
+            f"Validation passed. All {report['summary']['n_checks']} checks completed "
+            "without recorded mismatches."
+        )
+    else:
+        summary_text = (
+            f"Validation failed. {report['summary']['n_failed']} of "
+            f"{report['summary']['n_checks']} checks reported problems."
+        )
+        if failed_checks:
+            summary_text += " Failed checks: " + ", ".join(failed_checks) + "."
+
+    report["summary_text"] = summary_text
+    report["next_step_hint"] = (
+        "Inspect the failed checks below. The `description` field explains what "
+        "was being validated and `result_summary` explains the outcome in plain language."
+    )
+    return report
+
+
+def _humanize_check(check: dict[str, Any]) -> dict[str, Any]:
+    metadata = CHECK_METADATA.get(
+        check["name"],
+        {
+            "title": check["name"].replace("_", " ").title(),
+            "description": "No human-readable description is available for this check.",
+        },
+    )
+    result_summary = _build_result_summary(check, metadata["title"])
+    return {
+        **check,
+        "title": metadata["title"],
+        "description": metadata["description"],
+        "status": "passed" if check["passed"] else "failed",
+        "result_summary": result_summary,
+    }
+
+
+def _build_result_summary(check: dict[str, Any], title: str) -> str:
+    if check["passed"]:
+        if check["mismatch_count"] == 0:
+            return f"{title} passed with no recorded mismatches."
+        return (
+            f"{title} passed, but {check['mismatch_count']} differences were recorded "
+            "within the accepted tolerance."
+        )
+    if check["details"] == "OK":
+        return f"{title} failed, but no additional detail string was recorded."
+    if check["mismatch_count"] > 0:
+        return (
+            f"{title} failed with {check['mismatch_count']} reported mismatches. "
+            f"Details: {check['details']}"
+        )
+    return f"{title} failed. Details: {check['details']}"
 
 
 def _resolve_rec_filepaths(
