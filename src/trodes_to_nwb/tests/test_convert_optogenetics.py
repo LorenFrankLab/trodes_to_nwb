@@ -1,14 +1,16 @@
 import numpy as np
 from ndx_franklab_novela import CameraDevice
-from ndx_optogenetics import (
+from ndx_ophys_devices import (
     ExcitationSource,
     ExcitationSourceModel,
     OpticalFiber,
     OpticalFiberModel,
+    ViralVector,
+    ViralVectorInjection,
+)
+from ndx_optogenetics import (
     OptogeneticEpochsTable,
-    OptogeneticVirus,
     OptogeneticViruses,
-    OptogeneticVirusInjection,
     OptogeneticVirusInjections,
 )
 from pynwb import TimeSeries
@@ -31,17 +33,19 @@ def test_add_optogenetic_devices():
     assert "optogenetic_experiment_metadata" in nwbfile.lab_meta_data
     opto_data = nwbfile.lab_meta_data["optogenetic_experiment_metadata"]
     assert isinstance(opto_data.optogenetic_viruses, OptogeneticViruses)
-    assert isinstance(opto_data.optogenetic_viruses["demo_virus_1"], OptogeneticVirus)
+    assert isinstance(opto_data.optogenetic_viruses["demo_virus_1"], ViralVector)
     assert isinstance(
         opto_data.optogenetic_virus_injections,
         OptogeneticVirusInjections,
     )
     assert isinstance(
-        opto_data.optogenetic_virus_injections["Injection 1"], OptogeneticVirusInjection
+        opto_data.optogenetic_virus_injections["Injection 1"], ViralVectorInjection
     )
-    assert isinstance(nwbfile.devices["Omicron LuxX+ 488-100"], ExcitationSourceModel)
+    assert isinstance(
+        nwbfile.device_models["Omicron LuxX+ 488-100"], ExcitationSourceModel
+    )
     assert isinstance(nwbfile.devices["Omicron LuxX+ Blue"], ExcitationSource)
-    assert isinstance(nwbfile.devices["demo fiber device"], OpticalFiberModel)
+    assert isinstance(nwbfile.device_models["demo fiber device"], OpticalFiberModel)
     assert isinstance(nwbfile.devices["Fiber 1"], OpticalFiber)
 
 
@@ -86,3 +90,4 @@ def test_add_optogenetic_epochs():
     assert isinstance(stim_obj, TimeSeries)
     assert stim_obj.name == "Light_1"
     assert np.allclose(stim_obj.timestamps, np.array([1.68747480e09, 1.68747483e09]))
+    assert np.allclose(opto_df.wavelength_in_nm.values, np.array([488.0, 500.0]))

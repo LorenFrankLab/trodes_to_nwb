@@ -10,8 +10,8 @@ from datetime import datetime
 from xml.etree import ElementTree
 
 import pandas as pd
-import pytz
 import yaml
+from dateutil.tz import tzutc
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import (
     AssociatedFiles,
@@ -23,6 +23,7 @@ from ndx_franklab_novela import (
     ShanksElectrode,
 )
 from pynwb import NWBFile
+from pynwb.device import DeviceModel
 from pynwb.file import ProcessingModule, Subject
 
 import trodes_to_nwb.metadata_validation
@@ -95,7 +96,7 @@ def initialize_nwb(metadata: dict, first_epoch_config: ElementTree) -> NWBFile:
         session_start_time=datetime.fromtimestamp(
             int(gconf.attrib["systemTimeAtCreation"].strip()) / 1000
         ),
-        timestamps_reference_time=datetime.fromtimestamp(0, pytz.utc),
+        timestamps_reference_time=datetime.fromtimestamp(0, tz=tzutc()),
         identifier=str(uuid.uuid1()),
         session_id=metadata["session_id"],
         # notes=self.link_to_notes, TODO
@@ -135,12 +136,18 @@ def add_cameras(nwbfile: NWBFile, metadata: dict) -> None:
     """
     # add each camera device to the nwb
     for camera_metadata in metadata["cameras"]:
+        model_obj = nwbfile.device_models.get(camera_metadata["model"], None)
+        if model_obj is None:
+            model_obj = DeviceModel(
+                name=camera_metadata["model"],
+                manufacturer=camera_metadata["manufacturer"],
+            )
+            nwbfile.add_device_model(model_obj)
         nwbfile.add_device(
             CameraDevice(
                 name="camera_device " + str(camera_metadata["id"]),
                 meters_per_pixel=camera_metadata["meters_per_pixel"],
-                manufacturer=camera_metadata["manufacturer"],
-                model=camera_metadata["model"],
+                model=model_obj,
                 lens=camera_metadata["lens"],
                 camera_name=camera_metadata["camera_name"],
             )
