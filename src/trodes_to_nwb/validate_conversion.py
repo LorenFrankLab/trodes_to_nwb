@@ -399,9 +399,7 @@ def _validate_header_and_metadata(context: ValidationContext) -> dict[str, Any]:
         int(rec_global.attrib["systemTimeAtCreation"].strip()) / 1000
     )
     if nwbfile.session_start_time.replace(tzinfo=None) != expected_start_time:
-        mismatches.append(
-            "session_start_time does not match rec systemTimeAtCreation"
-        )
+        mismatches.append("session_start_time does not match rec systemTimeAtCreation")
 
     metadata_pairs = {
         "session_description": metadata["session_description"],
@@ -508,9 +506,9 @@ def _validate_electrodes(context: ValidationContext) -> dict[str, Any]:
 
 
 def _validate_sample_count(context: ValidationContext) -> dict[str, Any]:
-    sample_count_series = (
-        context.nwbfile.processing["sample_count"].data_interfaces["sample_count"]
-    )
+    sample_count_series = context.nwbfile.processing["sample_count"].data_interfaces[
+        "sample_count"
+    ]
     expected_timestamps = _get_rec_timestamps(
         context, stream_id=_get_primary_stream_id(context)
     )
@@ -892,7 +890,9 @@ def _resolve_rec_filepaths(
     if not data_root.exists():
         raise FileNotFoundError(data_root)
 
-    session_date, session_animal = _parse_session_from_metadata_filepath(metadata_filepath)
+    session_date, session_animal = _parse_session_from_metadata_filepath(
+        metadata_filepath
+    )
     file_info = get_file_info(data_root)
     session_df = file_info[
         (file_info["date"] == session_date)
@@ -993,7 +993,9 @@ def _compare_chunked_time_series(
             expected_source._get_data((slice(start, stop), slice(0, n_columns)))
         )
         actual_chunk = np.asarray(actual_source[start:stop, :])
-        abs_error = np.abs(actual_chunk.astype(np.float64) - expected_chunk.astype(np.float64))
+        abs_error = np.abs(
+            actual_chunk.astype(np.float64) - expected_chunk.astype(np.float64)
+        )
         mismatch_mask = abs_error > atol
         this_mismatch_count = int(np.count_nonzero(mismatch_mask))
         if this_mismatch_count > 0 and first_mismatch is None:

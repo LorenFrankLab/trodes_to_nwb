@@ -111,7 +111,9 @@ def test_validate_conversion_generated_nwb(tmp_path):
     ]
     metadata_path = data_path / "20230622_sample_metadata.yml"
     if not all(path.exists() for path in rec_files) or not metadata_path.exists():
-        pytest.skip("Validation integration fixtures are not available in this environment.")
+        pytest.skip(
+            "Validation integration fixtures are not available in this environment."
+        )
 
     create_nwbs(
         path=data_path,
