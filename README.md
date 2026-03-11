@@ -93,6 +93,7 @@ Developers should install from source.
         convert_video=False,
         n_workers=1,
         query_expression=None,
+        validate_conversion=False,
     )
     ```
 
@@ -108,5 +109,27 @@ Developers should install from source.
     + `convert_video`: Converts the .h264 video file to .mp4. This requires `ffmpeg` to be installed on your system.
     + `n_workers`: Number of workers to use for parallel processing. Defaults to 1.
     + `query_expression`: A query expression to select which files to convert. For example, if you have several animals in your folder, you could write `"animal == 'sample'"` to select only the sample animal. Defaults to `None` which converts all files in the directory.
+    + `validate_conversion`: Runs a post-conversion validation pass that compares the source `.rec` files and metadata YAML against the generated NWB, and writes a JSON report next to the NWB file.
 
     For complete example code of the conversion, see the [tutorial notebook](notebooks/conversion_tutorial.ipynb)
+
+## Conversion Validation
+
+You can also validate an existing NWB file directly against its source `.rec` files and metadata YAML:
+
+```python
+from trodes_to_nwb import validate_conversion
+
+report = validate_conversion(
+    rec_filepaths=[
+        "/path/to/20240609_L14_01_s1.rec",
+        "/path/to/20240609_L14_02_r1.rec",
+    ],
+    nwb_filepath="/path/to/output/session.nwb",
+    metadata_filepath="/path/to/20240609_L14_metadata.yml",
+)
+
+print(report["passed"])
+```
+
+The validation report includes per-section checks for header and metadata consistency, electrode mappings, ephys, analog data, DIO events, and sample-count timing.

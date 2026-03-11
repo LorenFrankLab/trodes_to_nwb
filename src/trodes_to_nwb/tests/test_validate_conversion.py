@@ -1,0 +1,86 @@
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
+from trodes_to_nwb.tests.utils import data_path
+from trodes_to_nwb.validate_conversion import (
+    _compare_1d_arrays,
+    _compare_chunked_time_series,
+    validate_conversion,
+)
+
+
+class _ArraySource:
+    def __init__(self, data: np.ndarray):
+        self.data = data
+
+    def _get_data(self, selection):
+        time_slice, channel_slice = selection
+        return self.data[time_slice, channel_slice]
+
+
+def test_compare_1d_arrays_reports_mismatch_count():
+    result = _compare_1d_arrays(
+        expected=np.array([1.0, 2.0, 3.0]),
+        actual=np.array([1.0, 2.2, 3.5]),
+        atol=0.1,
+    )
+
+    assert result["mismatch_count"] == 2
+    assert result["max_abs_error"] == pytest.approx(0.5)
+    assert "first_mismatch_index=1" in result["messages"][0]
+
+
+def test_compare_chunked_time_series_honors_tolerance():
+    expected = _ArraySource(np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+    actual = np.array([[1.0, 2.0], [3.4, 4.0], [5.0, 6.0]])
+
+    result = _compare_chunked_time_series(
+        expected_source=expected,
+        actual_source=actual,
+        n_rows=3,
+        n_columns=2,
+        chunk_size=2,
+        atol=0.5,
+    )
+
+    assert result["mismatch_count"] == 0
+    assert result["max_abs_error"] == pytest.approx(0.4)
+    assert result["messages"] == []
+
+
+@pytest.mark.integration
+def test_validate_conversion_generated_nwb(tmp_path):
+    rec_files = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    if not all(path.exists() for path in rec_files) or not metadata_path.exists():
+        pytest.skip("Validation integration fixtures are not available in this environment.")
+
+    create_nwbs(
+        path=data_path,
+        device_metadata_paths=get_included_device_metadata_paths(),
+        output_dir=str(tmp_path),
+        n_workers=1,
+        query_expression=(
+            "animal == 'sample' and full_path != "
+            f"'{str(data_path / '20230622_sample_metadataProbeReconfig.yml')}'"
+        ),
+        fs_gui_dir=data_path,
+    )
+
+    output_path = tmp_path / "sample20230622.nwb"
+    assert output_path.exists()
+
+    report = validate_conversion(
+        rec_filepaths=rec_files,
+        nwb_filepath=output_path,
+        metadata_filepath=metadata_path,
+    )
+
+    assert report["passed"] is True
+    assert all(check["passed"] for check in report["checks"])
