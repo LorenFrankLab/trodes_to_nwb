@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -8,6 +6,8 @@ from trodes_to_nwb.tests.utils import data_path
 from trodes_to_nwb.validate_conversion import (
     _compare_1d_arrays,
     _compare_chunked_time_series,
+    _parse_session_from_metadata_filepath,
+    _resolve_rec_filepaths,
     validate_conversion,
 )
 
@@ -51,6 +51,33 @@ def test_compare_chunked_time_series_honors_tolerance():
     assert result["messages"] == []
 
 
+def test_parse_session_from_metadata_filepath():
+    session_date, session_animal = _parse_session_from_metadata_filepath(
+        data_path / "20230622_sample_metadata.yml"
+    )
+
+    assert session_date == 20230622
+    assert session_animal == "sample"
+
+
+def test_resolve_rec_filepaths_from_data_path(tmp_path):
+    metadata_path = tmp_path / "20240609_L14_metadata.yml"
+    metadata_path.write_text("session_id: test\n", encoding="utf-8")
+    rec_path_1 = tmp_path / "20240609_L14_01_a1.rec"
+    rec_path_2 = tmp_path / "nested" / "20240609_L14_02_a1.rec"
+    rec_path_2.parent.mkdir()
+    rec_path_1.write_bytes(b"")
+    rec_path_2.write_bytes(b"")
+
+    rec_paths = _resolve_rec_filepaths(
+        rec_filepaths=None,
+        data_path=tmp_path,
+        metadata_filepath=metadata_path,
+    )
+
+    assert rec_paths == [rec_path_1, rec_path_2]
+
+
 @pytest.mark.integration
 def test_validate_conversion_generated_nwb(tmp_path):
     rec_files = [
@@ -77,7 +104,7 @@ def test_validate_conversion_generated_nwb(tmp_path):
     assert output_path.exists()
 
     report = validate_conversion(
-        rec_filepaths=rec_files,
+        data_path=data_path,
         nwb_filepath=output_path,
         metadata_filepath=metadata_path,
     )

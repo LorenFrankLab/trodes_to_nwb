@@ -121,10 +121,7 @@ You can also validate an existing NWB file directly against its source `.rec` fi
 from trodes_to_nwb import validate_conversion
 
 report = validate_conversion(
-    rec_filepaths=[
-        "/path/to/20240609_L14_01_s1.rec",
-        "/path/to/20240609_L14_02_r1.rec",
-    ],
+    data_path="/path/to/session/root",
     nwb_filepath="/path/to/output/session.nwb",
     metadata_filepath="/path/to/20240609_L14_metadata.yml",
 )
@@ -133,3 +130,5 @@ print(report["passed"])
 ```
 
 The validation report includes per-section checks for header and metadata consistency, electrode mappings, ephys, analog data, DIO events, and sample-count timing.
+
+When `rec_filepaths` are not provided, the validator scans `data_path` using the same filename-based discovery logic as the converter and selects the `.rec` files that match the `{date, animal}` session encoded in the metadata YAML filename.

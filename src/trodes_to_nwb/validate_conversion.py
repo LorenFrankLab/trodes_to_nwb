@@ -23,6 +23,7 @@ from trodes_to_nwb.convert_rec_header import (
     validate_yaml_header_electrode_map,
 )
 from trodes_to_nwb.convert_yaml import load_metadata
+from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 HEADER_DEVICE_FIELDS = {
@@ -68,10 +69,11 @@ class ValidationContext:
 
 
 def validate_conversion(
-    rec_filepaths: list[Path] | list[str],
+    *,
+    rec_filepaths: list[Path] | list[str] | None = None,
     nwb_filepath: Path | str,
     metadata_filepath: Path | str,
-    *,
+    data_path: Path | str | None = None,
     header_reconfig_path: Path | str | None = None,
     device_metadata_paths: list[Path] | list[str] | None = None,
     behavior_only: bool = False,
@@ -83,12 +85,15 @@ def validate_conversion(
 
     Parameters
     ----------
-    rec_filepaths : list[Path] | list[str]
-        Ordered list of rec files used for the conversion.
+    rec_filepaths : list[Path] | list[str] | None
+        Ordered list of rec files used for the conversion. If omitted, rec files
+        are discovered from `data_path` using the same scanning logic as conversion.
     nwb_filepath : Path | str
         Path to the NWB file to validate.
     metadata_filepath : Path | str
         Path to the YAML metadata used during conversion.
+    data_path : Path | str | None, optional
+        Root directory to scan for rec files when `rec_filepaths` is not provided.
     header_reconfig_path : Path | str | None, optional
         Optional header override used during conversion.
     device_metadata_paths : list[Path] | list[str] | None, optional
@@ -111,6 +116,7 @@ def validate_conversion(
         rec_filepaths=rec_filepaths,
         nwb_filepath=nwb_filepath,
         metadata_filepath=metadata_filepath,
+        data_path=data_path,
         header_reconfig_path=header_reconfig_path,
         device_metadata_paths=device_metadata_paths,
         behavior_only=behavior_only,
@@ -168,9 +174,10 @@ def validate_conversion(
 
 def _load_validation_context(
     *,
-    rec_filepaths: list[Path] | list[str],
+    rec_filepaths: list[Path] | list[str] | None,
     nwb_filepath: Path | str,
     metadata_filepath: Path | str,
+    data_path: Path | str | None,
     header_reconfig_path: Path | str | None,
     device_metadata_paths: list[Path] | list[str] | None,
     behavior_only: bool,
@@ -178,20 +185,19 @@ def _load_validation_context(
     ephys_tolerance_uv: float,
     timestamp_tolerance_s: float | None,
 ) -> ValidationContext:
-    rec_paths = [Path(path) for path in rec_filepaths]
-    if len(rec_paths) == 0:
-        raise ValueError("At least one rec file path is required.")
-    for path in rec_paths:
-        if not path.exists():
-            raise FileNotFoundError(path)
+    metadata_path = Path(metadata_filepath)
+    if not metadata_path.exists():
+        raise FileNotFoundError(metadata_path)
+
+    rec_paths = _resolve_rec_filepaths(
+        rec_filepaths=rec_filepaths,
+        data_path=data_path,
+        metadata_filepath=metadata_path,
+    )
 
     nwb_path = Path(nwb_filepath)
     if not nwb_path.exists():
         raise FileNotFoundError(nwb_path)
-
-    metadata_path = Path(metadata_filepath)
-    if not metadata_path.exists():
-        raise FileNotFoundError(metadata_path)
 
     if device_metadata_paths is None:
         device_metadata_paths = list(_get_included_device_metadata_paths())
@@ -647,6 +653,62 @@ def _get_included_device_metadata_paths() -> list[Path]:
     package_dir = Path(__file__).parent.resolve()
     device_folder = package_dir / "device_metadata"
     return list(device_folder.rglob("*.yml"))
+
+
+def _resolve_rec_filepaths(
+    *,
+    rec_filepaths: list[Path] | list[str] | None,
+    data_path: Path | str | None,
+    metadata_filepath: Path,
+) -> list[Path]:
+    if rec_filepaths is not None:
+        rec_paths = [Path(path) for path in rec_filepaths]
+        if len(rec_paths) == 0:
+            raise ValueError("At least one rec file path is required.")
+        for path in rec_paths:
+            if not path.exists():
+                raise FileNotFoundError(path)
+        return rec_paths
+
+    if data_path is None:
+        raise ValueError(
+            "Either rec_filepaths or data_path must be provided for validation."
+        )
+
+    data_root = Path(data_path)
+    if not data_root.exists():
+        raise FileNotFoundError(data_root)
+
+    session_date, session_animal = _parse_session_from_metadata_filepath(metadata_filepath)
+    file_info = get_file_info(data_root)
+    session_df = file_info[
+        (file_info["date"] == session_date)
+        & (file_info["animal"] == session_animal)
+        & (file_info["file_extension"] == ".rec")
+    ]
+    rec_paths = [Path(path) for path in session_df["full_path"].tolist()]
+    if len(rec_paths) == 0:
+        raise FileNotFoundError(
+            "No rec files found for session "
+            f"{session_date}_{session_animal} under {data_root}"
+        )
+    return rec_paths
+
+
+def _parse_session_from_metadata_filepath(metadata_filepath: Path) -> tuple[int, str]:
+    parts = metadata_filepath.stem.split("_")
+    if len(parts) < 2:
+        raise ValueError(
+            f"Metadata file name {metadata_filepath.name!r} does not match expected pattern."
+        )
+    try:
+        session_date = int(parts[0])
+    except ValueError as exc:
+        raise ValueError(
+            f"Metadata file name {metadata_filepath.name!r} does not begin with YYYYMMDD."
+        ) from exc
+    session_animal = parts[1]
+    return session_date, session_animal
 
 
 def _get_rec_timestamps(context: ValidationContext, stream_id: str) -> np.ndarray:
