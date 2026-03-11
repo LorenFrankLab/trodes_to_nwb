@@ -531,9 +531,7 @@ def _validate_sample_count(context: ValidationContext) -> dict[str, Any]:
             data_mismatch_count = int(
                 np.count_nonzero(actual_data != expected_sample_count)
             )
-            mismatches.append(
-                f"sample_count data mismatch_count={data_mismatch_count}"
-            )
+            mismatches.append(f"sample_count data mismatch_count={data_mismatch_count}")
 
     timestamp_result = _compare_1d_arrays(
         expected=expected_timestamps,
@@ -644,7 +642,9 @@ def _validate_analog(context: ValidationContext) -> dict[str, Any]:
         nwb_hw_channel_order=analog_channel_names,
         stream_id="ECU_analog",
         is_analog=True,
-        timestamps=_get_rec_timestamps(context, stream_id=_get_primary_stream_id(context)),
+        timestamps=_get_rec_timestamps(
+            context, stream_id=_get_primary_stream_id(context)
+        ),
         behavior_only=context.behavior_only,
     )
 
@@ -666,8 +666,11 @@ def _validate_analog(context: ValidationContext) -> dict[str, Any]:
     return _finalize_check(
         "analog",
         mismatches,
-        mismatch_count=data_result["mismatch_count"] + timestamp_result["mismatch_count"],
-        max_abs_error=max(data_result["max_abs_error"], timestamp_result["max_abs_error"]),
+        mismatch_count=data_result["mismatch_count"]
+        + timestamp_result["mismatch_count"],
+        max_abs_error=max(
+            data_result["max_abs_error"], timestamp_result["max_abs_error"]
+        ),
     )
 
 
@@ -721,8 +724,11 @@ def _validate_ephys(context: ValidationContext) -> dict[str, Any]:
     return _finalize_check(
         "ephys",
         mismatches,
-        mismatch_count=data_result["mismatch_count"] + timestamp_result["mismatch_count"],
-        max_abs_error=max(data_result["max_abs_error"], timestamp_result["max_abs_error"]),
+        mismatch_count=data_result["mismatch_count"]
+        + timestamp_result["mismatch_count"],
+        max_abs_error=max(
+            data_result["max_abs_error"], timestamp_result["max_abs_error"]
+        ),
     )
 
 
@@ -786,7 +792,9 @@ def _resolve_report_filepath(
 ) -> Path:
     if report_filepath is not None:
         return Path(report_filepath)
-    return nwb_filepath.parent / f"{nwb_filepath.stem}_conversion_validation_report.json"
+    return (
+        nwb_filepath.parent / f"{nwb_filepath.stem}_conversion_validation_report.json"
+    )
 
 
 def _resolve_header_reconfig_path(
@@ -808,7 +816,9 @@ def _resolve_header_reconfig_path(
 
 def _humanize_report(report: dict[str, Any]) -> dict[str, Any]:
     report["checks"] = [_humanize_check(check) for check in report["checks"]]
-    failed_checks = [check["title"] for check in report["checks"] if not check["passed"]]
+    failed_checks = [
+        check["title"] for check in report["checks"] if not check["passed"]
+    ]
     if report["passed"]:
         summary_text = (
             f"Validation passed. All {report['summary']['n_checks']} checks completed "
