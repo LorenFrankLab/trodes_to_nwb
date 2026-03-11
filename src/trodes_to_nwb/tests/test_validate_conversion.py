@@ -284,7 +284,9 @@ def test_validate_conversion_writes_report_and_closes_context(tmp_path, monkeypa
         nwb_io=close_tracker,
     )
 
-    monkeypatch.setattr(validation_module, "_load_validation_context", lambda **_: context)
+    monkeypatch.setattr(
+        validation_module, "_load_validation_context", lambda **_: context
+    )
     monkeypatch.setattr(
         validation_module,
         "_validate_header_and_metadata",
@@ -614,7 +616,9 @@ def test_validate_sample_count_reports_data_and_timestamp_mismatch(monkeypatch):
                 )
             }
         ),
-        neo_io=[SimpleNamespace(get_analogsignal_timestamps=lambda *_: np.array([1, 2, 3]))],
+        neo_io=[
+            SimpleNamespace(get_analogsignal_timestamps=lambda *_: np.array([1, 2, 3]))
+        ],
         timestamp_tolerance_s=0.01,
         behavior_only=False,
     )
