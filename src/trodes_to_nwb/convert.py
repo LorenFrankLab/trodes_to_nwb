@@ -139,7 +139,7 @@ def check_file_timing(filepaths: list[str]):
                 f"Files are out of order: \n"
                 + f"File {io._raw_memmap.filename} has start time "
                 + f"({datetime.fromtimestamp(st_time)})"
-                + f" that is before or equal to the the start time of"
+                + f" that is before or equal to the start time of"
                 + f" {io_list[i-1]._raw_memmap.filename} "
                 + f"({datetime.fromtimestamp(start_times[-1])})"
             )
