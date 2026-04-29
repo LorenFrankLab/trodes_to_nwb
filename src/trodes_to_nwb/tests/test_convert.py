@@ -298,7 +298,7 @@ def _make_mock_io(start_ns, end_ns, filename="file.rec"):
         [start_ns] if end == 1 else [end_ns]
     )
     mock_io._raw_memmap.shape = (100, 1)
-    mock_io._raw_memap.filename = filename
+    mock_io._raw_memmap.filename = filename
     return mock_io
 
 

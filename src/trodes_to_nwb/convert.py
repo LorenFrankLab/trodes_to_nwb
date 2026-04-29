@@ -130,17 +130,17 @@ def check_file_timing(filepaths: list[str]):
         en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
         if en_time - st_time < 0:
             raise ValueError(
-                f"File {io._raw_memap.filename} has inconsistent timing: \n"
+                f"File {io._raw_memmap.filename} has inconsistent timing: \n"
                 + f"start time ({datetime.fromtimestamp(st_time)}) is after "
                 + f"end time ({datetime.fromtimestamp(en_time)})"
             )
         if len(start_times) > 0 and st_time <= start_times[-1]:
             raise ValueError(
                 f"Files are out of order: \n"
-                + f"File {io._raw_memap.filename} has start time "
+                + f"File {io._raw_memmap.filename} has start time "
                 + f"({datetime.fromtimestamp(st_time)})"
                 + f" that is before or equal to the the start time of"
-                + f" {io_list[i-1]._raw_memap.filename} "
+                + f" {io_list[i-1]._raw_memmap.filename} "
                 + f"({datetime.fromtimestamp(start_times[-1])})"
             )
         start_times.append(st_time)
