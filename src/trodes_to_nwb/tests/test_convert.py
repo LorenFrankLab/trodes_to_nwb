@@ -6,7 +6,13 @@ from unittest.mock import patch
 import numpy as np
 from pynwb import NWBHDF5IO
 
-from trodes_to_nwb.convert import create_nwbs, get_included_device_metadata_paths
+from unittest.mock import MagicMock
+
+from trodes_to_nwb.convert import (
+    check_file_timing,
+    create_nwbs,
+    get_included_device_metadata_paths,
+)
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.utils import data_path
 
@@ -283,3 +289,104 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
                 validated = True
                 break
         assert validated, f"Could not find matching series for {series}"
+
+
+def _make_mock_io(start_ns, end_ns, filename="file.rec"):
+    """Helper to create a mock SpikeGadgetsRawIO-like object."""
+    mock_io = MagicMock()
+    mock_io.get_sys_clock.side_effect = lambda start, end: (
+        [start_ns] if end == 1 else [end_ns]
+    )
+    mock_io._raw_memmap.shape = (100, 1)
+    mock_io._raw_memap.filename = filename
+    return mock_io
+
+
+def test_check_file_timing_valid_single_file():
+    """check_file_timing should not raise for a single valid file."""
+    start_ns = int(1e18)  # ~31 years in nanoseconds, valid Unix time in seconds
+    end_ns = start_ns + int(60 * 1e9)  # 60 seconds later
+    mock_io = _make_mock_io(start_ns, end_ns)
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.return_value = mock_io
+        # Should not raise
+        check_file_timing(["file.rec"])
+
+
+def test_check_file_timing_valid_multiple_files():
+    """check_file_timing should not raise for multiple ordered valid files."""
+    base_ns = int(1e18)
+    mock_io1 = _make_mock_io(base_ns, base_ns + int(60 * 1e9), "file1.rec")
+    mock_io2 = _make_mock_io(
+        base_ns + int(120 * 1e9), base_ns + int(180 * 1e9), "file2.rec"
+    )
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.side_effect = [mock_io1, mock_io2]
+        # Should not raise
+        check_file_timing(["file1.rec", "file2.rec"])
+
+
+def test_check_file_timing_negative_duration_raises():
+    """check_file_timing should raise ValueError when end time is before start time."""
+    start_ns = int(1e18)
+    end_ns = start_ns - int(10 * 1e9)  # end before start
+    mock_io = _make_mock_io(start_ns, end_ns)
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.return_value = mock_io
+        try:
+            check_file_timing(["file.rec"])
+            assert False, "Expected ValueError for negative duration"
+        except ValueError:
+            pass
+
+
+def test_check_file_timing_out_of_order_raises():
+    """check_file_timing should raise ValueError when files are out of order."""
+    base_ns = int(1e18)
+    # file2 starts before file1 ends and before file1 starts
+    mock_io1 = _make_mock_io(
+        base_ns + int(120 * 1e9), base_ns + int(180 * 1e9), "file1.rec"
+    )
+    mock_io2 = _make_mock_io(base_ns, base_ns + int(60 * 1e9), "file2.rec")
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.side_effect = [mock_io1, mock_io2]
+        try:
+            check_file_timing(["file1.rec", "file2.rec"])
+            assert False, "Expected ValueError for out of order files"
+        except ValueError:
+            pass
+
+
+def test_check_file_timing_equal_start_times_raises():
+    """check_file_timing should raise ValueError when two files have the same start time."""
+    base_ns = int(1e18)
+    mock_io1 = _make_mock_io(base_ns, base_ns + int(60 * 1e9), "file1.rec")
+    mock_io2 = _make_mock_io(base_ns, base_ns + int(120 * 1e9), "file2.rec")
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.side_effect = [mock_io1, mock_io2]
+        try:
+            check_file_timing(["file1.rec", "file2.rec"])
+            assert False, "Expected ValueError for equal start times"
+        except ValueError:
+            pass
+
+
+def test_check_file_timing_empty_list():
+    """check_file_timing should not raise for an empty list."""
+    check_file_timing([])
+
+
+def test_check_file_timing_parses_header():
+    """check_file_timing should call parse_header for each file."""
+    base_ns = int(1e18)
+    mock_io = _make_mock_io(base_ns, base_ns + int(60 * 1e9))
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.return_value = mock_io
+        check_file_timing(["file.rec"])
+        mock_io.parse_header.assert_called_once()
