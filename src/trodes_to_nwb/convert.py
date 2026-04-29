@@ -12,6 +12,7 @@ import nwbinspector
 import pandas as pd
 from dask.distributed import Client
 from pynwb import NWBHDF5IO
+from datetime import datetime
 
 from trodes_to_nwb.convert_analog import add_analog_data
 from trodes_to_nwb.convert_dios import add_dios
@@ -38,6 +39,7 @@ from trodes_to_nwb.convert_yaml import (
     load_metadata,
 )
 from trodes_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
 def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
@@ -100,6 +102,48 @@ def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
         File paths for the given file extension
     """
     return df.loc[df.file_extension == file_extension].full_path.to_list()
+
+
+def check_file_timing(filepaths: list[str]):
+    """Check that the timing of the given files is consistent
+
+    Parameters
+    ----------
+    filepaths : list[str]
+        List of file paths to check
+
+    Raises
+    ------
+    ValueError
+        If the timing of the files is not consistent
+    """
+    io_list = []
+    for file in filepaths:
+        io = SpikeGadgetsRawIO(
+            file,
+        )
+        io.parse_header()
+        io_list.append(io)
+    start_times = []
+    for i, io in enumerate(io_list):
+        st_time = io.get_sys_clock(0, 1)[0] / 1
+        en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
+        if en_time - st_time < 0:
+            raise ValueError(
+                f"File {io._raw_memap.filename} has inconsistent timing: \n"
+                + f"start time ({datetime.fromtimestamp(st_time)}) is after "
+                + f"end time ({datetime.fromtimestamp(en_time)})"
+            )
+        if len(start_times) > 0 and st_time <= start_times[-1]:
+            raise ValueError(
+                f"Files are out of order: \n"
+                + f"File {io._raw_memap.filename} has start time "
+                + f"({datetime.fromtimestamp(st_time)})"
+                + f" that is before or equal to the the start time of"
+                + f" {io_list[i-1]._raw_memap.filename} "
+                + f"({datetime.fromtimestamp(start_times[-1])})"
+            )
+        start_times.append(st_time)
 
 
 def create_nwbs(
@@ -227,6 +271,7 @@ def _create_nwb(
     logger.info(f"Creating NWB file for session: {session}")
     rec_filepaths = _get_file_paths(session_df, ".rec")
     logger.info(f"\trec_filepaths: {rec_filepaths}")
+    check_file_timing(rec_filepaths)
 
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
