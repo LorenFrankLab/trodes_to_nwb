@@ -117,6 +117,8 @@ def check_file_timing(filepaths: list[str]):
     ValueError
         If the timing of the files is not consistent
     """
+    if len(filepaths) == 0:
+        return
     io_list = []
     for file in filepaths:
         io = SpikeGadgetsRawIO(
