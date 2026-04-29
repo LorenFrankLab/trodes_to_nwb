@@ -337,7 +337,7 @@ def test_check_file_timing_valid_multiple_files_no_sys_clock():
         base_ns, base_ns + int(60 * 1e9), "file1.rec", sys_clock=False
     )
     mock_io2 = _make_mock_io(
-        base_ns + int(120 * 1e9), base_ns + int(180 * 1e9), "file2.rec"
+        base_ns + int(120 * 1e9), base_ns + int(180 * 1e9), "file2.rec", sys_clock=False
     )
 
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
