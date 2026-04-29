@@ -126,7 +126,7 @@ def check_file_timing(filepaths: list[str]):
         io_list.append(io)
     start_times = []
     for i, io in enumerate(io_list):
-        st_time = io.get_sys_clock(0, 1)[0] / 1
+        st_time = io.get_sys_clock(0, 1)[0] / 1e9
         en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
         if en_time - st_time < 0:
             raise ValueError(
