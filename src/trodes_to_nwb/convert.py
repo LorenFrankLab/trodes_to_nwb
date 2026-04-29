@@ -124,16 +124,14 @@ def check_file_timing(filepaths: list[str]):
         )
         io.parse_header()
         io_list.append(io)
+    sys_clock = bool(io_list[0].sysClock_byte)
     start_times = []
     for i, io in enumerate(io_list):
-        st_time = io.get_sys_clock(0, 1)[0] / 1e9
-        en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
-        if en_time - st_time < 0:
-            raise ValueError(
-                f"File {io._raw_memmap.filename} has inconsistent timing: \n"
-                + f"start time ({datetime.fromtimestamp(st_time)}) is after "
-                + f"end time ({datetime.fromtimestamp(en_time)})"
-            )
+        st_time = (
+            io.get_sys_clock(0, 1)[0] / 1e9
+            if sys_clock
+            else io.system_time_at_creation / 1e3
+        )
         if len(start_times) > 0 and st_time <= start_times[-1]:
             raise ValueError(
                 f"Files are out of order: \n"
@@ -144,6 +142,15 @@ def check_file_timing(filepaths: list[str]):
                 + f"({datetime.fromtimestamp(start_times[-1])})"
             )
         start_times.append(st_time)
+        if not sys_clock:
+            continue
+        en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
+        if en_time - st_time < 0:
+            raise ValueError(
+                f"File {io._raw_memmap.filename} has inconsistent timing: \n"
+                + f"start time ({datetime.fromtimestamp(st_time)}) is after "
+                + f"end time ({datetime.fromtimestamp(en_time)})"
+            )
 
 
 def create_nwbs(

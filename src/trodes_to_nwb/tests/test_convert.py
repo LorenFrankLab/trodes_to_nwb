@@ -291,7 +291,7 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         assert validated, f"Could not find matching series for {series}"
 
 
-def _make_mock_io(start_ns, end_ns, filename="file.rec"):
+def _make_mock_io(start_ns, end_ns, filename="file.rec", sys_clock=True):
     """Helper to create a mock SpikeGadgetsRawIO-like object."""
     mock_io = MagicMock()
     mock_io.get_sys_clock.side_effect = lambda start, end: (
@@ -299,6 +299,8 @@ def _make_mock_io(start_ns, end_ns, filename="file.rec"):
     )
     mock_io._raw_memmap.shape = (100, 1)
     mock_io._raw_memmap.filename = filename
+    mock_io.sysClock_byte = sys_clock
+    mock_io.system_time_at_creation = start_ns / 1e6  # in milliseconds
     return mock_io
 
 
@@ -318,6 +320,22 @@ def test_check_file_timing_valid_multiple_files():
     """check_file_timing should not raise for multiple ordered valid files."""
     base_ns = int(1e18)
     mock_io1 = _make_mock_io(base_ns, base_ns + int(60 * 1e9), "file1.rec")
+    mock_io2 = _make_mock_io(
+        base_ns + int(120 * 1e9), base_ns + int(180 * 1e9), "file2.rec"
+    )
+
+    with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
+        MockRawIO.side_effect = [mock_io1, mock_io2]
+        # Should not raise
+        check_file_timing(["file1.rec", "file2.rec"])
+
+
+def test_check_file_timing_valid_multiple_files_no_sys_clock():
+    """check_file_timing should not raise for multiple ordered valid files."""
+    base_ns = int(1e18)
+    mock_io1 = _make_mock_io(
+        base_ns, base_ns + int(60 * 1e9), "file1.rec", sys_clock=False
+    )
     mock_io2 = _make_mock_io(
         base_ns + int(120 * 1e9), base_ns + int(180 * 1e9), "file2.rec"
     )
