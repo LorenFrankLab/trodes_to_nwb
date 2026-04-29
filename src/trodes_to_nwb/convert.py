@@ -130,7 +130,7 @@ def check_file_timing(filepaths: list[str]):
         st_time = (
             io.get_sys_clock(0, 1)[0] / 1e9
             if sys_clock
-            else io.system_time_at_creation / 1e3
+            else float(io.system_time_at_creation) / 1e3
         )
         if len(start_times) > 0 and st_time <= start_times[-1]:
             raise ValueError(
