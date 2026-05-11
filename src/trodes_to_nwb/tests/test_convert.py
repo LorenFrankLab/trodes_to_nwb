@@ -12,6 +12,7 @@ from trodes_to_nwb.convert import (
     check_file_timing,
     create_nwbs,
     get_included_device_metadata_paths,
+    setup_logger,
 )
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.utils import data_path
@@ -313,7 +314,7 @@ def test_check_file_timing_valid_single_file():
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.return_value = mock_io
         # Should not raise
-        check_file_timing(["file.rec"])
+        check_file_timing(["file.rec"], setup_logger("test", "test.log"))
 
 
 def test_check_file_timing_valid_multiple_files():
@@ -327,7 +328,7 @@ def test_check_file_timing_valid_multiple_files():
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.side_effect = [mock_io1, mock_io2]
         # Should not raise
-        check_file_timing(["file1.rec", "file2.rec"])
+        check_file_timing(["file1.rec", "file2.rec"], setup_logger("test", "test.log"))
 
 
 def test_check_file_timing_valid_multiple_files_no_sys_clock():
@@ -343,7 +344,7 @@ def test_check_file_timing_valid_multiple_files_no_sys_clock():
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.side_effect = [mock_io1, mock_io2]
         # Should not raise
-        check_file_timing(["file1.rec", "file2.rec"])
+        check_file_timing(["file1.rec", "file2.rec"], setup_logger("test", "test.log"))
 
 
 def test_check_file_timing_negative_duration_raises():
@@ -355,7 +356,7 @@ def test_check_file_timing_negative_duration_raises():
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.return_value = mock_io
         try:
-            check_file_timing(["file.rec"])
+            check_file_timing(["file.rec"], logger=setup_logger("test", "test.log"))
             assert False, "Expected ValueError for negative duration"
         except ValueError:
             pass
@@ -373,7 +374,9 @@ def test_check_file_timing_out_of_order_raises():
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.side_effect = [mock_io1, mock_io2]
         try:
-            check_file_timing(["file1.rec", "file2.rec"])
+            check_file_timing(
+                ["file1.rec", "file2.rec"], logger=setup_logger("test", "test.log")
+            )
             assert False, "Expected ValueError for out of order files"
         except ValueError:
             pass
@@ -388,7 +391,9 @@ def test_check_file_timing_equal_start_times_raises():
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.side_effect = [mock_io1, mock_io2]
         try:
-            check_file_timing(["file1.rec", "file2.rec"])
+            check_file_timing(
+                ["file1.rec", "file2.rec"], logger=setup_logger("test", "test.log")
+            )
             assert False, "Expected ValueError for equal start times"
         except ValueError:
             pass
@@ -396,7 +401,7 @@ def test_check_file_timing_equal_start_times_raises():
 
 def test_check_file_timing_empty_list():
     """check_file_timing should not raise for an empty list."""
-    check_file_timing([])
+    check_file_timing([], logger=setup_logger("test", "test.log"))
 
 
 def test_check_file_timing_parses_header():
@@ -406,5 +411,5 @@ def test_check_file_timing_parses_header():
 
     with patch("trodes_to_nwb.convert.SpikeGadgetsRawIO") as MockRawIO:
         MockRawIO.return_value = mock_io
-        check_file_timing(["file.rec"])
+        check_file_timing(["file.rec"], logger=setup_logger("test", "test.log"))
         mock_io.parse_header.assert_called_once()
