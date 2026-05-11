@@ -104,18 +104,20 @@ def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
     return df.loc[df.file_extension == file_extension].full_path.to_list()
 
 
-def check_file_timing(filepaths: list[str]):
+def check_file_timing(filepaths: list[str], logger: logging.Logger):
     """Check that the timing of the given files is consistent
 
     Parameters
     ----------
     filepaths : list[str]
         List of file paths to check
+    logger : logging.Logger
+        Logger object to log warnings and errors
 
     Raises
     ------
     ValueError
-        If the timing of the files is not consistent
+        If the timing of the files is not consistent or if files cannot be correctly parsed
     """
     if len(filepaths) == 0:
         return
@@ -126,7 +128,13 @@ def check_file_timing(filepaths: list[str]):
         )
         io.parse_header()
         io_list.append(io)
-    sys_clock = bool(io_list[0].sysClock_byte)
+    sys_clock = [bool(io.sysClock_byte) for io in io_list]
+    if not all(sys_clock) and any(sys_clock):
+        raise ValueError(
+            "Some files have sysClock_byte set in header and some do not. "
+            + "Cannot determine timing consistency."
+        )
+    sys_clock = sys_clock[0]  # all values are the same so just take the first one
     start_times = []
     for i, io in enumerate(io_list):
         st_time = (
@@ -135,16 +143,20 @@ def check_file_timing(filepaths: list[str]):
             else float(io.system_time_at_creation) / 1e3
         )
         if len(start_times) > 0 and st_time <= start_times[-1]:
+            relation = "equal to" if st_time == start_times[-1] else "before"
             raise ValueError(
                 f"Files are out of order: \n"
                 + f"File {io._raw_memmap.filename} has start time "
                 + f"({datetime.fromtimestamp(st_time)})"
-                + f" that is before or equal to the start time of"
+                + f" that is {relation} the start time of"
                 + f" {io_list[i-1]._raw_memmap.filename} "
                 + f"({datetime.fromtimestamp(start_times[-1])})"
             )
         start_times.append(st_time)
         if not sys_clock:
+            logger.warning(
+                f"File {io._raw_memmap.filename} does not have sysClock_byte set in header."
+            )
             continue
         en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
         if en_time - st_time < 0:
@@ -280,7 +292,7 @@ def _create_nwb(
     logger.info(f"Creating NWB file for session: {session}")
     rec_filepaths = _get_file_paths(session_df, ".rec")
     logger.info(f"\trec_filepaths: {rec_filepaths}")
-    check_file_timing(rec_filepaths)
+    check_file_timing(rec_filepaths, logger)
 
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
