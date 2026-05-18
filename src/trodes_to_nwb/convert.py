@@ -41,6 +41,9 @@ from trodes_to_nwb.convert_yaml import (
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
+NANOSECONDS_PER_SECOND = 1e9
+MILLISECONDS_PER_SECOND = 1e3
+
 
 def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
     """Sets up a logger for each function that outputs
@@ -138,9 +141,9 @@ def check_file_timing(filepaths: list[str], logger: logging.Logger):
     start_times = []
     for i, io in enumerate(io_list):
         st_time = (
-            io.get_sys_clock(0, 1)[0] / 1e9
+            io.get_sys_clock(0, 1)[0] / NANOSECONDS_PER_SECOND
             if sys_clock
-            else float(io.system_time_at_creation) / 1e3
+            else float(io.system_time_at_creation) / MILLISECONDS_PER_SECOND
         )
         if len(start_times) > 0 and st_time <= start_times[-1]:
             relation = "equal to" if st_time == start_times[-1] else "before"
@@ -158,7 +161,10 @@ def check_file_timing(filepaths: list[str], logger: logging.Logger):
                 f"File {io._raw_memmap.filename} does not have sysClock_byte set in header."
             )
             continue
-        en_time = io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0] / 1e9
+        en_time = (
+            io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0]
+            / NANOSECONDS_PER_SECOND
+        )
         if en_time - st_time < 0:
             raise ValueError(
                 f"File {io._raw_memmap.filename} has inconsistent timing: \n"
