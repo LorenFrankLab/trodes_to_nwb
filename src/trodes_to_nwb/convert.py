@@ -139,6 +139,7 @@ def check_file_timing(filepaths: list[str], logger: logging.Logger):
         )
     sys_clock = sys_clock[0]  # all values are the same so just take the first one
     start_times = []
+    end_times = []
     for i, io in enumerate(io_list):
         st_time = (
             io.get_sys_clock(0, 1)[0] / NANOSECONDS_PER_SECOND
@@ -155,6 +156,15 @@ def check_file_timing(filepaths: list[str], logger: logging.Logger):
                 + f" {io_list[i-1]._raw_memmap.filename} "
                 + f"({datetime.fromtimestamp(start_times[-1])})"
             )
+        if len(end_times) > 0 and st_time < end_times[-1]:
+            raise ValueError(
+                "File times overlap: \n"
+                + f"File {io._raw_memmap.filename} has start time "
+                + f"({datetime.fromtimestamp(st_time)}) that is before the end time of "
+                + f"{io_list[i-1]._raw_memmap.filename} "
+                + f"({datetime.fromtimestamp(end_times[-1])})"
+            )
+
         start_times.append(st_time)
         if not sys_clock:
             logger.warning(
@@ -171,6 +181,7 @@ def check_file_timing(filepaths: list[str], logger: logging.Logger):
                 + f"start time ({datetime.fromtimestamp(st_time)}) is after "
                 + f"end time ({datetime.fromtimestamp(en_time)})"
             )
+        end_times.append(en_time)
 
 
 def create_nwbs(
