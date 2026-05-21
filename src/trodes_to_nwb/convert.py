@@ -12,6 +12,7 @@ import nwbinspector
 import pandas as pd
 from dask.distributed import Client
 from pynwb import NWBHDF5IO
+from datetime import datetime
 
 from trodes_to_nwb.convert_analog import add_analog_data
 from trodes_to_nwb.convert_dios import add_dios
@@ -38,6 +39,10 @@ from trodes_to_nwb.convert_yaml import (
     load_metadata,
 )
 from trodes_to_nwb.data_scanner import get_file_info
+from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
+
+NANOSECONDS_PER_SECOND = 1e9
+MILLISECONDS_PER_SECOND = 1e3
 
 
 def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
@@ -100,6 +105,83 @@ def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
         File paths for the given file extension
     """
     return df.loc[df.file_extension == file_extension].full_path.to_list()
+
+
+def check_file_timing(filepaths: list[str], logger: logging.Logger):
+    """Check that the timing of the given files is consistent
+
+    Parameters
+    ----------
+    filepaths : list[str]
+        List of file paths to check
+    logger : logging.Logger
+        Logger object to log warnings and errors
+
+    Raises
+    ------
+    ValueError
+        If the timing of the files is not consistent or if files cannot be correctly parsed
+    """
+    if len(filepaths) == 0:
+        return
+    io_list = []
+    for file in filepaths:
+        io = SpikeGadgetsRawIO(
+            file,
+        )
+        io.parse_header()
+        io_list.append(io)
+    sys_clock = [bool(io.sysClock_byte) for io in io_list]
+    if not all(sys_clock) and any(sys_clock):
+        raise ValueError(
+            "Some files have sysClock_byte set in header and some do not. "
+            + "Cannot determine timing consistency."
+        )
+    sys_clock = sys_clock[0]  # all values are the same so just take the first one
+    start_times = []
+    end_times = []
+    for i, io in enumerate(io_list):
+        st_time = (
+            io.get_sys_clock(0, 1)[0] / NANOSECONDS_PER_SECOND
+            if sys_clock
+            else float(io.system_time_at_creation) / MILLISECONDS_PER_SECOND
+        )
+        if len(start_times) > 0 and st_time <= start_times[-1]:
+            relation = "equal to" if st_time == start_times[-1] else "before"
+            raise ValueError(
+                f"Files are out of order: \n"
+                + f"File {io._raw_memmap.filename} has start time "
+                + f"({datetime.fromtimestamp(st_time)})"
+                + f" that is {relation} the start time of"
+                + f" {io_list[i-1]._raw_memmap.filename} "
+                + f"({datetime.fromtimestamp(start_times[-1])})"
+            )
+        if len(end_times) > 0 and st_time < end_times[-1]:
+            raise ValueError(
+                "File times overlap: \n"
+                + f"File {io._raw_memmap.filename} has start time "
+                + f"({datetime.fromtimestamp(st_time)}) that is before the end time of "
+                + f"{io_list[i-1]._raw_memmap.filename} "
+                + f"({datetime.fromtimestamp(end_times[-1])})"
+            )
+
+        start_times.append(st_time)
+        if not sys_clock:
+            logger.warning(
+                f"File {io._raw_memmap.filename} does not have sysClock_byte set in header."
+            )
+            continue
+        en_time = (
+            io.get_sys_clock(io._raw_memmap.shape[0] - 1, None)[0]
+            / NANOSECONDS_PER_SECOND
+        )
+        if en_time - st_time < 0:
+            raise ValueError(
+                f"File {io._raw_memmap.filename} has inconsistent timing: \n"
+                + f"start time ({datetime.fromtimestamp(st_time)}) is after "
+                + f"end time ({datetime.fromtimestamp(en_time)})"
+            )
+        end_times.append(en_time)
 
 
 def create_nwbs(
@@ -227,6 +309,7 @@ def _create_nwb(
     logger.info(f"Creating NWB file for session: {session}")
     rec_filepaths = _get_file_paths(session_df, ".rec")
     logger.info(f"\trec_filepaths: {rec_filepaths}")
+    check_file_timing(rec_filepaths, logger)
 
     logger.info("CREATING REC DATA ITERATORS")
     # make generic rec file data chunk iterator to pass to functions
