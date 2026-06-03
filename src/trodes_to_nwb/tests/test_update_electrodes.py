@@ -14,6 +14,7 @@ from pynwb import NWBHDF5IO, NWBFile
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.tests.utils import data_path
 from trodes_to_nwb.update_electrodes import (
+    UPDATABLE_COLUMNS,
     build_electrodes_from_config,
     update_electrodes_from_config,
 )
@@ -116,9 +117,7 @@ def test_update_electrodes_from_config_identity():
             updated_df = updated_nwb.electrodes.to_dataframe()
 
         # All updatable columns should be unchanged
-        for col in ["group_name", "location", "rel_x", "rel_y", "rel_z",
-                    "probe_shank", "probe_electrode", "ref_elect_id",
-                    "ntrode_id", "channel_id", "bad_channel"]:
+        for col in UPDATABLE_COLUMNS:
             assert list(updated_df[col]) == list(original_df[col]), (
                 f"Column {col} changed after identity update"
             )
