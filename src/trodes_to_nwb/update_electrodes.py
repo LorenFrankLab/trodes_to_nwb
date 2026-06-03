@@ -4,10 +4,14 @@ metadata (e.g., shank/probe position info) without rewriting the entire file.
 """
 
 import logging
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 import h5py
 import numpy as np
+from dateutil.tz import tzutc
+from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header, convert_yaml
 
@@ -37,6 +41,10 @@ def build_electrodes_from_config(
 ) -> dict:
     """Build a correct electrodes table from a trodes config and metadata yaml.
 
+    Uses the same add_electrode_groups code path as normal conversion to ensure
+    consistency, by constructing a temporary NWBFile and reading the resulting
+    electrode table.
+
     Parameters
     ----------
     metadata_path : str or Path
@@ -63,73 +71,40 @@ def build_electrodes_from_config(
         metadata, spike_config
     )
 
-    # Build the electrodes table data by iterating through metadata
-    # (mirrors the logic in convert_yaml.add_electrode_groups)
-    electrodes = []
-    for egroup_metadata in metadata["electrode_groups"]:
-        # find correct channel map info
-        channel_map = None
-        for test_meta in metadata["ntrode_electrode_group_channel_map"]:
-            if test_meta["electrode_group_id"] == egroup_metadata["id"]:
-                channel_map = test_meta
-                break
+    # Build a temporary NWBFile and populate electrodes using the same code
+    # path as normal conversion (add_electrode_groups) to ensure consistency.
+    tmp_nwbfile = NWBFile(
+        session_description="temp",
+        identifier=str(uuid.uuid4()),
+        session_start_time=datetime(2000, 1, 1, tzinfo=tzutc()),
+        timestamps_reference_time=datetime.fromtimestamp(0, tz=tzutc()),
+    )
 
-        # find the probe corresponding to the device type
-        probe_meta = None
-        for test_meta in probe_metadata:
-            if test_meta.get("probe_type", None) == egroup_metadata["device_type"]:
-                probe_meta = test_meta
-                break
-        if probe_meta is None:
-            raise FileNotFoundError(
-                f"No probe metadata found for {egroup_metadata['device_type']}"
-            )
+    convert_yaml.add_electrode_groups(
+        tmp_nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
+    )
 
-        electrode_counter_probe = 0
-        for shank_counter, shank_meta in enumerate(probe_meta["shanks"]):
-            for electrode_meta in shank_meta["electrodes"]:
-                hw_chan = hw_channel_map[egroup_metadata["id"]][
-                    str(electrode_meta["id"])
-                ]
-                electrodes.append(
-                    {
-                        "hwChan": hw_chan,
-                        "group_name": str(egroup_metadata["id"]),
-                        "location": egroup_metadata["targeted_location"],
-                        "rel_x": float(electrode_meta["rel_x"]),
-                        "rel_y": float(electrode_meta["rel_y"]),
-                        "rel_z": float(electrode_meta["rel_z"]),
-                        "ntrode_id": channel_map["ntrode_id"],
-                        "channel_id": electrode_counter_probe,
-                        "bad_channel": bool(
-                            electrode_counter_probe in channel_map["bad_channels"]
-                        ),
-                        "probe_shank": shank_counter,
-                        "probe_electrode": electrode_counter_probe,
-                    }
-                )
-                electrode_counter_probe += 1
+    # Read the electrode table from the temporary NWBFile
+    electrode_df = tmp_nwbfile.electrodes.to_dataframe()
 
-    # Compute ref_elect_id for each electrode
-    # Build index: (group_name, probe_electrode) -> row index in electrodes list
-    index_map = {}
-    for idx, elec in enumerate(electrodes):
-        key = (elec["group_name"], elec["probe_electrode"])
-        index_map[key] = idx
-
-    for elec in electrodes:
-        group_name = elec["group_name"]
-        ref_group, ref_electrode = ref_electrode_map[group_name]
-        if ref_group == -1:
-            elec["ref_elect_id"] = -1
-        else:
-            ref_key = (str(ref_group), ref_electrode)
-            elec["ref_elect_id"] = index_map[ref_key]
-
-    # Return as a dict keyed by hwChan for easy lookup
+    # Build the hwChan-keyed mapping from the electrode table
     hw_chan_to_metadata = {}
-    for elec in electrodes:
-        hw_chan_to_metadata[elec["hwChan"]] = elec
+    for idx, row in electrode_df.iterrows():
+        hw_chan = str(row["hwChan"])
+        hw_chan_to_metadata[hw_chan] = {
+            "hwChan": hw_chan,
+            "group_name": str(row["group_name"]),
+            "location": row["location"],
+            "rel_x": float(row["rel_x"]),
+            "rel_y": float(row["rel_y"]),
+            "rel_z": float(row["rel_z"]),
+            "ntrode_id": row["ntrode_id"],
+            "channel_id": row["channel_id"],
+            "bad_channel": bool(row["bad_channel"]),
+            "probe_shank": row["probe_shank"],
+            "probe_electrode": row["probe_electrode"],
+            "ref_elect_id": row["ref_elect_id"],
+        }
 
     return hw_chan_to_metadata
 
