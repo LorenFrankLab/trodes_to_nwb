@@ -205,3 +205,28 @@ def test_update_electrodes_missing_hw_chan():
             update_electrodes_from_config(
                 nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
             )
+
+
+def test_update_electrodes_device_change_raises():
+    """Test that ValueError is raised when new config would change probe device."""
+    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
+    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        nwb_path = Path(tmpdir) / "test.nwb"
+        _create_test_nwb(nwb_path)
+
+        # Manually change a group_name in the existing file so it no longer
+        # matches what the config would produce for that hwChan
+        electrodes_path = "/general/extracellular_ephys/electrodes"
+        with h5py.File(str(nwb_path), "a") as f:
+            group_names = f[electrodes_path]["group_name"][:]
+            # Change the first electrode's group_name to a different value
+            group_names[0] = b"999"
+            f[electrodes_path]["group_name"][...] = group_names
+
+        with pytest.raises(ValueError, match="different probe devices"):
+            update_electrodes_from_config(
+                nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+            )

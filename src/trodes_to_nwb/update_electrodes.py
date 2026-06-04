@@ -137,6 +137,10 @@ def update_electrodes_from_config(
     ------
     KeyError
         If a hardware channel in the existing file cannot be found in the new config.
+    ValueError
+        If the new configuration would reassign an electrode to a different
+        probe device (group_name). This operation only updates metadata within
+        the same device; changing device assignment requires full reconversion.
     """
     nwb_file_path = Path(nwb_file_path)
     if not nwb_file_path.exists():
@@ -178,6 +182,33 @@ def update_electrodes_from_config(
             meta = hw_chan_to_metadata[hw_chan]
             for col in UPDATABLE_COLUMNS:
                 new_data[col].append(meta[col])
+
+        # Check if the new config would change any electrode's probe device.
+        # This function only remaps metadata within the same device; changing
+        # the device assignment is not supported and requires full reconversion.
+        if "group_name" in electrodes_group:
+            existing_group_names = electrodes_group["group_name"][:]
+            existing_group_names = [
+                v.decode("utf-8") if isinstance(v, bytes) else str(v)
+                for v in existing_group_names
+            ]
+            mismatched = []
+            for i, (existing, new) in enumerate(
+                zip(existing_group_names, new_data["group_name"])
+            ):
+                if existing != new:
+                    mismatched.append(
+                        f"  hwChan {existing_hw_chans[i]}: "
+                        f"'{existing}' -> '{new}'"
+                    )
+            if mismatched:
+                details = "\n".join(mismatched[:10])
+                raise ValueError(
+                    "The new configuration would reassign electrodes to "
+                    "different probe devices (group_name changes detected). "
+                    "This operation only supports updating metadata within "
+                    "the same device. Mismatched electrodes:\n" + details
+                )
 
         # Write updated data back to the HDF5 file
         for col in UPDATABLE_COLUMNS:
