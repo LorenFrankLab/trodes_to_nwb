@@ -118,9 +118,9 @@ def test_update_electrodes_from_config_identity():
 
         # All updatable columns should be unchanged
         for col in UPDATABLE_COLUMNS:
-            assert list(updated_df[col]) == list(original_df[col]), (
-                f"Column {col} changed after identity update"
-            )
+            assert list(updated_df[col]) == list(
+                original_df[col]
+            ), f"Column {col} changed after identity update"
 
 
 def test_update_electrodes_from_config_swapped():
@@ -144,8 +144,7 @@ def test_update_electrodes_from_config_swapped():
             hw_chans = f[electrodes_path]["hwChan"][:]
             # Decode
             hw_chans_decoded = [
-                v.decode("utf-8") if isinstance(v, bytes) else v
-                for v in hw_chans
+                v.decode("utf-8") if isinstance(v, bytes) else v for v in hw_chans
             ]
             # Swap first two hw channels
             hw_chans_decoded[0], hw_chans_decoded[1] = (
@@ -169,8 +168,14 @@ def test_update_electrodes_from_config_swapped():
         # After the update, row 0 should have metadata for hwChan that was
         # originally at row 1, and vice versa (since we swapped hwChans)
         # Row 0 now has hw_chan that originally was at row 1
-        assert updated_df.iloc[0]["probe_electrode"] == original_df.iloc[1]["probe_electrode"]
-        assert updated_df.iloc[1]["probe_electrode"] == original_df.iloc[0]["probe_electrode"]
+        assert (
+            updated_df.iloc[0]["probe_electrode"]
+            == original_df.iloc[1]["probe_electrode"]
+        )
+        assert (
+            updated_df.iloc[1]["probe_electrode"]
+            == original_df.iloc[0]["probe_electrode"]
+        )
 
 
 def test_update_electrodes_file_not_found():

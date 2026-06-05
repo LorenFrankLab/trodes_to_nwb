@@ -198,8 +198,7 @@ def update_electrodes_from_config(
             ):
                 if existing != new:
                     mismatched.append(
-                        f"  hwChan {existing_hw_chans[i]}: "
-                        f"'{existing}' -> '{new}'"
+                        f"  hwChan {existing_hw_chans[i]}: " f"'{existing}' -> '{new}'"
                     )
             if mismatched:
                 details = "\n".join(mismatched[:10])
