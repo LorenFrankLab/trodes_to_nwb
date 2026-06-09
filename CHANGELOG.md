@@ -15,9 +15,11 @@
   `accelerometer`, `gyroscope`, `magnetometer`, `analog_input`, and `other`
   for unrecognized channels), replacing the single combined
   `processing["analog"]["analog"]["analog"]` stream. Headstage accelerometer
-  and gyroscope data now carry correct physical units (`g`, `d/s`) via each
-  `TimeSeries.conversion` factor. Stored values are raw int16 and `ts.data[:]`
-  returns raw counts — multiply by `ts.conversion` to get physical units.
+  and gyroscope data now carry physical units in SI (`m/s^2`, `rad/s`, the NWB
+  convention) via each `TimeSeries.conversion` factor; the native sensor scale
+  (±2 g, ±2000 deg/s) is noted in each stream's description. Stored values are
+  raw int16 and `ts.data[:]` returns raw counts — multiply by `ts.conversion`
+  to get the SI value.
   Optional `sensor_units` metadata can override a sensor's unit *label*. #19
 - **Headstage IMU stored at its true rate.** The multiplexed IMU sensors are
   transmitted at the sensor's native rate (~100 Hz) and expanded to the

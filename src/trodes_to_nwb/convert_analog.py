@@ -51,22 +51,29 @@ class SensorConfig:
     pattern: str | None = None
 
 
+# IMU values are stored in SI units (the NWB convention): the TimeSeries
+# ``conversion`` maps the raw int16 counts to the SI unit. The SpikeGadgets sensor
+# sensitivities are 0.000061 g/LSB = 1/16384 (accelerometer, +/-2 g full scale) and
+# 0.061 deg/s/LSB = 2000/32768 (gyroscope, +/-2000 deg/s full scale); these are
+# converted to m/s^2 and rad/s with the constants below.
+STANDARD_GRAVITY_M_S2 = 9.80665  # standard gravity, m/s^2 (CODATA / ISO 80000)
+DEG_TO_RAD = np.pi / 180.0
+ACCEL_G_PER_LSB = 0.000061
+GYRO_DPS_PER_LSB = 0.061
+
 # Sensor type registry. Patterns are anchored with ``$`` so the axis / Ain-number
 # group is the whole channel-name suffix (``Headstage_AccelXfoo`` does not match).
-# The headstage IMU scaling factors are the SpikeGadgets sensor sensitivities:
-# 0.000061 g/LSB = 1/16384 (accelerometer, +/-2 g full scale) and
-# 0.061 deg/s/LSB = 2000/32768 (gyroscope, +/-2000 deg/s full scale).
 SENSOR_TYPE_CONFIG: dict[str, SensorConfig] = {
     "accelerometer": SensorConfig(
-        conversion=0.000061,
-        unit="g",
-        description="Headstage accelerometer",
+        conversion=ACCEL_G_PER_LSB * STANDARD_GRAVITY_M_S2,
+        unit="m/s^2",
+        description="Headstage accelerometer, +/-2 g full scale (0.000061 g/LSB)",
         pattern=r"Headstage_Accel[XYZ]$",
     ),
     "gyroscope": SensorConfig(
-        conversion=0.061,
-        unit="d/s",
-        description="Headstage gyroscope",
+        conversion=GYRO_DPS_PER_LSB * DEG_TO_RAD,
+        unit="rad/s",
+        description="Headstage gyroscope, +/-2000 deg/s full scale (0.061 deg/s/LSB)",
         pattern=r"Headstage_Gyro[XYZ]$",
     ),
     "magnetometer": SensorConfig(

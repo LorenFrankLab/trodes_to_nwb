@@ -668,13 +668,13 @@
                 "accelerometer": {
                     "type": "string",
                     "examples": [
-                        "g"
+                        "m/s^2"
                     ]
                 },
                 "gyroscope": {
                     "type": "string",
                     "examples": [
-                        "d/s"
+                        "rad/s"
                     ]
                 },
                 "magnetometer": {

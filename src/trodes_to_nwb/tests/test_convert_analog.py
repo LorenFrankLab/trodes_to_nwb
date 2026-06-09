@@ -125,8 +125,10 @@ def test_add_analog_data():
     # Headstage IMU: present with physical units, decimated to ~100 Hz.
     accel = nwbfile.acquisition["accelerometer"]
     gyro = nwbfile.acquisition["gyroscope"]
-    assert accel.unit == "g" and accel.conversion == 0.000061
-    assert gyro.unit == "d/s" and gyro.conversion == 0.061
+    assert accel.unit == "m/s^2"
+    assert accel.conversion == pytest.approx(0.000061 * 9.80665)  # g/LSB -> m/s^2
+    assert gyro.unit == "rad/s"
+    assert gyro.conversion == pytest.approx(0.061 * np.pi / 180)  # deg/s/LSB -> rad/s
     assert "magnetometer" not in nwbfile.acquisition  # disabled in this fixture
     for ts in (accel, gyro):
         t = ts.timestamps[:]
@@ -201,12 +203,14 @@ def test_add_analog_data_writes_sensor_acquisitions(monkeypatch):
 
     # IMU: decimated (materialized), raw int16 + its own true-rate timestamps
     acc = nwbfile.acquisition["accelerometer"]
-    assert acc.unit == "g" and acc.conversion == 0.000061
+    assert acc.unit == "m/s^2"
+    assert acc.conversion == pytest.approx(0.000061 * 9.80665)
     assert isinstance(acc.data, np.ndarray)  # decimated, not lazy H5DataIO
     assert (acc.data == accel_data).all()
     assert (acc.timestamps[:] == timestamps[accel_idx]).all()
     g = nwbfile.acquisition["gyroscope"]
-    assert g.conversion == 0.061
+    assert g.unit == "rad/s"
+    assert g.conversion == pytest.approx(0.061 * np.pi / 180)
     assert (g.data == gyro_data).all()
     assert (g.timestamps[:] == timestamps[gyro_idx]).all()
 
@@ -638,10 +642,15 @@ def test_categorize_no_other_when_all_known():
 
 
 def test_sensor_config_conversion_unit_consistency():
-    assert SENSOR_TYPE_CONFIG["accelerometer"].conversion == 0.000061
-    assert SENSOR_TYPE_CONFIG["accelerometer"].unit == "g"
-    assert SENSOR_TYPE_CONFIG["gyroscope"].conversion == 0.061
-    assert SENSOR_TYPE_CONFIG["gyroscope"].unit == "d/s"
+    # IMU stored in SI units (NWB convention): conversion maps raw int16 -> SI
+    assert SENSOR_TYPE_CONFIG["accelerometer"].unit == "m/s^2"
+    assert SENSOR_TYPE_CONFIG["accelerometer"].conversion == pytest.approx(
+        0.000061 * 9.80665
+    )
+    assert SENSOR_TYPE_CONFIG["gyroscope"].unit == "rad/s"
+    assert SENSOR_TYPE_CONFIG["gyroscope"].conversion == pytest.approx(
+        0.061 * np.pi / 180
+    )
     for sensor_type, config in SENSOR_TYPE_CONFIG.items():
         assert config.pattern is not None, f"{sensor_type} must have a pattern"
         re.compile(config.pattern)  # raises re.error if invalid
