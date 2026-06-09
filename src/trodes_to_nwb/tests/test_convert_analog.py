@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 
 import h5py
@@ -7,6 +8,9 @@ import pynwb
 
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_analog import (
+    SENSOR_TYPE_CONFIG,
+    _categorize_sensor_channels,
+    _resolve_sensor_unit,
     add_analog_data,
     get_analog_channel_names,
     update_analog_data,
@@ -170,3 +174,93 @@ def test_selection_of_multiplexed_data():
             )
         )
         assert data.shape[1] == expected
+
+
+def test_categorize_all_sensor_types():
+    channels = [
+        "Headstage_AccelX",
+        "Headstage_AccelY",
+        "Headstage_AccelZ",
+        "Headstage_GyroX",
+        "Headstage_GyroY",
+        "Headstage_GyroZ",
+        "Headstage_MagX",
+        "Headstage_MagY",
+        "Headstage_MagZ",
+        "ECU_Ain1",
+        "Controller_Ain2",
+        "Foo_Bar",
+    ]
+    groups = _categorize_sensor_channels(channels)
+    assert groups["accelerometer"] == [
+        "Headstage_AccelX",
+        "Headstage_AccelY",
+        "Headstage_AccelZ",
+    ]
+    assert groups["gyroscope"] == [
+        "Headstage_GyroX",
+        "Headstage_GyroY",
+        "Headstage_GyroZ",
+    ]
+    assert groups["magnetometer"] == [
+        "Headstage_MagX",
+        "Headstage_MagY",
+        "Headstage_MagZ",
+    ]
+    assert groups["analog_input"] == ["ECU_Ain1", "Controller_Ain2"]
+    assert groups["other"] == ["Foo_Bar"]
+
+
+def test_categorize_preserves_input_order():
+    channels = ["Headstage_AccelY", "Headstage_AccelX", "Headstage_AccelZ"]
+    groups = _categorize_sensor_channels(channels)
+    # Order follows the input, not a sorted order.
+    assert groups["accelerometer"] == channels
+
+
+def test_categorize_patterns_anchored():
+    channels = [
+        "Headstage_AccelXfoo",
+        "Headstage_Accel",
+        "xHeadstage_AccelX",
+        "ECU_Ain10",
+    ]
+    groups = _categorize_sensor_channels(channels)
+    assert "accelerometer" not in groups
+    assert groups["analog_input"] == ["ECU_Ain10"]
+    assert sorted(groups["other"]) == [
+        "Headstage_Accel",
+        "Headstage_AccelXfoo",
+        "xHeadstage_AccelX",
+    ]
+
+
+def test_categorize_empty_returns_empty():
+    assert _categorize_sensor_channels([]) == {}
+
+
+def test_categorize_no_other_when_all_known():
+    groups = _categorize_sensor_channels(["Headstage_AccelX", "ECU_Ain1"])
+    assert "other" not in groups
+
+
+def test_sensor_config_conversion_unit_consistency():
+    assert SENSOR_TYPE_CONFIG["accelerometer"]["conversion"] == 0.000061
+    assert SENSOR_TYPE_CONFIG["accelerometer"]["unit"] == "g"
+    assert SENSOR_TYPE_CONFIG["gyroscope"]["conversion"] == 0.061
+    assert SENSOR_TYPE_CONFIG["gyroscope"]["unit"] == "d/s"
+    for sensor_type, config in SENSOR_TYPE_CONFIG.items():
+        for key in ("pattern", "conversion", "unit", "description"):
+            assert key in config, f"Missing {key} in {sensor_type} config"
+        re.compile(config["pattern"])  # raises re.error if invalid
+
+
+def test_resolve_unit_default():
+    assert _resolve_sensor_unit("accelerometer", "g", None) == "g"
+    assert _resolve_sensor_unit("accelerometer", "g", {}) == "g"
+    assert _resolve_sensor_unit("accelerometer", "g", {"sensor_units": {}}) == "g"
+
+
+def test_resolve_unit_override():
+    metadata = {"sensor_units": {"analog_input": "V"}}
+    assert _resolve_sensor_unit("analog_input", "unspecified", metadata) == "V"
