@@ -50,6 +50,28 @@ _COLUMN_COERCIONS = {
 }
 
 
+def _to_str(value) -> str:
+    """Decode an HDF5 string value to a plain ``str``.
+
+    HDF5 string datasets read back as ``bytes`` and string attributes may read
+    back as either ``bytes`` (fixed-length) or ``str`` (variable-length). Any
+    on-disk string compared against an in-memory/config value must be routed
+    through this helper first, or the comparison can spuriously fail on a
+    ``bytes`` vs ``str`` mismatch.
+
+    Parameters
+    ----------
+    value : bytes or str
+        The value read from an HDF5 dataset or attribute.
+
+    Returns
+    -------
+    str
+        ``value`` decoded as UTF-8 if it was ``bytes``, otherwise ``str(value)``.
+    """
+    return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+
+
 def _canonical_hwchan(value) -> str:
     """Normalize a hardware-channel identifier to a canonical string key.
 
@@ -112,7 +134,9 @@ def build_electrodes_from_config(
         ``UPDATABLE_COLUMNS`` (``group_name``, ``location``, ``rel_x``,
         ``rel_y``, ``rel_z``, ``ntrode_id``, ``channel_id``, ``bad_channel``,
         ``probe_shank``, ``probe_electrode``, ``ref_elect_id``), with string,
-        float, and bool coercions applied as appropriate.
+        float, and bool coercions applied as appropriate. It also contains
+        ``probe_type``, which is used only for device-change detection and is
+        never written back to the file.
 
     Raises
     ------
@@ -316,9 +340,9 @@ def update_electrodes_from_config(
 
         # Build new column data arrays, keyed by hwChan, in existing row order.
         new_data = {col: [] for col in UPDATABLE_COLUMNS}
-        new_data["probe_type"] = (
-            []
-        )  # not updatable, but we still need it for device-change checks
+        # probe_type is not an updatable column, but is needed for the
+        # device-change check below.
+        new_data["probe_type"] = []
         for hw_chan in existing_hw_chans:
             if hw_chan not in hw_chan_to_metadata:
                 raise KeyError(
@@ -335,8 +359,7 @@ def update_electrodes_from_config(
         # both arrays are indexed by the same existing rows.
         if "group_name" in electrodes_group:
             existing_group_names = [
-                v.decode("utf-8") if isinstance(v, bytes) else str(v)
-                for v in electrodes_group["group_name"][:]
+                _to_str(v) for v in electrodes_group["group_name"][:]
             ]
             if len(existing_group_names) != n_electrodes:
                 raise ValueError(
@@ -365,7 +388,7 @@ def update_electrodes_from_config(
         # supported by this update operation and would require a full reconversion.
         if "group" in electrodes_group:
             existing_probe_types = [
-                f[ref]["device"].attrs["probe_type"]
+                _to_str(f[ref]["device"].attrs["probe_type"])
                 for ref in electrodes_group["group"][:]
             ]
             mismatched = [
@@ -373,7 +396,7 @@ def update_electrodes_from_config(
                 for i, (existing, new) in enumerate(
                     zip(existing_probe_types, new_data["probe_type"])
                 )
-                if existing != new
+                if existing != _to_str(new)
             ]
             if mismatched:
                 details = "\n".join(mismatched[:10])

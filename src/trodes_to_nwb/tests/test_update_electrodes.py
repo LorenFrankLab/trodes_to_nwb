@@ -17,6 +17,7 @@ from trodes_to_nwb.tests.utils import data_path
 from trodes_to_nwb.update_electrodes import (
     UPDATABLE_COLUMNS,
     _canonical_hwchan,
+    _to_str,
     build_electrodes_from_config,
     update_electrodes_from_config,
 )
@@ -268,6 +269,30 @@ def test_update_electrodes_device_change_raises():
             )
 
 
+def test_update_electrodes_probe_type_change_raises():
+    """ValueError is raised when the config changes an electrode's probe_type.
+
+    This covers the case where ``group_name`` is unchanged (so the group_name
+    device-change check passes) but the underlying probe model differs.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        nwb_path = Path(tmpdir) / "test.nwb"
+        _create_test_nwb(nwb_path)
+
+        # Change the on-disk device probe_type without touching group_name, so
+        # the config (which still has the original probe_type) mismatches.
+        with h5py.File(str(nwb_path), "a") as f:
+            for name in f["/general/devices"]:
+                device = f["/general/devices"][name]
+                if "probe_type" in device.attrs:
+                    device.attrs["probe_type"] = "a_different_probe_type"
+
+        with pytest.raises(ValueError, match="probe_type changes detected"):
+            update_electrodes_from_config(
+                nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
+            )
+
+
 def test_update_preserves_electrical_series_alignment():
     """Updating metadata must not disturb the electrode-row <-> data-column
     binding, and each row must end up describing the electrode at its hwChan."""
@@ -348,3 +373,19 @@ def test_update_electrodes_missing_required_column_raises():
 def test_canonical_hwchan(value, expected):
     """hwChan keys are canonical across bytes/str/int/float representations."""
     assert _canonical_hwchan(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (b"tetrode", "tetrode"),
+        ("tetrode", "tetrode"),
+        (np.bytes_(b"tetrode"), "tetrode"),
+        (np.str_("tetrode"), "tetrode"),
+    ],
+)
+def test_to_str(value, expected):
+    """On-disk string values decode to a plain str regardless of bytes/str."""
+    result = _to_str(value)
+    assert result == expected
+    assert isinstance(result, str)
