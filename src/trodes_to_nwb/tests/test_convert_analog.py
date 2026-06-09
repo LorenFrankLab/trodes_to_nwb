@@ -454,6 +454,63 @@ def test_get_decimated_multiplexed_real_data():
         )
 
 
+def test_accelerometer_conversion_recovers_gravity():
+    """Physical check that the accelerometer SI conversion is correct.
+
+    An accelerometer always senses gravity, so the magnitude of the 3-axis
+    reading must be ~1 g (9.80665 m/s^2). After applying the stored conversion,
+    the median |acceleration| over the session should land near standard gravity
+    (within tolerance for sensor bias and the animal's own motion). A wrong
+    conversion factor (e.g. forgetting the g->m/s^2 step, or an LSB error) would
+    push this far from 1 g.
+    """
+    io = SpikeGadgetsRawIO(filename=str(data_path / "20230622_sample_01_a1.rec"))
+    io.parse_header()
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    raw, _ = io.get_analogsignal_multiplexed_decimated(accel)
+    physical = raw.astype(float) * SENSOR_TYPE_CONFIG["accelerometer"].conversion
+    magnitude = np.sqrt((physical**2).sum(axis=1))  # m/s^2
+    median_g = np.median(magnitude) / 9.80665
+    # measured ~1.04 g on this fixture; band catches gross (factor) conversion errors
+    assert 0.8 < median_g < 1.25, f"|accel| median {median_g:.3f} g not near gravity"
+
+
+def test_old_and_new_layouts_agree_at_aligned_timepoints():
+    """Convert the same rec file the old (combined, held) and new (per-sensor,
+    decimated) way; the IMU values at the timepoints they share are identical.
+
+    The old combined stream stored raw int16 with no scaling (unit='-1'); the new
+    stream stores the same raw int16 plus a conversion to SI. So at the kept
+    timepoints the raw counts match exactly, and the new physical value is the old
+    raw count times the documented conversion.
+    """
+    rec = data_path / "20230622_sample_01_a1.rec"
+    metadata, _ = convert_yaml.load_metadata(
+        data_path / "20230622_sample_metadata.yml", []
+    )
+    header = convert_rec_header.read_header(rec)
+    new_nwb = convert_yaml.initialize_nwb(metadata, header)
+    add_analog_data(new_nwb, [rec], metadata=metadata)
+    accel_ts = new_nwb.acquisition["accelerometer"]
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+
+    io = SpikeGadgetsRawIO(filename=str(rec))
+    io.parse_header()
+    held = io.get_analogsignal_multiplexed()  # old way: full-rate sample-and-held
+    mux_ids = list(io.multiplexed_channel_xml.keys())
+    cols = [mux_ids.index(c) for c in accel]
+    _, idx = io.get_analogsignal_multiplexed_decimated(accel)
+
+    # raw counts are preserved at the aligned (kept) timepoints: the new stream is
+    # the same data as the old, relocated/decimated, plus an SI conversion factor.
+    # (That the conversion is physically correct is verified separately by
+    # test_accelerometer_conversion_recovers_gravity.)
+    new_raw = accel_ts.data[:]
+    old_raw_at_aligned = held[np.ix_(idx, cols)]
+    assert np.array_equal(new_raw, old_raw_at_aligned)
+    assert accel_ts.conversion == pytest.approx(0.000061 * 9.80665)
+
+
 def test_unknown_sensor_units_key_warns(monkeypatch, caplog):
     """A misspelled sensor_units key is warned about, not silently ignored."""
     ecu_ids = ["ECU_Ain1"]
