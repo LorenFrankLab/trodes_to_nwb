@@ -1,12 +1,17 @@
+from datetime import datetime, timezone
+import logging
 import os
 import re
 import shutil
+import types
 
 import h5py
+from hdmf.backends.hdf5 import H5DataIO
 import numpy as np
 import pynwb
+from pynwb import NWBFile
 
-from trodes_to_nwb import convert_rec_header, convert_yaml
+from trodes_to_nwb import convert_analog, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_analog import (
     SENSOR_TYPE_CONFIG,
     _categorize_sensor_channels,
@@ -19,7 +24,68 @@ from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
 from trodes_to_nwb.tests.utils import data_path
 
 
+class _FakeRecDCI:
+    """Minimal stand-in for RecFileDataChunkIterator over synthetic analog data.
+
+    Exposes just the interface ``add_analog_data`` and
+    ``_AnalogChannelSubsetIterator`` rely on: a combined int16 array whose
+    columns are the ECU analog channels followed by the multiplexed headstage
+    channels, plus ``timestamps``, ``neo_io``, ``_get_maxshape`` and
+    ``_get_data``.
+    """
+
+    def __init__(self, combined_data, multiplexed_ids, timestamps):
+        self._data = combined_data
+        self.timestamps = timestamps
+        self.neo_io = [
+            types.SimpleNamespace(
+                multiplexed_channel_xml=dict.fromkeys(multiplexed_ids)
+            )
+        ]
+
+    def _get_maxshape(self):
+        return self._data.shape
+
+    def _get_data(self, selection):
+        return self._data[selection[0], selection[1]]
+
+
+def _make_minimal_nwbfile():
+    return NWBFile(
+        session_description="test",
+        identifier="test",
+        session_start_time=datetime(2023, 6, 22, tzinfo=timezone.utc),
+    )
+
+
+def _patch_analog_source(
+    monkeypatch, ecu_ids, multiplexed_ids, combined_data, timestamps
+):
+    """Patch add_analog_data's rec-file reads to serve synthetic data."""
+    monkeypatch.setattr(
+        convert_analog, "_get_ecu_analog_channel_ids", lambda path: list(ecu_ids)
+    )
+    fake = _FakeRecDCI(combined_data, multiplexed_ids, timestamps)
+    monkeypatch.setattr(
+        convert_analog, "RecFileDataChunkIterator", lambda *a, **k: fake
+    )
+    return fake
+
+
+def _materialize(dci):
+    """Read a GenericDataChunkIterator fully into a dense array."""
+    out = np.zeros(dci._get_maxshape(), dtype=dci._get_dtype())
+    for chunk in dci:
+        out[chunk.selection] = chunk.data
+    return out
+
+
 def test_add_analog_data():
+    """Integration test (requires downloaded .rec / reference .nwb fixtures).
+
+    Verifies the new acquisition layout and that recombining the per-sensor
+    raw int16 streams reproduces the reference combined analog stream exactly.
+    """
     # load metadata yml and make nwb file
     metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
@@ -28,60 +94,172 @@ def test_add_analog_data():
     rec_header = convert_rec_header.read_header(rec_file)
     # make file with data
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
-    get_analog_channel_names(rec_header)
-    add_analog_data(nwbfile, [rec_file])
+    add_analog_data(nwbfile, [rec_file], metadata=metadata)
+
+    # New layout: per-sensor TimeSeries in acquisition, no combined processing stream.
+    assert "analog" not in nwbfile.processing
+    assert len(nwbfile.acquisition) > 0
+    if "accelerometer" in nwbfile.acquisition:
+        assert nwbfile.acquisition["accelerometer"].unit == "g"
+        assert nwbfile.acquisition["accelerometer"].conversion == 0.000061
+    if "gyroscope" in nwbfile.acquisition:
+        assert nwbfile.acquisition["gyroscope"].unit == "d/s"
+        assert nwbfile.acquisition["gyroscope"].conversion == 0.061
+
     # save file
     filename = "test_add_analog.nwb"
     with pynwb.NWBHDF5IO(filename, "w") as io:
         io.write(nwbfile)
-    # read new and rec_to_nwb_file. Compare.
-    with pynwb.NWBHDF5IO(filename, "r", load_namespaces=True) as io:
-        read_nwbfile = io.read()
-        assert "analog" in read_nwbfile.processing
-        assert "analog" in read_nwbfile.processing["analog"].data_interfaces
-        assert "analog" in read_nwbfile.processing["analog"]["analog"].time_series
-        assert read_nwbfile.processing["analog"]["analog"]["analog"].data.chunks == (
-            16384,
-            22,
-        )
+    try:
+        with pynwb.NWBHDF5IO(filename, "r", load_namespaces=True) as io:
+            read_nwbfile = io.read()
+            assert "analog" not in read_nwbfile.processing
 
-        with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
-            old_nwbfile = io2.read()
+            # Map every channel back to its stored (raw int16) column.
+            new_by_channel = {}
+            for ts in read_nwbfile.acquisition.values():
+                channel_names = ts.description.split(": ", 1)[1].split(", ")
+                for col, channel in enumerate(channel_names):
+                    new_by_channel[channel] = ts.data[:, col]
 
-            # get index mapping of channels
-            id_order = read_nwbfile.processing["analog"]["analog"][
-                "analog"
-            ].description.split("   ")[:-1]
-            old_id_order = old_nwbfile.processing["analog"]["analog"][
-                "analog"
-            ].description.split("   ")[:-1]
-            index_order = [old_id_order.index(id) for id in id_order]
-            # TODO check that all the same channels are present
+            with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
+                old_nwbfile = io2.read()
+                old_ts = old_nwbfile.processing["analog"]["analog"]["analog"]
+                old_id_order = old_ts.description.split("   ")[:-1]
 
-            # compare data
-            assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data.shape
-                == old_nwbfile.processing["analog"]["analog"]["analog"].data.shape
-            )
-            # compare matching for first timepoint
-            assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data[0, :]
-                == old_nwbfile.processing["analog"]["analog"]["analog"].data[0, :][
-                    index_order
-                ]
-            ).all()
-            # compare one channel across all timepoints
-            test_index = 14  # channel with non-zero data
-            assert (
-                read_nwbfile.processing["analog"]["analog"]["analog"].data[
-                    :, test_index
-                ]
-                == old_nwbfile.processing["analog"]["analog"]["analog"].data[
-                    :, index_order[test_index]
-                ]
-            ).all()
-    # cleanup
-    # os.remove(filename)
+                # same channels are present
+                assert set(new_by_channel) == set(old_id_order)
+                # raw values match the reference, per channel, across all timepoints
+                for col, channel in enumerate(old_id_order):
+                    assert (new_by_channel[channel] == old_ts.data[:, col]).all()
+    finally:
+        os.remove(filename)
+
+
+def test_add_analog_data_writes_sensor_acquisitions(monkeypatch):
+    """Synthetic: sensors land in acquisition, scaled via conversion, lazily."""
+    ecu_ids = ["ECU_Ain1", "ECU_Ain2"]
+    mux_ids = [
+        "Headstage_AccelX",
+        "Headstage_AccelY",
+        "Headstage_AccelZ",
+        "Headstage_GyroX",
+        "Headstage_GyroY",
+        "Headstage_GyroZ",
+    ]
+    all_ids = ecu_ids + mux_ids
+    n_time = 100
+    combined = np.arange(n_time * len(all_ids), dtype=np.int16).reshape(
+        n_time, len(all_ids)
+    )
+    timestamps = np.arange(n_time, dtype=float)
+    _patch_analog_source(monkeypatch, ecu_ids, mux_ids, combined, timestamps)
+
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["fake.rec"])
+
+    # replaced, not added alongside, the combined processing stream
+    assert "analog" not in nwbfile.processing
+    assert set(nwbfile.acquisition) == {"analog_input", "accelerometer", "gyroscope"}
+
+    accel = nwbfile.acquisition["accelerometer"]
+    assert accel.unit == "g"
+    assert accel.conversion == 0.000061
+    assert nwbfile.acquisition["gyroscope"].conversion == 0.061
+    assert nwbfile.acquisition["analog_input"].conversion == 1.0
+
+    # lazy: data backed by H5DataIO over an iterator, not a dense ndarray
+    assert isinstance(accel.data, H5DataIO)
+
+    # parity: stored raw int16 (no pre-scaling) reproduces the source columns
+    for ts in nwbfile.acquisition.values():
+        channel_names = ts.description.split(": ", 1)[1].split(", ")
+        materialized = _materialize(ts.data.data)
+        for col, channel in enumerate(channel_names):
+            assert (materialized[:, col] == combined[:, all_ids.index(channel)]).all()
+
+
+def test_add_analog_data_stream_spans_full_source_length(monkeypatch):
+    """Synthetic: the acquisition stream covers the whole source, not a prefix.
+
+    Guards the assembly side of multi-file handling: ``add_analog_data`` must
+    size each stream from the shared iterator's full ``_get_maxshape()`` rather
+    than reading a single file. (The real cross-file stitching lives in
+    ``RecFileDataChunkIterator`` and is covered by the integration tests.)
+    """
+    ecu_ids = ["ECU_Ain1"]
+    n_time = 250
+    combined = np.arange(n_time, dtype=np.int16).reshape(n_time, 1)
+    _patch_analog_source(
+        monkeypatch, ecu_ids, [], combined, np.arange(n_time, dtype=float)
+    )
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["a.rec", "b.rec"])
+    materialized = _materialize(nwbfile.acquisition["analog_input"].data.data)
+    assert materialized.shape[0] == n_time
+
+
+def test_add_analog_data_multifile_longer_than_single(monkeypatch):
+    """Integration: a two-file conversion is strictly longer than one file.
+
+    Requires downloaded .rec fixtures. Directly guards against reading only the
+    first rec file (the truncation failure mode), exercising the real
+    RecFileDataChunkIterator cross-file read.
+    """
+    rec1 = data_path / "20230622_sample_01_a1.rec"
+    rec2 = data_path / "20230622_sample_02_a1.rec"
+    metadata, _ = convert_yaml.load_metadata(
+        data_path / "20230622_sample_metadata.yml", []
+    )
+    rec_header = convert_rec_header.read_header(rec1)
+
+    nwb_single = convert_yaml.initialize_nwb(metadata, rec_header)
+    add_analog_data(nwb_single, [rec1], metadata=metadata)
+    nwb_multi = convert_yaml.initialize_nwb(metadata, rec_header)
+    add_analog_data(nwb_multi, [rec1, rec2], metadata=metadata)
+
+    stream_name = next(iter(nwb_single.acquisition))
+    len_single = nwb_single.acquisition[stream_name].data.data._get_maxshape()[0]
+    len_multi = nwb_multi.acquisition[stream_name].data.data._get_maxshape()[0]
+    assert len_multi > len_single
+
+
+def test_sensor_unit_metadata_override(monkeypatch):
+    """Synthetic: metadata overrides the unit label only, not the conversion."""
+    ecu_ids = ["ECU_Ain1"]
+    combined = np.zeros((10, 1), dtype=np.int16)
+    _patch_analog_source(monkeypatch, ecu_ids, [], combined, np.arange(10, dtype=float))
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(
+        nwbfile, ["fake.rec"], metadata={"sensor_units": {"analog_input": "V"}}
+    )
+    analog_input = nwbfile.acquisition["analog_input"]
+    assert analog_input.unit == "V"
+    assert analog_input.conversion == 1.0
+
+
+def test_other_channels_logged(monkeypatch, caplog):
+    """Synthetic: unrecognized channels become an 'other' stream and are warned."""
+    ecu_ids = ["ECU_Ain1", "Mystery_Chan"]
+    combined = np.zeros((5, 2), dtype=np.int16)
+    _patch_analog_source(monkeypatch, ecu_ids, [], combined, np.arange(5, dtype=float))
+    nwbfile = _make_minimal_nwbfile()
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        add_analog_data(nwbfile, ["fake.rec"])
+    assert "other" in nwbfile.acquisition
+    assert "Mystery_Chan" in caplog.text
+
+
+def test_analog_subset_iterator_parity():
+    """The subset iterator yields the requested columns (non-contiguous, reordered)."""
+    n_time, n_cols = 100, 5
+    data = np.arange(n_time * n_cols, dtype=np.int16).reshape(n_time, n_cols)
+    fake = _FakeRecDCI(data, [], np.arange(n_time, dtype=float))
+    columns = [3, 1, 4]  # non-contiguous and reordered
+    iterator = convert_analog._AnalogChannelSubsetIterator(fake, columns)
+    assert iterator._get_maxshape() == (n_time, len(columns))
+    assert iterator._get_dtype() == np.dtype("int16")
+    assert (_materialize(iterator) == data[:, columns]).all()
 
 
 def test_update_analog_data():

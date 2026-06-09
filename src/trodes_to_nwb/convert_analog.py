@@ -1,5 +1,6 @@
 """Module for handling the conversion of ECU analog and headstage sensor data streams from Trodes .rec files to NWB format."""
 
+import logging
 import re
 from xml.etree import ElementTree
 
@@ -7,6 +8,7 @@ import h5py
 import numpy as np
 import pynwb
 from hdmf.backends.hdf5 import H5DataIO
+from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header
@@ -134,14 +136,65 @@ def _resolve_sensor_unit(
     return default_unit
 
 
+class _AnalogChannelSubsetIterator(GenericDataChunkIterator):
+    """Lazily yield a fixed subset of channel columns from a shared analog iterator.
+
+    Reuses the source ``RecFileDataChunkIterator``'s multi-file, demux-correct
+    reads. Stores raw int16 values unchanged; physical scaling is carried by the
+    owning ``TimeSeries.conversion`` field, so nothing is upcast or materialized
+    here.
+
+    Parameters
+    ----------
+    source : RecFileDataChunkIterator
+        Shared iterator over the combined analog stream (ECU analog channels
+        followed by multiplexed headstage channels).
+    column_indices : list[int]
+        Column positions, into the combined stream, for this sensor's channels,
+        in output order.
+    """
+
+    def __init__(self, source, column_indices):
+        self._source = source
+        self._column_indices = list(column_indices)
+        self._n_time, self._n_source_cols = source._get_maxshape()
+        super().__init__()
+
+    def _get_data(self, selection: tuple[slice, slice]) -> np.ndarray:
+        # Read this time-chunk across all source columns (cheap: tens of columns
+        # from one packet stream), then pick out the columns for this sensor.
+        # selection bounds are concrete integers supplied by the base class.
+        full = self._source._get_data((selection[0], slice(0, self._n_source_cols)))
+        subset = full[:, self._column_indices]
+        return subset[:, selection[1]]
+
+    def _get_maxshape(self) -> tuple[int, int]:
+        return (self._n_time, len(self._column_indices))
+
+    def _get_dtype(self) -> np.dtype:
+        return np.dtype("int16")
+
+
 def add_analog_data(
     nwbfile: NWBFile,
     rec_file_path: list[str],
     timestamps: np.ndarray = None,
     behavior_only: bool = False,
+    metadata: dict | None = None,
     **kwargs,
 ) -> None:
-    """Adds analog streams to the nwb file.
+    """Adds analog streams to the nwb file as separate, scaled acquisition TimeSeries.
+
+    Headstage IMU sensors (accelerometer, gyroscope, magnetometer) and ECU
+    analog inputs are written as individual ``TimeSeries`` in
+    ``nwbfile.acquisition``, one per sensor type, with the physical unit and
+    scaling carried by each ``TimeSeries.conversion`` field. Data stays lazy and
+    chunked via ``H5DataIO``: raw int16 samples are stored unchanged and scaling
+    is applied on read (``stored * conversion``), so memory use is independent of
+    session length.
+
+    Channels matching no known sensor pattern are written, unscaled, to an
+    ``"other"`` acquisition stream and logged at WARNING.
 
     Parameters
     ----------
@@ -153,58 +206,78 @@ def add_analog_data(
         Array of timestamps for the analog data.
     behavior_only : bool, optional
         Whether to process only behavior data, by default False.
+    metadata : dict, optional
+        Metadata dictionary. A ``"sensor_units"`` mapping may override the unit
+        *label* of any sensor type (it does not change the numeric conversion).
     **kwargs
         Additional keyword arguments.
     """
-    # TODO: ADD HEADSTAGE DATA
+    logger = logging.getLogger("convert")
 
-    # get the ids of the analog channels from the first rec file header
-    analog_channel_ids = _get_ecu_analog_channel_ids(rec_file_path[0])
-
-    # make the data chunk iterator
-    # TODO use the stream name instead of the stream index to be more robust
+    # ECU analog channels come first in the combined stream, then the multiplexed
+    # headstage sensor channels appended by RecFileDataChunkIterator.
+    ecu_analog_ids = _get_ecu_analog_channel_ids(rec_file_path[0])
     rec_dci = RecFileDataChunkIterator(
         rec_file_path,
-        nwb_hw_channel_order=analog_channel_ids,
+        nwb_hw_channel_order=ecu_analog_ids,
         stream_id="ECU_analog",
         is_analog=True,
         timestamps=timestamps,
         behavior_only=behavior_only,
     )
-
-    # add headstage channel IDs to the list of analog channel IDs
-    analog_channel_ids.extend(rec_dci.neo_io[0].multiplexed_channel_xml.keys())
-
-    # (16384, 32) chunks of dtype int16 (2 bytes) is 1 MB, which is recommended
-    # by studies by the NWB team.
-    # could also add compression here. zstd/blosc-zstd are recommended by the NWB team, but
-    # they require the hdf5plugin library to be installed. gzip is available by default.
-    data_data_io = H5DataIO(
-        rec_dci,
-        chunks=(
-            DEFAULT_CHUNK_TIME_DIM,
-            min(len(analog_channel_ids), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
-        ),
-    )
-
-    # make the objects to add to the nwb file
-    nwbfile.create_processing_module(
-        name="analog", description="Contains all analog data"
-    )
-    analog_events = pynwb.behavior.BehavioralEvents(name="analog")
-    analog_events.add_timeseries(
-        pynwb.TimeSeries(
-            name="analog",
-            description=__merge_row_description(
-                analog_channel_ids
-            ),  # NOTE: matches rec_to_nwb system
-            data=data_data_io,
-            timestamps=rec_dci.timestamps,
-            unit="-1",
+    multiplexed_ids = list(rec_dci.neo_io[0].multiplexed_channel_xml.keys())
+    all_channel_ids = ecu_analog_ids + multiplexed_ids
+    if not all_channel_ids:
+        logger.info(
+            "No analog channels found in %s; skipping analog data.", rec_file_path[0]
         )
-    )
-    # add it to the nwb file
-    nwbfile.processing["analog"].add(analog_events)
+        return
+
+    groups = _categorize_sensor_channels(all_channel_ids)
+
+    # Cap the time-axis chunk at the session length so short sessions (fewer than
+    # DEFAULT_CHUNK_TIME_DIM samples) get a valid HDF5 chunk shape.
+    n_time = rec_dci._get_maxshape()[0]
+    chunk_time_dim = min(DEFAULT_CHUNK_TIME_DIM, n_time)
+
+    # All sensor streams share one timestamps dataset: the first TimeSeries owns
+    # it; the rest link to that object so pynwb stores it only once.
+    shared_timestamps = rec_dci.timestamps
+    first_ts = None
+    for sensor_type, channel_names in groups.items():
+        if sensor_type == "other":
+            logger.warning(
+                "Analog channels matched no known sensor pattern and are stored "
+                "raw (unit='unspecified') under acquisition['other']: %s",
+                channel_names,
+            )
+            config = _OTHER_CONFIG
+        else:
+            config = SENSOR_TYPE_CONFIG[sensor_type]
+
+        column_indices = [all_channel_ids.index(name) for name in channel_names]
+        data_iter = _AnalogChannelSubsetIterator(rec_dci, column_indices)
+        data_io = H5DataIO(
+            data_iter,
+            chunks=(
+                chunk_time_dim,
+                min(len(column_indices), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
+            ),
+        )
+        unit = _resolve_sensor_unit(sensor_type, config["unit"], metadata)
+        description = f"{config['description']}: {', '.join(channel_names)}"
+
+        timeseries = pynwb.TimeSeries(
+            name=sensor_type,
+            description=description,
+            data=data_io,
+            unit=unit,
+            conversion=config["conversion"],
+            timestamps=(first_ts if first_ts is not None else shared_timestamps),
+        )
+        nwbfile.add_acquisition(timeseries)
+        if first_ts is None:
+            first_ts = timeseries
 
 
 _NWB_ANALOG_DATA_PATH = "processing/analog/analog/analog/data"
@@ -222,6 +295,11 @@ def update_analog_data(
     Use this function to fix NWB files created before the analog demuxing bug
     was corrected (where ``interleavedDataIDByte`` was not offset by the device
     start byte, causing multiplexed channels to be read incorrectly).
+
+    This targets the *legacy* file layout, where analog data lives in a single
+    combined ``processing/analog/analog/analog/data`` stream. Files written by
+    the current :func:`add_analog_data` instead store per-sensor TimeSeries in
+    ``acquisition`` and are not handled here.
 
     Parameters
     ----------
@@ -274,10 +352,6 @@ def update_analog_data(
         # Write data chunk-by-chunk to avoid loading the full dataset into memory
         for chunk in rec_dci:
             dataset[chunk.selection] = chunk.data
-
-
-def __merge_row_description(row_ids: list[str]) -> str:
-    return "   ".join(row_ids) + "   "
 
 
 def get_analog_channel_names(header: ElementTree) -> list[str]:
