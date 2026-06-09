@@ -15,8 +15,10 @@ import pytest
 from trodes_to_nwb import convert_analog, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_analog import (
     SENSOR_TYPE_CONFIG,
+    SensorConfig,
     _categorize_sensor_channels,
     _resolve_sensor_unit,
+    _unique_acquisition_name,
     add_analog_data,
     update_analog_data,
 )
@@ -157,6 +159,7 @@ def test_add_analog_data():
             for nm, ts in read_nwbfile.acquisition.items():
                 if nm in imu_names:
                     continue
+                # contract: add_analog_data writes "<description>: ch1, ch2, ..."
                 channels = ts.description.split(": ", 1)[1].split(", ")
                 for col, channel in enumerate(channels):
                     new_by_channel[channel] = ts.data[:, col]
@@ -242,7 +245,7 @@ def test_add_analog_data_stream_spans_full_source_length(monkeypatch):
     assert materialized.shape[0] == n_time
 
 
-def test_add_analog_data_multifile_longer_than_single(monkeypatch):
+def test_add_analog_data_multifile_longer_than_single():
     """Integration: a two-file conversion is strictly longer than one file.
 
     Requires downloaded .rec fixtures. Directly guards against reading only the
@@ -404,6 +407,30 @@ def test_disabled_sensor_omitted_and_logged(monkeypatch, caplog):
         add_analog_data(nwbfile, ["fake.rec"])
     assert "magnetometer" not in nwbfile.acquisition
     assert "no sampled data (disabled)" in caplog.text
+
+
+def test_controller_analog_input_is_separate_decimated_stream(monkeypatch):
+    """Controller_Ain* rides the multiplexed stream -> its own decimated stream,
+    distinct from the full-rate ECU 'analog_input'."""
+    ecu_ids = ["ECU_Ain1"]  # full-rate ECU -> "analog_input"
+    controller = ["Controller_Ain1", "Controller_Ain2"]  # multiplexed -> decimated
+    combined = np.zeros((20, len(ecu_ids) + len(controller)), dtype=np.int16)
+    ctrl_data = np.array([[7, 8], [9, 10]], dtype=np.int16)
+    ctrl_idx = np.array([3, 12])
+    decimated = {tuple(controller): (ctrl_data, ctrl_idx)}
+    timestamps = np.arange(20, dtype=float)
+    _patch_analog_source(
+        monkeypatch, ecu_ids, controller, combined, timestamps, decimated
+    )
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["fake.rec"])
+
+    assert "analog_input" in nwbfile.acquisition  # ECU, full-rate (lazy)
+    assert isinstance(nwbfile.acquisition["analog_input"].data, H5DataIO)
+    cai = nwbfile.acquisition["controller_analog_input"]  # multiplexed, decimated
+    assert isinstance(cai.data, np.ndarray)
+    assert (cai.data == ctrl_data).all()
+    assert (cai.timestamps[:] == timestamps[ctrl_idx]).all()
 
 
 def test_ecu_streams_share_timestamps_imu_independent(monkeypatch):
@@ -595,13 +622,12 @@ def _write_legacy_combined_analog(nwbfile, rec_file_path):
     nwbfile.processing["analog"].add(analog_events)
 
 
-def test_update_analog_data():
-    """Test that update_analog_data correctly overwrites data in an existing NWB file."""
+def test_update_analog_data(tmp_path):
+    """update_analog_data restores the analog data in a legacy-layout NWB file."""
     rec_files = [
         data_path / "20230622_sample_01_a1.rec",
         data_path / "20230622_sample_02_a1.rec",
     ]
-
     metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     rec_header = convert_rec_header.read_header(rec_files[0])
@@ -610,47 +636,31 @@ def test_update_analog_data():
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
     _write_legacy_combined_analog(nwbfile, rec_files)
 
-    # save file
-    ref_filename = "correctly_added_analog.nwb"
+    ref_filename = str(tmp_path / "correctly_added_analog.nwb")
     with pynwb.NWBHDF5IO(ref_filename, "w") as io:
         io.write(nwbfile)
 
-    # Copy the reference NWB file so we don't modify the original
-    buggy_filename = "test_update_analog_buggy.nwb"
+    # copy the reference and zero its analog data to simulate the pre-fix state
+    buggy_filename = str(tmp_path / "test_update_analog_buggy.nwb")
     shutil.copy(ref_filename, buggy_filename)
-
-    # Zero out the analog data in the copy to simulate the pre-fix (buggy) state
     with h5py.File(buggy_filename, "r+") as f:
         analog_hdf5_path = "processing/analog/analog/analog/data"
         f[analog_hdf5_path][...] = np.zeros_like(f[analog_hdf5_path][()])
-
-    # Confirm data was zeroed out
     with pynwb.NWBHDF5IO(buggy_filename, "r", load_namespaces=True) as io:
-        buggy_nwbfile = io.read()
-        buggy_data = buggy_nwbfile.processing["analog"]["analog"]["analog"].data[:]
+        buggy_data = io.read().processing["analog"]["analog"]["analog"].data[:]
     assert (buggy_data == 0).all(), "Buggy data should be all zeros before update"
 
-    # Run the update function (timestamps default to those already in the NWB file)
+    # run the repair (timestamps default to those already in the NWB file)
     update_analog_data(buggy_filename, rec_files)
 
-    print("buggy file name: \n", buggy_filename)
     with pynwb.NWBHDF5IO(ref_filename, "r", load_namespaces=True) as io:
-        correct_nwbfile = io.read()
-        correct_data = correct_nwbfile.processing["analog"]["analog"]["analog"].data[:]
-
+        correct_data = io.read().processing["analog"]["analog"]["analog"].data[:]
     with pynwb.NWBHDF5IO(buggy_filename, "r", load_namespaces=True) as io:
-        updated_nwbfile = io.read()
-        updated_data = updated_nwbfile.processing["analog"]["analog"]["analog"].data[:]
+        updated_data = io.read().processing["analog"]["analog"]["analog"].data[:]
 
-    # Map channel indices from the updated file into the correct file's ordering
-    assert correct_data.shape == updated_data.shape
-    # compare one non-zero multiplexed channel across all timepoints
-    test_index = 14
-    assert (correct_data[:, test_index] == updated_data[:, test_index]).all()
-
-    # cleanup
-    os.remove(buggy_filename)
-    os.remove(ref_filename)
+    # the repaired file matches the correct file on every channel and timepoint
+    assert updated_data.shape == correct_data.shape
+    assert np.array_equal(updated_data, correct_data)
 
 
 def test_selection_of_multiplexed_data():
@@ -775,6 +785,44 @@ def test_sensor_config_conversion_unit_consistency():
 def test_sensor_config_is_immutable():
     with pytest.raises(FrozenInstanceError):
         SENSOR_TYPE_CONFIG["accelerometer"].conversion = 1.0
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"conversion": 0.0},
+        {"conversion": float("nan")},
+        {"conversion": float("inf")},
+        {"unit": ""},
+    ],
+)
+def test_sensor_config_rejects_invalid(bad):
+    """__post_init__ rejects a non-finite/zero conversion or an empty unit."""
+    kwargs = {"conversion": 1.0, "unit": "g", "description": "d", **bad}
+    with pytest.raises(ValueError):
+        SensorConfig(**kwargs)
+
+
+def test_unique_acquisition_name_dedups_and_warns(caplog):
+    """A colliding acquisition name is suffixed and warned, not silently dropped."""
+    logger = logging.getLogger("convert")
+    nwbfile = _make_minimal_nwbfile()
+    # first use of a name is returned unchanged
+    assert _unique_acquisition_name(nwbfile, "analog_input", logger) == "analog_input"
+    nwbfile.add_acquisition(
+        pynwb.TimeSeries(name="analog_input", data=[0], unit="unspecified", rate=1.0)
+    )
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        assert (
+            _unique_acquisition_name(nwbfile, "analog_input", logger)
+            == "analog_input_2"
+        )
+    assert "already exists" in caplog.text
+    # a third collision increments the suffix
+    nwbfile.add_acquisition(
+        pynwb.TimeSeries(name="analog_input_2", data=[0], unit="unspecified", rate=1.0)
+    )
+    assert _unique_acquisition_name(nwbfile, "analog_input", logger) == "analog_input_3"
 
 
 def test_resolve_unit_default():

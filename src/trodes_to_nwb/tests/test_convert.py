@@ -241,13 +241,17 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
                     == old_analog.data[:analog_size, old_col]
                 ).all()
 
-        # headstage IMU sensors decimated to their true rate carry SI units
-        if "accelerometer" in nwbfile.acquisition:
+        # headstage IMU sensors decimated to their true rate carry SI units. Tie
+        # presence to the reference so a regression that drops a sensor entirely
+        # fails here rather than passing vacuously.
+        if any(c.startswith("Headstage_Accel") for c in old_full_order):
+            assert "accelerometer" in nwbfile.acquisition
             accel = nwbfile.acquisition["accelerometer"]
             assert accel.unit == "m/s^2"
             assert np.isclose(accel.conversion, 0.000061 * 9.80665)
             assert accel.data.shape[0] < analog_size  # decimated, not held full-rate
-        if "gyroscope" in nwbfile.acquisition:
+        if any(c.startswith("Headstage_Gyro") for c in old_full_order):
+            assert "gyroscope" in nwbfile.acquisition
             gyro = nwbfile.acquisition["gyroscope"]
             assert gyro.unit == "rad/s"
             assert np.isclose(gyro.conversion, 0.061 * np.pi / 180)
