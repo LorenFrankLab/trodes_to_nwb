@@ -1,14 +1,15 @@
 """Module for handling the conversion of ECU analog and headstage sensor data streams from Trodes .rec files to NWB format."""
 
+from dataclasses import dataclass
 import logging
 import re
 from xml.etree import ElementTree
 
 import h5py
-import numpy as np
-import pynwb
 from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import GenericDataChunkIterator
+import numpy as np
+import pynwb
 from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header
@@ -34,46 +35,60 @@ def _get_ecu_analog_channel_ids(rec_file_path: str) -> list[str]:
     ]
 
 
-# Sensor type registry. ``conversion`` is the NWB ``TimeSeries.conversion`` factor
-# (stored_int16 * conversion = value in ``unit``), NOT a pre-multiplier applied to
-# the array. Patterns are anchored with ``$`` so the axis / Ain-number group is the
-# whole channel-name suffix (``Headstage_AccelXfoo`` does not match). The headstage
-# IMU scaling factors are the SpikeGadgets sensor sensitivities:
+@dataclass(frozen=True)
+class SensorConfig:
+    """Scaling/unit/naming for one analog sensor type.
+
+    ``conversion`` is the NWB ``TimeSeries.conversion`` factor
+    (``stored_int16 * conversion = value in unit``), NOT a pre-multiplier applied
+    to the array. ``pattern`` is an anchored regex matching this sensor's channel
+    names, or ``None`` for the catch-all ("other") bucket that matches no pattern.
+    """
+
+    conversion: float
+    unit: str
+    description: str
+    pattern: str | None = None
+
+
+# Sensor type registry. Patterns are anchored with ``$`` so the axis / Ain-number
+# group is the whole channel-name suffix (``Headstage_AccelXfoo`` does not match).
+# The headstage IMU scaling factors are the SpikeGadgets sensor sensitivities:
 # 0.000061 g/LSB = 1/16384 (accelerometer, +/-2 g full scale) and
 # 0.061 deg/s/LSB = 2000/32768 (gyroscope, +/-2000 deg/s full scale).
-SENSOR_TYPE_CONFIG: dict[str, dict] = {
-    "accelerometer": {
-        "pattern": r"Headstage_Accel[XYZ]$",
-        "conversion": 0.000061,
-        "unit": "g",
-        "description": "Headstage accelerometer",
-    },
-    "gyroscope": {
-        "pattern": r"Headstage_Gyro[XYZ]$",
-        "conversion": 0.061,
-        "unit": "d/s",
-        "description": "Headstage gyroscope",
-    },
-    "magnetometer": {
-        "pattern": r"Headstage_Mag[XYZ]$",
-        "conversion": 1.0,  # no calibrated magnetometer scaling is defined
-        "unit": "unspecified",
-        "description": "Headstage magnetometer",
-    },
-    "analog_input": {
-        "pattern": r"(ECU_Ain\d+|Controller_Ain\d+)$",
-        "conversion": 1.0,  # raw counts; no counts->volts factor is defined
-        "unit": "unspecified",
-        "description": "ECU analog input",
-    },
+SENSOR_TYPE_CONFIG: dict[str, SensorConfig] = {
+    "accelerometer": SensorConfig(
+        conversion=0.000061,
+        unit="g",
+        description="Headstage accelerometer",
+        pattern=r"Headstage_Accel[XYZ]$",
+    ),
+    "gyroscope": SensorConfig(
+        conversion=0.061,
+        unit="d/s",
+        description="Headstage gyroscope",
+        pattern=r"Headstage_Gyro[XYZ]$",
+    ),
+    "magnetometer": SensorConfig(
+        conversion=1.0,  # no calibrated magnetometer scaling is defined
+        unit="unspecified",
+        description="Headstage magnetometer",
+        pattern=r"Headstage_Mag[XYZ]$",
+    ),
+    "analog_input": SensorConfig(
+        conversion=1.0,  # raw counts; no counts->volts factor is defined
+        unit="unspecified",
+        description="ECU analog input",
+        pattern=r"(ECU_Ain\d+|Controller_Ain\d+)$",
+    ),
 }
 
-# Used directly (not a SENSOR_TYPE_CONFIG entry) for channels matching no pattern.
-_OTHER_CONFIG = {
-    "conversion": 1.0,
-    "unit": "unspecified",
-    "description": "Uncategorized analog channel",
-}
+# Used for channels matching no pattern (pattern=None marks the catch-all).
+_OTHER_CONFIG = SensorConfig(
+    conversion=1.0,
+    unit="unspecified",
+    description="Uncategorized analog channel",
+)
 
 
 def _categorize_sensor_channels(channel_names: list[str]) -> dict[str, list[str]]:
@@ -94,7 +109,7 @@ def _categorize_sensor_channels(channel_names: list[str]) -> dict[str, list[str]
     """
     categorized: dict[str, list[str]] = {}
     for sensor_type, config in SENSOR_TYPE_CONFIG.items():
-        pattern = config["pattern"]
+        pattern = config.pattern
         matching = [name for name in channel_names if re.match(pattern, name)]
         if matching:
             categorized[sensor_type] = matching
@@ -283,15 +298,15 @@ def add_analog_data(
                 min(len(column_indices), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
             ),
         )
-        unit = _resolve_sensor_unit(sensor_type, config["unit"], metadata)
-        description = f"{config['description']}: {', '.join(channel_names)}"
+        unit = _resolve_sensor_unit(sensor_type, config.unit, metadata)
+        description = f"{config.description}: {', '.join(channel_names)}"
 
         timeseries = pynwb.TimeSeries(
             name=sensor_type,
             description=description,
             data=data_io,
             unit=unit,
-            conversion=config["conversion"],
+            conversion=config.conversion,
             timestamps=(first_ts if first_ts is not None else shared_timestamps),
         )
         nwbfile.add_acquisition(timeseries)

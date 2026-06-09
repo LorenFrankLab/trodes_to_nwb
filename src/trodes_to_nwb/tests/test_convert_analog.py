@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
 import logging
 import os
@@ -563,14 +564,18 @@ def test_categorize_no_other_when_all_known():
 
 
 def test_sensor_config_conversion_unit_consistency():
-    assert SENSOR_TYPE_CONFIG["accelerometer"]["conversion"] == 0.000061
-    assert SENSOR_TYPE_CONFIG["accelerometer"]["unit"] == "g"
-    assert SENSOR_TYPE_CONFIG["gyroscope"]["conversion"] == 0.061
-    assert SENSOR_TYPE_CONFIG["gyroscope"]["unit"] == "d/s"
+    assert SENSOR_TYPE_CONFIG["accelerometer"].conversion == 0.000061
+    assert SENSOR_TYPE_CONFIG["accelerometer"].unit == "g"
+    assert SENSOR_TYPE_CONFIG["gyroscope"].conversion == 0.061
+    assert SENSOR_TYPE_CONFIG["gyroscope"].unit == "d/s"
     for sensor_type, config in SENSOR_TYPE_CONFIG.items():
-        for key in ("pattern", "conversion", "unit", "description"):
-            assert key in config, f"Missing {key} in {sensor_type} config"
-        re.compile(config["pattern"])  # raises re.error if invalid
+        assert config.pattern is not None, f"{sensor_type} must have a pattern"
+        re.compile(config.pattern)  # raises re.error if invalid
+
+
+def test_sensor_config_is_immutable():
+    with pytest.raises(FrozenInstanceError):
+        SENSOR_TYPE_CONFIG["accelerometer"].conversion = 1.0
 
 
 def test_resolve_unit_default():
