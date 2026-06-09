@@ -373,6 +373,7 @@ def update_electrodes_from_config(
                 for i, (existing, new) in enumerate(
                     zip(existing_probe_types, new_data["probe_type"])
                 )
+                if existing != new
             ]
             if mismatched:
                 details = "\n".join(mismatched[:10])
