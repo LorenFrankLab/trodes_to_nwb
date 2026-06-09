@@ -1,12 +1,10 @@
 import os
-import shutil
 from pathlib import Path
-from unittest.mock import patch
+import shutil
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from pynwb import NWBHDF5IO
-
-from unittest.mock import MagicMock
 
 from trodes_to_nwb.convert import (
     check_file_timing,
@@ -208,42 +206,49 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
 
     # check analog data. Analog now lives as per-sensor TimeSeries in
     # acquisition; the rec_to_nwb reference still stores a single combined
-    # processing["analog"] stream, so recombine the new per-sensor raw int16
-    # columns by channel name and compare against the reference, per channel.
+    # processing["analog"] stream. ECU analog inputs stay at the full acquisition
+    # rate and must match the reference channel-for-channel. Headstage IMU sensors
+    # are decimated to their true ~100 Hz rate, so they are checked separately
+    # (presence + units), not against the 30 kHz held reference.
     old_analog = old_nwbfile.processing["analog"]["analog"]["analog"]
     if (
         old_analog.data.size > 0
     ):  # analog data not included in all old files. Shouldn't fail because we include it now
-        sensor_stream_names = {
-            "accelerometer",
-            "gyroscope",
-            "magnetometer",
-            "analog_input",
-            "other",
-        }
+        imu_names = {"accelerometer", "gyroscope", "magnetometer"}
+        # full-rate ECU streams: recombine raw int16 columns by channel name.
+        # Skip the ephys series and the decimated IMU (different timebases); analog
+        # streams encode their channel list in the description as "<desc>: a, b, c".
         new_by_channel = {}
         for name, ts in nwbfile.acquisition.items():
-            if name not in sensor_stream_names:
+            if name == "e-series" or name in imu_names or ": " not in ts.description:
                 continue
             channel_names = ts.description.split(": ", 1)[1].split(", ")
             for col, channel in enumerate(channel_names):
                 new_by_channel[channel] = ts.data[:, col]
 
         old_full_order = old_analog.description.split("   ")[:-1]
-        expected_channels = {ch for ch in old_full_order if ch != "timestamps"}
-        # the same analog channels are present after the move
-        assert set(new_by_channel) == expected_channels
-
-        analog_size = len(next(iter(new_by_channel.values())))
+        ecu_channels = [
+            ch for ch in old_full_order if ch != "timestamps" and ch in new_by_channel
+        ]
+        assert ecu_channels  # at least the ECU analog inputs are present
+        analog_size = len(new_by_channel[ecu_channels[0]])
         assert (analog_size == old_analog.data.shape[0]) or truncated_size
-        # raw int16 values match the reference, per channel, across all timepoints
+        # raw int16 values match the reference, per ECU channel, across all timepoints
         for old_col, channel in enumerate(old_full_order):
-            if channel == "timestamps":
-                continue
-            assert (
-                new_by_channel[channel][:analog_size]
-                == old_analog.data[:analog_size, old_col]
-            ).all()
+            if channel in new_by_channel:
+                assert (
+                    new_by_channel[channel][:analog_size]
+                    == old_analog.data[:analog_size, old_col]
+                ).all()
+
+        # headstage IMU sensors decimated to their true rate carry physical units
+        if "accelerometer" in nwbfile.acquisition:
+            accel = nwbfile.acquisition["accelerometer"]
+            assert accel.unit == "g" and accel.conversion == 0.000061
+            assert accel.data.shape[0] < analog_size  # decimated, not held full-rate
+        if "gyroscope" in nwbfile.acquisition:
+            gyro = nwbfile.acquisition["gyroscope"]
+            assert gyro.unit == "d/s" and gyro.conversion == 0.061
 
     # compare dio data
     for dio_name in old_nwbfile.processing["behavior"]["behavioral_events"].time_series:

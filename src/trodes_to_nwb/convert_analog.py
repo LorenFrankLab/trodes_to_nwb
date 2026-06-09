@@ -196,6 +196,55 @@ class _AnalogChannelSubsetIterator(GenericDataChunkIterator):
         return np.dtype("int16")
 
 
+def _config_for(sensor_type: str) -> SensorConfig:
+    """Return the SensorConfig for a sensor type, or the catch-all for ``other``."""
+    return SENSOR_TYPE_CONFIG.get(sensor_type, _OTHER_CONFIG)
+
+
+def _warn_other_channels(channel_names: list[str], logger: logging.Logger) -> None:
+    logger.warning(
+        "Analog channels matched no known sensor pattern and are stored raw "
+        "(unit='unspecified') under acquisition['other']: %s",
+        channel_names,
+    )
+
+
+def _warn_unknown_sensor_units(metadata: dict | None, logger: logging.Logger) -> None:
+    """Warn if metadata['sensor_units'] names a sensor type that does not exist."""
+    if metadata and "sensor_units" in metadata:
+        valid = set(SENSOR_TYPE_CONFIG) | {"other"}
+        unknown = set(metadata["sensor_units"]) - valid
+        if unknown:
+            logger.warning(
+                "metadata['sensor_units'] has unrecognized sensor type(s) %s; "
+                "those unit overrides are ignored. Valid keys: %s",
+                sorted(unknown),
+                sorted(valid),
+            )
+
+
+def _unique_acquisition_name(
+    nwbfile: NWBFile, base: str, logger: logging.Logger
+) -> str:
+    """Return ``base``, or a suffixed variant if that name is already taken.
+
+    ECU and headstage sources can both produce a generic category (e.g.
+    ``analog_input``); this keeps acquisition names unique rather than colliding.
+    """
+    if base not in nwbfile.acquisition:
+        return base
+    suffix = 2
+    while f"{base}_{suffix}" in nwbfile.acquisition:
+        suffix += 1
+    name = f"{base}_{suffix}"
+    logger.warning(
+        "Acquisition name '%s' already exists; storing this stream as '%s'.",
+        base,
+        name,
+    )
+    return name
+
+
 def add_analog_data(
     nwbfile: NWBFile,
     rec_file_path: list[str],
@@ -206,16 +255,25 @@ def add_analog_data(
 ) -> None:
     """Adds analog streams as separate acquisition TimeSeries with physical units.
 
-    Headstage IMU sensors (accelerometer, gyroscope, magnetometer) and ECU
-    analog inputs are written as individual ``TimeSeries`` in
-    ``nwbfile.acquisition``, one per sensor type, with the physical unit and
-    scaling carried by each ``TimeSeries.conversion`` field. Data stays lazy and
-    chunked via ``H5DataIO``: raw int16 samples are stored unchanged and scaling
-    is applied on read (``stored * conversion``), so memory use is independent of
-    session length.
+    Two kinds of analog data are handled differently:
 
-    Channels matching no known sensor pattern are written, unscaled, to an
-    ``"other"`` acquisition stream and logged at WARNING.
+    - **ECU analog inputs** (``ECU_Ain*``) are continuously sampled at the
+      acquisition rate. They are stored lazily and chunked via ``H5DataIO``: raw
+      int16 is stored unchanged and scaling is applied on read
+      (``stored * conversion``), so memory use is independent of session length.
+    - **Headstage IMU sensors** (accelerometer, gyroscope, magnetometer) are
+      sampled at the sensor's native rate (~100 Hz) and expanded to the
+      acquisition rate by sample-and-hold in the ``.rec`` stream. These are
+      *decimated* back to their true rate using the per-packet update flags and
+      stored with explicit ``timestamps`` taken from the genuinely-sampled
+      packets. Accelerometer and gyroscope are sampled on interleaved schedules,
+      so each sensor gets its own timestamps. A sensor that never updates (a
+      disabled sensor) is omitted with a WARNING.
+
+    Every sensor type is written as its own ``TimeSeries`` in
+    ``nwbfile.acquisition`` with the physical unit and scaling carried by
+    ``TimeSeries.conversion``. Channels matching no known pattern go to an
+    ``"other"`` stream and are logged at WARNING.
 
     Parameters
     ----------
@@ -235,8 +293,6 @@ def add_analog_data(
     """
     logger = logging.getLogger("convert")
 
-    # ECU analog channels come first in the combined stream, then the multiplexed
-    # headstage sensor channels appended by RecFileDataChunkIterator.
     ecu_analog_ids = _get_ecu_analog_channel_ids(rec_file_path[0])
     rec_dci = RecFileDataChunkIterator(
         rec_file_path,
@@ -247,71 +303,86 @@ def add_analog_data(
         behavior_only=behavior_only,
     )
     multiplexed_ids = list(rec_dci.neo_io[0].multiplexed_channel_xml.keys())
-    all_channel_ids = ecu_analog_ids + multiplexed_ids
-    if not all_channel_ids:
+    if not ecu_analog_ids and not multiplexed_ids:
         logger.info(
             "No analog channels found in %s; skipping analog data.", rec_file_path[0]
         )
         return
 
-    groups = _categorize_sensor_channels(all_channel_ids)
+    _warn_unknown_sensor_units(metadata, logger)
 
-    # Warn on sensor_units overrides that name an unknown sensor type, so a typo
-    # (e.g. "accel" instead of "accelerometer") is not silently ignored.
-    if metadata and "sensor_units" in metadata:
-        valid_sensor_types = set(SENSOR_TYPE_CONFIG) | {"other"}
-        unknown = set(metadata["sensor_units"]) - valid_sensor_types
-        if unknown:
-            logger.warning(
-                "metadata['sensor_units'] has unrecognized sensor type(s) %s; "
-                "those unit overrides are ignored. Valid keys: %s",
-                sorted(unknown),
-                sorted(valid_sensor_types),
+    # --- ECU analog inputs: continuous, lazy, full acquisition rate ---
+    if ecu_analog_ids:
+        chunk_time_dim = min(DEFAULT_CHUNK_TIME_DIM, rec_dci.maxshape[0])
+        ecu_timestamps = rec_dci.timestamps  # shared by all ECU streams (linked once)
+        first_ecu_ts = None
+        for sensor_type, channel_names in _categorize_sensor_channels(
+            ecu_analog_ids
+        ).items():
+            config = _config_for(sensor_type)
+            if sensor_type == "other":
+                _warn_other_channels(channel_names, logger)
+            column_indices = [ecu_analog_ids.index(name) for name in channel_names]
+            data_io = H5DataIO(
+                _AnalogChannelSubsetIterator(rec_dci, column_indices),
+                chunks=(
+                    chunk_time_dim,
+                    min(len(column_indices), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
+                ),
             )
-
-    # Cap the time-axis chunk at the session length so short sessions (fewer than
-    # DEFAULT_CHUNK_TIME_DIM samples) get a valid HDF5 chunk shape.
-    n_time = rec_dci.maxshape[0]
-    chunk_time_dim = min(DEFAULT_CHUNK_TIME_DIM, n_time)
-
-    # All sensor streams share one timestamps dataset: the first TimeSeries owns
-    # it; the rest link to that object so pynwb stores it only once.
-    shared_timestamps = rec_dci.timestamps
-    first_ts = None
-    for sensor_type, channel_names in groups.items():
-        if sensor_type == "other":
-            logger.warning(
-                "Analog channels matched no known sensor pattern and are stored "
-                "raw (unit='unspecified') under acquisition['other']: %s",
-                channel_names,
+            ts = pynwb.TimeSeries(
+                name=_unique_acquisition_name(nwbfile, sensor_type, logger),
+                description=f"{config.description}: {', '.join(channel_names)}",
+                data=data_io,
+                unit=_resolve_sensor_unit(sensor_type, config.unit, metadata),
+                conversion=config.conversion,
+                timestamps=(
+                    first_ecu_ts if first_ecu_ts is not None else ecu_timestamps
+                ),
             )
-            config = _OTHER_CONFIG
-        else:
-            config = SENSOR_TYPE_CONFIG[sensor_type]
+            nwbfile.add_acquisition(ts)
+            if first_ecu_ts is None:
+                first_ecu_ts = ts
 
-        column_indices = [all_channel_ids.index(name) for name in channel_names]
-        data_iter = _AnalogChannelSubsetIterator(rec_dci, column_indices)
-        data_io = H5DataIO(
-            data_iter,
-            chunks=(
-                chunk_time_dim,
-                min(len(column_indices), DEFAULT_CHUNK_MAX_CHANNEL_DIM),
-            ),
-        )
-        unit = _resolve_sensor_unit(sensor_type, config.unit, metadata)
-        description = f"{config.description}: {', '.join(channel_names)}"
-
-        timeseries = pynwb.TimeSeries(
-            name=sensor_type,
-            description=description,
-            data=data_io,
-            unit=unit,
-            conversion=config.conversion,
-            timestamps=(first_ts if first_ts is not None else shared_timestamps),
-        )
-        nwbfile.add_acquisition(timeseries)
-        if first_ts is None:
-            first_ts = timeseries
+    # --- Headstage multiplexed sensors: decimate sample-and-hold to true rate ---
+    if multiplexed_ids:
+        # global packet offset of each rec file, to map per-file update indices
+        # onto the shared (concatenated) timestamps vector
+        file_start = np.append(0, np.cumsum(rec_dci.n_time)).astype(int)
+        for sensor_type, channel_names in _categorize_sensor_channels(
+            multiplexed_ids
+        ).items():
+            data_parts, time_parts = [], []
+            for file_index, neo_io in enumerate(rec_dci.neo_io):
+                file_data, update_indices = (
+                    neo_io.get_analogsignal_multiplexed_decimated(channel_names)
+                )
+                if update_indices.size:
+                    data_parts.append(file_data)
+                    time_parts.append(
+                        rec_dci.timestamps[file_start[file_index] + update_indices]
+                    )
+            if not data_parts:
+                logger.warning(
+                    "Headstage sensor '%s' (%s) has no sampled data (disabled); "
+                    "skipping.",
+                    sensor_type,
+                    channel_names,
+                )
+                continue
+            config = _config_for(sensor_type)
+            if sensor_type == "other":
+                _warn_other_channels(channel_names, logger)
+            nwbfile.add_acquisition(
+                pynwb.TimeSeries(
+                    name=_unique_acquisition_name(nwbfile, sensor_type, logger),
+                    description=f"{config.description}: {', '.join(channel_names)}",
+                    data=np.concatenate(data_parts),
+                    unit=_resolve_sensor_unit(sensor_type, config.unit, metadata),
+                    conversion=config.conversion,
+                    timestamps=np.concatenate(time_parts),
+                )
+            )
 
 
 _NWB_ANALOG_DATA_PATH = "processing/analog/analog/analog/data"

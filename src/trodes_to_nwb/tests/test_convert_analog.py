@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import shutil
-import types
 
 import h5py
 from hdmf.backends.hdf5 import H5DataIO
@@ -22,7 +21,29 @@ from trodes_to_nwb.convert_analog import (
     update_analog_data,
 )
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 from trodes_to_nwb.tests.utils import data_path
+
+
+class _FakeNeoIO:
+    """Stand-in for a SpikeGadgetsRawIO, serving synthetic multiplexed data.
+
+    ``decimated`` maps a tuple of channel names (one sensor group) to the
+    ``(data, update_indices)`` that ``get_analogsignal_multiplexed_decimated``
+    should return. Groups not present are treated as disabled (no samples).
+    """
+
+    def __init__(self, multiplexed_ids, decimated):
+        self.multiplexed_channel_xml = dict.fromkeys(multiplexed_ids)
+        self._decimated = decimated
+
+    def get_analogsignal_multiplexed_decimated(self, channel_names):
+        key = tuple(channel_names)
+        if key in self._decimated:
+            return self._decimated[key]
+        return np.empty((0, len(channel_names)), dtype=np.int16), np.array(
+            [], dtype=int
+        )
 
 
 class _FakeRecDCI:
@@ -31,18 +52,15 @@ class _FakeRecDCI:
     Exposes just the interface ``add_analog_data`` and
     ``_AnalogChannelSubsetIterator`` rely on: a combined int16 array whose
     columns are the ECU analog channels followed by the multiplexed headstage
-    channels, plus ``timestamps``, ``neo_io``, ``_get_maxshape`` and
-    ``_get_data``.
+    channels (the latter are read via ``neo_io`` decimation, not ``_get_data``),
+    plus ``timestamps``, ``n_time``, ``neo_io``, ``maxshape`` and ``_get_data``.
     """
 
-    def __init__(self, combined_data, multiplexed_ids, timestamps):
+    def __init__(self, combined_data, multiplexed_ids, timestamps, decimated=None):
         self._data = combined_data
         self.timestamps = timestamps
-        self.neo_io = [
-            types.SimpleNamespace(
-                multiplexed_channel_xml=dict.fromkeys(multiplexed_ids)
-            )
-        ]
+        self.n_time = [combined_data.shape[0]]
+        self.neo_io = [_FakeNeoIO(multiplexed_ids, decimated or {})]
 
     @property
     def maxshape(self):
@@ -64,13 +82,13 @@ def _make_minimal_nwbfile():
 
 
 def _patch_analog_source(
-    monkeypatch, ecu_ids, multiplexed_ids, combined_data, timestamps
+    monkeypatch, ecu_ids, multiplexed_ids, combined_data, timestamps, decimated=None
 ):
     """Patch add_analog_data's rec-file reads to serve synthetic data."""
     monkeypatch.setattr(
         convert_analog, "_get_ecu_analog_channel_ids", lambda path: list(ecu_ids)
     )
-    fake = _FakeRecDCI(combined_data, multiplexed_ids, timestamps)
+    fake = _FakeRecDCI(combined_data, multiplexed_ids, timestamps, decimated)
     monkeypatch.setattr(
         convert_analog, "RecFileDataChunkIterator", lambda *a, **k: fake
     )
@@ -88,100 +106,116 @@ def _materialize(dci):
 def test_add_analog_data():
     """Integration test (requires downloaded .rec / reference .nwb fixtures).
 
-    Verifies the new acquisition layout and that recombining the per-sensor
-    raw int16 streams reproduces the reference combined analog stream exactly.
+    ECU analog inputs stay at the full acquisition rate and match the reference
+    combined stream channel-for-channel; headstage IMU sensors are decimated to
+    their true ~100 Hz rate with explicit timestamps.
     """
-    # load metadata yml and make nwb file
-    metadata_path = data_path / "20230622_sample_metadata.yml"
-    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    metadata, _ = convert_yaml.load_metadata(
+        data_path / "20230622_sample_metadata.yml", []
+    )
     rec_file = data_path / "20230622_sample_01_a1.rec"
-    rec_to_nwb_file = data_path / "20230622_155936.nwb"  # comparison file
+    rec_to_nwb_file = data_path / "20230622_155936.nwb"  # reference (old layout)
     rec_header = convert_rec_header.read_header(rec_file)
-    # make file with data
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
     add_analog_data(nwbfile, [rec_file], metadata=metadata)
 
-    # New layout: per-sensor TimeSeries in acquisition, no combined processing stream.
     assert "analog" not in nwbfile.processing
-    assert len(nwbfile.acquisition) > 0
-    if "accelerometer" in nwbfile.acquisition:
-        assert nwbfile.acquisition["accelerometer"].unit == "g"
-        assert nwbfile.acquisition["accelerometer"].conversion == 0.000061
-    if "gyroscope" in nwbfile.acquisition:
-        assert nwbfile.acquisition["gyroscope"].unit == "d/s"
-        assert nwbfile.acquisition["gyroscope"].conversion == 0.061
+    imu_names = {"accelerometer", "gyroscope", "magnetometer"}
 
-    # save file
+    # Headstage IMU: present with physical units, decimated to ~100 Hz.
+    accel = nwbfile.acquisition["accelerometer"]
+    gyro = nwbfile.acquisition["gyroscope"]
+    assert accel.unit == "g" and accel.conversion == 0.000061
+    assert gyro.unit == "d/s" and gyro.conversion == 0.061
+    assert "magnetometer" not in nwbfile.acquisition  # disabled in this fixture
+    for ts in (accel, gyro):
+        t = ts.timestamps[:]
+        assert np.all(np.diff(t) > 0)  # strictly increasing
+        rate = 1.0 / np.median(np.diff(t))
+        assert 90.0 < rate < 110.0  # true sensor rate, not the 30 kHz held rate
+
+    # IMU values match the reader's decimated output exactly (raw int16).
+    io = SpikeGadgetsRawIO(filename=str(rec_file))
+    io.parse_header()
+    for name, channels in (
+        ("accelerometer", ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]),
+        ("gyroscope", ["Headstage_GyroX", "Headstage_GyroY", "Headstage_GyroZ"]),
+    ):
+        expected, _ = io.get_analogsignal_multiplexed_decimated(channels)
+        assert (nwbfile.acquisition[name].data[:] == expected).all()
+
+    # ECU analog inputs: full-rate, match the reference combined stream per channel.
     filename = "test_add_analog.nwb"
-    with pynwb.NWBHDF5IO(filename, "w") as io:
-        io.write(nwbfile)
+    with pynwb.NWBHDF5IO(filename, "w") as io_w:
+        io_w.write(nwbfile)
     try:
-        with pynwb.NWBHDF5IO(filename, "r", load_namespaces=True) as io:
-            read_nwbfile = io.read()
-            assert "analog" not in read_nwbfile.processing
-
-            # Map every channel back to its stored (raw int16) column.
+        with pynwb.NWBHDF5IO(filename, "r", load_namespaces=True) as io_r:
+            read_nwbfile = io_r.read()
             new_by_channel = {}
-            for ts in read_nwbfile.acquisition.values():
-                channel_names = ts.description.split(": ", 1)[1].split(", ")
-                for col, channel in enumerate(channel_names):
+            for nm, ts in read_nwbfile.acquisition.items():
+                if nm in imu_names:
+                    continue
+                channels = ts.description.split(": ", 1)[1].split(", ")
+                for col, channel in enumerate(channels):
                     new_by_channel[channel] = ts.data[:, col]
 
             with pynwb.NWBHDF5IO(rec_to_nwb_file, "r", load_namespaces=True) as io2:
-                old_nwbfile = io2.read()
-                old_ts = old_nwbfile.processing["analog"]["analog"]["analog"]
+                old_ts = io2.read().processing["analog"]["analog"]["analog"]
                 old_id_order = old_ts.description.split("   ")[:-1]
-
-                # same channels are present
-                assert set(new_by_channel) == set(old_id_order)
-                # raw values match the reference, per channel, across all timepoints
+                ecu_channels = [c for c in old_id_order if c in new_by_channel]
+                # every full-rate ECU channel is present and matches exactly
+                assert ecu_channels  # sanity: some ECU channels exist
                 for col, channel in enumerate(old_id_order):
-                    assert (new_by_channel[channel] == old_ts.data[:, col]).all()
+                    if channel in new_by_channel:
+                        assert (new_by_channel[channel] == old_ts.data[:, col]).all()
     finally:
         os.remove(filename)
 
 
 def test_add_analog_data_writes_sensor_acquisitions(monkeypatch):
-    """Synthetic: sensors land in acquisition, scaled via conversion, lazily."""
+    """Synthetic: ECU stays lazy/full-rate; IMU is decimated with own timestamps."""
     ecu_ids = ["ECU_Ain1", "ECU_Ain2"]
-    mux_ids = [
-        "Headstage_AccelX",
-        "Headstage_AccelY",
-        "Headstage_AccelZ",
-        "Headstage_GyroX",
-        "Headstage_GyroY",
-        "Headstage_GyroZ",
-    ]
-    all_ids = ecu_ids + mux_ids
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    gyro = ["Headstage_GyroX", "Headstage_GyroY", "Headstage_GyroZ"]
+    mux_ids = accel + gyro
     n_time = 100
-    combined = np.arange(n_time * len(all_ids), dtype=np.int16).reshape(
-        n_time, len(all_ids)
-    )
+    combined = np.arange(
+        n_time * (len(ecu_ids) + len(mux_ids)), dtype=np.int16
+    ).reshape(n_time, -1)
     timestamps = np.arange(n_time, dtype=float)
-    _patch_analog_source(monkeypatch, ecu_ids, mux_ids, combined, timestamps)
+    # accel and gyro update on interleaved (different) packets
+    accel_idx, gyro_idx = np.array([10, 40, 70]), np.array([20, 50, 80])
+    accel_data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int16)
+    gyro_data = np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]], dtype=np.int16)
+    decimated = {
+        tuple(accel): (accel_data, accel_idx),
+        tuple(gyro): (gyro_data, gyro_idx),
+    }
+    _patch_analog_source(monkeypatch, ecu_ids, mux_ids, combined, timestamps, decimated)
 
     nwbfile = _make_minimal_nwbfile()
     add_analog_data(nwbfile, ["fake.rec"])
 
-    # replaced, not added alongside, the combined processing stream
     assert "analog" not in nwbfile.processing
     assert set(nwbfile.acquisition) == {"analog_input", "accelerometer", "gyroscope"}
 
-    accel = nwbfile.acquisition["accelerometer"]
-    assert accel.unit == "g"
-    assert accel.conversion == 0.000061
-    assert nwbfile.acquisition["gyroscope"].conversion == 0.061
-    assert nwbfile.acquisition["analog_input"].conversion == 1.0
+    # IMU: decimated (materialized), raw int16 + its own true-rate timestamps
+    acc = nwbfile.acquisition["accelerometer"]
+    assert acc.unit == "g" and acc.conversion == 0.000061
+    assert isinstance(acc.data, np.ndarray)  # decimated, not lazy H5DataIO
+    assert (acc.data == accel_data).all()
+    assert (acc.timestamps[:] == timestamps[accel_idx]).all()
+    g = nwbfile.acquisition["gyroscope"]
+    assert g.conversion == 0.061
+    assert (g.data == gyro_data).all()
+    assert (g.timestamps[:] == timestamps[gyro_idx]).all()
 
-    # lazy: data backed by H5DataIO over an iterator, not a dense ndarray
-    assert isinstance(accel.data, H5DataIO)
-
-    # parity: stored raw int16 (no pre-scaling) reproduces the source columns
-    for ts in nwbfile.acquisition.values():
-        channel_names = ts.description.split(": ", 1)[1].split(", ")
-        materialized = _materialize(ts.data.data)
-        for col, channel in enumerate(channel_names):
-            assert (materialized[:, col] == combined[:, all_ids.index(channel)]).all()
+    # ECU: lazy/full-rate, raw int16 parity with the source columns
+    ecu = nwbfile.acquisition["analog_input"]
+    assert ecu.conversion == 1.0
+    assert isinstance(ecu.data, H5DataIO)
+    materialized = _materialize(ecu.data.data)
+    assert (materialized == combined[:, : len(ecu_ids)]).all()
 
 
 def test_add_analog_data_stream_spans_full_source_length(monkeypatch):
@@ -289,10 +323,11 @@ def test_add_analog_data_no_channels_returns(monkeypatch, caplog):
 def test_magnetometer_and_other_units(monkeypatch):
     """Magnetometer and 'other' streams carry conversion 1.0 / unit 'unspecified'."""
     ecu_ids = ["Mystery_Chan"]
-    mux_ids = ["Headstage_MagX", "Headstage_MagY", "Headstage_MagZ"]
-    combined = np.zeros((10, len(ecu_ids) + len(mux_ids)), dtype=np.int16)
+    mag = ["Headstage_MagX", "Headstage_MagY", "Headstage_MagZ"]
+    combined = np.zeros((10, len(ecu_ids) + len(mag)), dtype=np.int16)
+    decimated = {tuple(mag): (np.ones((3, 3), dtype=np.int16), np.array([1, 4, 7]))}
     _patch_analog_source(
-        monkeypatch, ecu_ids, mux_ids, combined, np.arange(10, dtype=float)
+        monkeypatch, ecu_ids, mag, combined, np.arange(10, dtype=float), decimated
     )
     nwbfile = _make_minimal_nwbfile()
     add_analog_data(nwbfile, ["fake.rec"])
@@ -301,23 +336,62 @@ def test_magnetometer_and_other_units(monkeypatch):
         assert nwbfile.acquisition[name].unit == "unspecified"
 
 
-def test_sensor_streams_share_one_timestamps(monkeypatch):
-    """Streams after the first link to the first stream's timestamps (stored once)."""
+def test_disabled_sensor_omitted_and_logged(monkeypatch, caplog):
+    """A headstage sensor that never updates is omitted with a WARNING."""
     ecu_ids = ["ECU_Ain1"]
-    mux_ids = ["Headstage_AccelX"]
-    combined = np.zeros((10, 2), dtype=np.int16)
+    mag = ["Headstage_MagX", "Headstage_MagY", "Headstage_MagZ"]
+    combined = np.zeros((10, len(ecu_ids) + len(mag)), dtype=np.int16)
+    # no decimated entry for mag -> the fake reports it as disabled (no samples)
     _patch_analog_source(
-        monkeypatch, ecu_ids, mux_ids, combined, np.arange(10, dtype=float)
+        monkeypatch, ecu_ids, mag, combined, np.arange(10, dtype=float)
     )
     nwbfile = _make_minimal_nwbfile()
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        add_analog_data(nwbfile, ["fake.rec"])
+    assert "magnetometer" not in nwbfile.acquisition
+    assert "no sampled data (disabled)" in caplog.text
+
+
+def test_ecu_streams_share_timestamps_imu_independent(monkeypatch):
+    """ECU streams link to one shared timestamps array; IMU has its own."""
+    ecu_ids = ["ECU_Ain1", "Mystery_Chan"]  # -> analog_input + other, both full-rate
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    combined = np.zeros((10, len(ecu_ids) + len(accel)), dtype=np.int16)
+    accel_idx = np.array([2, 5, 8])
+    decimated = {tuple(accel): (np.zeros((3, 3), dtype=np.int16), accel_idx)}
+    timestamps = np.arange(10, dtype=float)
+    _patch_analog_source(monkeypatch, ecu_ids, accel, combined, timestamps, decimated)
+    nwbfile = _make_minimal_nwbfile()
     add_analog_data(nwbfile, ["fake.rec"])
-    streams = list(nwbfile.acquisition.values())
-    assert len(streams) >= 2
-    # every stream resolves to the same timestamps array (stored once, linked),
-    # and at least one stream links rather than owning a second copy
-    timestamp_arrays = [ts.timestamps for ts in streams]
-    assert all(arr is timestamp_arrays[0] for arr in timestamp_arrays)
-    assert any(ts.timestamp_link for ts in streams)
+
+    ai = nwbfile.acquisition["analog_input"]
+    other = nwbfile.acquisition["other"]
+    # the two ECU streams resolve to the same timestamps array (stored once)
+    assert ai.timestamps is other.timestamps
+    assert any(s.timestamp_link for s in (ai, other))
+    # the IMU stream is on its own (decimated) timebase
+    acc = nwbfile.acquisition["accelerometer"]
+    assert acc.timestamps is not ai.timestamps
+    assert (acc.timestamps[:] == timestamps[accel_idx]).all()
+
+
+def test_get_decimated_multiplexed_real_data():
+    """Reader returns true-rate IMU samples; empty for disabled; raises cross-sensor."""
+    io = SpikeGadgetsRawIO(filename=str(data_path / "20230622_sample_01_a1.rec"))
+    io.parse_header()
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    data, idx = io.get_analogsignal_multiplexed_decimated(accel)
+    assert data.shape == (idx.size, 3) and idx.size > 0
+    assert 90.0 < 30000.0 / np.median(np.diff(idx)) < 110.0  # ~100 Hz @ 30 kHz
+    # disabled sensor -> empty
+    mag = ["Headstage_MagX", "Headstage_MagY", "Headstage_MagZ"]
+    mag_data, mag_idx = io.get_analogsignal_multiplexed_decimated(mag)
+    assert mag_data.shape == (0, 3) and mag_idx.size == 0
+    # channels from different sensors don't share an update schedule
+    with pytest.raises(ValueError, match="share an update schedule"):
+        io.get_analogsignal_multiplexed_decimated(
+            ["Headstage_AccelX", "Headstage_GyroX"]
+        )
 
 
 def test_unknown_sensor_units_key_warns(monkeypatch, caplog):

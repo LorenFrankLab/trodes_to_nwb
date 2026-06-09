@@ -11,7 +11,6 @@ Intended as a temporary solution until official support is available in Neo.
 import functools
 from xml.etree import ElementTree
 
-import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
     _event_channel_dtype,
@@ -19,6 +18,7 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
+import numpy as np
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
@@ -785,6 +785,81 @@ class SpikeGadgetsRawIO(BaseRawIO):
                 initialize_stream_mask[i], data[i], analog_multiplexed_data[i - 1]
             )
         return analog_multiplexed_data
+
+    def get_analogsignal_multiplexed_decimated(
+        self, channel_names: list[str]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return only the genuinely-sampled values for a group of multiplexed channels.
+
+        Multiplexed headstage sensor data is transmitted at the sensor's true rate
+        (e.g. ~100 Hz for the IMU) and expanded to the full acquisition rate by
+        sample-and-hold in the ``.rec`` stream. This method removes the held
+        repeats using the per-packet ``interleavedDataIDBit`` flags (the same flags
+        :meth:`get_analogsignal_multiplexed` uses to decide when to refresh), so the
+        returned data is at the sensor's native rate.
+
+        All requested channels must share an identical update schedule (i.e. belong
+        to the same sensor, such as accelerometer X/Y/Z); they are sampled together.
+
+        Parameters
+        ----------
+        channel_names : list of str
+            Multiplexed channel names belonging to a single sensor.
+
+        Returns
+        -------
+        data : np.ndarray, shape (n_updates, n_channels), int16
+            The genuinely-sampled values, sample-and-hold repeats removed.
+        update_indices : np.ndarray, shape (n_updates,), int
+            Packet indices (into this file's stream) at which each sample was
+            acquired, for deriving timestamps. Empty if the channels never update
+            (e.g. a disabled sensor).
+
+        Raises
+        ------
+        ValueError
+            If a channel is not found, or the requested channels do not share an
+            identical update schedule (i.e. they belong to different sensors).
+        """
+        for ch_name in channel_names:
+            if ch_name not in self.multiplexed_channel_xml:
+                raise ValueError(f"Channel name '{ch_name}' not found in file.")
+
+        data_offsets = np.empty((len(channel_names), 3), dtype=int)
+        for j, ch_name in enumerate(channel_names):
+            ch_xml = self.multiplexed_channel_xml[ch_name]
+            data_offsets[j, 0] = int(
+                self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
+            )
+            data_offsets[j, 1] = int(
+                self._multiplexed_byte_start
+                + int(ch_xml.attrib["interleavedDataIDByte"])
+            )
+            data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
+
+        # per-packet, per-channel update flags
+        update = (
+            (self._raw_memmap[:, data_offsets[:, 1]] >> data_offsets[:, 2]) & 1
+        ) == 1
+        # channels of one sensor are sampled together; require a shared schedule
+        common = update[:, 0]
+        if not np.all(update == common[:, None]):
+            raise ValueError(
+                "Multiplexed channels do not share an update schedule; pass the "
+                "channels of a single sensor (e.g. accelerometer X/Y/Z)."
+            )
+        update_indices = np.flatnonzero(common)
+        if update_indices.size == 0:
+            return (
+                np.empty((0, len(channel_names)), dtype=np.int16),
+                update_indices,
+            )
+
+        rows = self._raw_memmap[update_indices]
+        data = rows[:, data_offsets[:, 0]].astype(np.int16) + (
+            rows[:, data_offsets[:, 0] + 1].astype(np.int16) * INT_16_CONVERSION
+        )
+        return data, update_indices
 
     def get_analogsignal_multiplexed_partial(
         self,

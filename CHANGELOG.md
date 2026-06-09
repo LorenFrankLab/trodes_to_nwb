@@ -16,14 +16,22 @@
   for unrecognized channels), replacing the single combined
   `processing["analog"]["analog"]["analog"]` stream. Headstage accelerometer
   and gyroscope data now carry correct physical units (`g`, `d/s`) via each
-  `TimeSeries.conversion` factor. Data remains lazy/chunked; stored values are
-  raw int16 and `ts.data[:]` returns raw counts — multiply by `ts.conversion`
-  (or read through a conversion-aware API) to get physical units. Optional
-  `sensor_units` metadata can override a sensor's unit *label*. #19
+  `TimeSeries.conversion` factor. Stored values are raw int16 and `ts.data[:]`
+  returns raw counts — multiply by `ts.conversion` to get physical units.
+  Optional `sensor_units` metadata can override a sensor's unit *label*. #19
+- **Headstage IMU stored at its true rate.** The multiplexed IMU sensors are
+  transmitted at the sensor's native rate (~100 Hz) and expanded to the
+  acquisition rate by sample-and-hold in the `.rec` stream. They are now
+  decimated back to their true rate using the per-packet update flags and
+  stored with explicit `timestamps` (accelerometer and gyroscope are sampled on
+  interleaved schedules, so each carries its own timestamps). A sensor that
+  never updates (disabled) is omitted with a warning. ECU analog inputs, which
+  are genuinely continuous, remain at the full acquisition rate and lazy/chunked.
 
   Migration: code that read `nwbfile.processing["analog"]["analog"]["analog"]`
-  must instead read the relevant `nwbfile.acquisition[...]` stream. Existing
-  files in the old layout can still be repaired with `update_analog_data`.
+  must instead read the relevant `nwbfile.acquisition[...]` stream. Note IMU
+  streams are now ~100 Hz with their own `timestamps`, not the acquisition rate.
+  Existing files in the old layout can still be repaired with `update_analog_data`.
 
 ### Optogenetics
 
