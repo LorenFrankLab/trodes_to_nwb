@@ -315,6 +315,7 @@ def add_analog_data(
     if ecu_analog_ids:
         chunk_time_dim = min(DEFAULT_CHUNK_TIME_DIM, rec_dci.maxshape[0])
         ecu_timestamps = rec_dci.timestamps  # shared by all ECU streams (linked once)
+        ecu_column = {name: index for index, name in enumerate(ecu_analog_ids)}
         first_ecu_ts = None
         for sensor_type, channel_names in _categorize_sensor_channels(
             ecu_analog_ids
@@ -322,7 +323,7 @@ def add_analog_data(
             config = _config_for(sensor_type)
             if sensor_type == "other":
                 _warn_other_channels(channel_names, logger)
-            column_indices = [ecu_analog_ids.index(name) for name in channel_names]
+            column_indices = [ecu_column[name] for name in channel_names]
             data_io = H5DataIO(
                 _AnalogChannelSubsetIterator(rec_dci, column_indices),
                 chunks=(
