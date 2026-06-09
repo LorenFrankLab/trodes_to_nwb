@@ -161,6 +161,7 @@ def build_electrodes_from_config(
         for col in UPDATABLE_COLUMNS:
             coerce = _COLUMN_COERCIONS.get(col)
             entry[col] = coerce(row[col]) if coerce else row[col]
+        entry["probe_type"] = row["group"].device.probe_type
         hw_chan_to_metadata[hw_chan] = entry
 
     # hwChan must be a unique key: a collision would silently overwrite an
@@ -315,6 +316,9 @@ def update_electrodes_from_config(
 
         # Build new column data arrays, keyed by hwChan, in existing row order.
         new_data = {col: [] for col in UPDATABLE_COLUMNS}
+        new_data["probe_type"] = (
+            []
+        )  # not updatable, but we still need it for device-change checks
         for hw_chan in existing_hw_chans:
             if hw_chan not in hw_chan_to_metadata:
                 raise KeyError(
@@ -324,6 +328,7 @@ def update_electrodes_from_config(
             meta = hw_chan_to_metadata[hw_chan]
             for col in UPDATABLE_COLUMNS:
                 new_data[col].append(meta[col])
+            new_data["probe_type"].append(meta["probe_type"])
 
         # Refuse to silently move an electrode to a different probe device.
         # group_name is compared positionally, in electrode-table row order:
@@ -351,6 +356,29 @@ def update_electrodes_from_config(
                 raise ValueError(
                     "The new configuration would reassign electrodes to "
                     "different probe devices (group_name changes detected). "
+                    "This operation only supports updating metadata within "
+                    "the same device. Mismatched electrodes:\n" + details
+                )
+
+        # Check that the new metadata does not map any existing hwChan to a different
+        # probe_type, which would also indicate a device change. This is NOT
+        # supported by this update operation and would require a full reconversion.
+        if "group" in electrodes_group:
+            existing_probe_types = [
+                f[ref]["device"].attrs["probe_type"]
+                for ref in electrodes_group["group"][:]
+            ]
+            mismatched = [
+                f"  hwChan {existing_hw_chans[i]}: '{existing}' -> '{new}'"
+                for i, (existing, new) in enumerate(
+                    zip(existing_probe_types, new_data["probe_type"])
+                )
+            ]
+            if mismatched:
+                details = "\n".join(mismatched[:10])
+                raise ValueError(
+                    "The new configuration would reassign electrodes to "
+                    "different probe devices (probe_type changes detected). "
                     "This operation only supports updating metadata within "
                     "the same device. Mismatched electrodes:\n" + details
                 )
