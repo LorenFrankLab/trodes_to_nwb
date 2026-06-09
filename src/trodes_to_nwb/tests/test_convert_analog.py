@@ -10,6 +10,7 @@ from hdmf.backends.hdf5 import H5DataIO
 import numpy as np
 import pynwb
 from pynwb import NWBFile
+import pytest
 
 from trodes_to_nwb import convert_analog, convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_analog import (
@@ -17,7 +18,6 @@ from trodes_to_nwb.convert_analog import (
     _categorize_sensor_channels,
     _resolve_sensor_unit,
     add_analog_data,
-    get_analog_channel_names,
     update_analog_data,
 )
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
@@ -42,6 +42,10 @@ class _FakeRecDCI:
                 multiplexed_channel_xml=dict.fromkeys(multiplexed_ids)
             )
         ]
+
+    @property
+    def maxshape(self):
+        return self._data.shape
 
     def _get_maxshape(self):
         return self._data.shape
@@ -262,6 +266,143 @@ def test_analog_subset_iterator_parity():
     assert (_materialize(iterator) == data[:, columns]).all()
 
 
+def test_analog_subset_iterator_rejects_bad_columns():
+    """Out-of-range column indices fail loudly at construction."""
+    data = np.zeros((10, 3), dtype=np.int16)
+    fake = _FakeRecDCI(data, [], np.arange(10, dtype=float))
+    with pytest.raises(ValueError, match="out of range"):
+        convert_analog._AnalogChannelSubsetIterator(fake, [0, 5])
+
+
+def test_add_analog_data_no_channels_returns(monkeypatch, caplog):
+    """No analog channels: logs and returns without adding acquisitions."""
+    combined = np.zeros((5, 0), dtype=np.int16)
+    _patch_analog_source(monkeypatch, [], [], combined, np.arange(5, dtype=float))
+    nwbfile = _make_minimal_nwbfile()
+    with caplog.at_level(logging.INFO, logger="convert"):
+        add_analog_data(nwbfile, ["fake.rec"])
+    assert len(nwbfile.acquisition) == 0
+    assert "No analog channels found" in caplog.text
+
+
+def test_magnetometer_and_other_units(monkeypatch):
+    """Magnetometer and 'other' streams carry conversion 1.0 / unit 'unspecified'."""
+    ecu_ids = ["Mystery_Chan"]
+    mux_ids = ["Headstage_MagX", "Headstage_MagY", "Headstage_MagZ"]
+    combined = np.zeros((10, len(ecu_ids) + len(mux_ids)), dtype=np.int16)
+    _patch_analog_source(
+        monkeypatch, ecu_ids, mux_ids, combined, np.arange(10, dtype=float)
+    )
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["fake.rec"])
+    for name in ("magnetometer", "other"):
+        assert nwbfile.acquisition[name].conversion == 1.0
+        assert nwbfile.acquisition[name].unit == "unspecified"
+
+
+def test_sensor_streams_share_one_timestamps(monkeypatch):
+    """Streams after the first link to the first stream's timestamps (stored once)."""
+    ecu_ids = ["ECU_Ain1"]
+    mux_ids = ["Headstage_AccelX"]
+    combined = np.zeros((10, 2), dtype=np.int16)
+    _patch_analog_source(
+        monkeypatch, ecu_ids, mux_ids, combined, np.arange(10, dtype=float)
+    )
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["fake.rec"])
+    streams = list(nwbfile.acquisition.values())
+    assert len(streams) >= 2
+    # every stream resolves to the same timestamps array (stored once, linked),
+    # and at least one stream links rather than owning a second copy
+    timestamp_arrays = [ts.timestamps for ts in streams]
+    assert all(arr is timestamp_arrays[0] for arr in timestamp_arrays)
+    assert any(ts.timestamp_link for ts in streams)
+
+
+def test_unknown_sensor_units_key_warns(monkeypatch, caplog):
+    """A misspelled sensor_units key is warned about, not silently ignored."""
+    ecu_ids = ["ECU_Ain1"]
+    combined = np.zeros((5, 1), dtype=np.int16)
+    _patch_analog_source(monkeypatch, ecu_ids, [], combined, np.arange(5, dtype=float))
+    nwbfile = _make_minimal_nwbfile()
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        add_analog_data(
+            nwbfile, ["fake.rec"], metadata={"sensor_units": {"accel": "g"}}
+        )
+    assert "accel" in caplog.text
+    assert "unrecognized" in caplog.text.lower()
+
+
+def test_add_analog_data_short_session_writes(monkeypatch, tmp_path):
+    """A sub-chunk-length session writes and reads back with raw int16 intact."""
+    ecu_ids = ["ECU_Ain1", "ECU_Ain2"]
+    n_time = 50  # far below DEFAULT_CHUNK_TIME_DIM
+    combined = np.arange(n_time * 2, dtype=np.int16).reshape(n_time, 2)
+    _patch_analog_source(
+        monkeypatch, ecu_ids, [], combined, np.arange(n_time, dtype=float)
+    )
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["fake.rec"])
+    path = tmp_path / "short.nwb"
+    with pynwb.NWBHDF5IO(path, "w") as io:
+        io.write(nwbfile)
+    with pynwb.NWBHDF5IO(path, "r") as io:
+        read = io.read()
+        analog_input = read.acquisition["analog_input"]
+        assert analog_input.data.shape == (n_time, 2)
+        assert (analog_input.data[:] == combined).all()
+
+
+def test_update_analog_data_rejects_new_layout(monkeypatch, tmp_path):
+    """update_analog_data fails clearly on files without the legacy analog stream."""
+    monkeypatch.setattr(convert_analog, "_get_ecu_analog_channel_ids", lambda path: [])
+    nwbfile = _make_minimal_nwbfile()
+    path = tmp_path / "new_layout.nwb"
+    with pynwb.NWBHDF5IO(path, "w") as io:
+        io.write(nwbfile)
+    with pytest.raises(ValueError, match="legacy combined analog stream"):
+        update_analog_data(str(path), ["fake.rec"])
+
+
+def _write_legacy_combined_analog(nwbfile, rec_file_path):
+    """Write the pre-sensor-separation combined analog stream.
+
+    Reproduces the legacy ``processing["analog"]["analog"]["analog"]`` layout
+    (a single combined TimeSeries with ``unit="-1"``) that production no longer
+    writes, so the legacy-repair path of ``update_analog_data`` can be tested
+    against a file in that layout.
+    """
+    analog_channel_ids = convert_analog._get_ecu_analog_channel_ids(rec_file_path[0])
+    rec_dci = RecFileDataChunkIterator(
+        rec_file_path,
+        nwb_hw_channel_order=analog_channel_ids,
+        stream_id="ECU_analog",
+        is_analog=True,
+    )
+    analog_channel_ids.extend(rec_dci.neo_io[0].multiplexed_channel_xml.keys())
+    data_io = H5DataIO(
+        rec_dci,
+        chunks=(
+            convert_analog.DEFAULT_CHUNK_TIME_DIM,
+            min(len(analog_channel_ids), convert_analog.DEFAULT_CHUNK_MAX_CHANNEL_DIM),
+        ),
+    )
+    nwbfile.create_processing_module(
+        name="analog", description="Contains all analog data"
+    )
+    analog_events = pynwb.behavior.BehavioralEvents(name="analog")
+    analog_events.add_timeseries(
+        pynwb.TimeSeries(
+            name="analog",
+            description="   ".join(analog_channel_ids) + "   ",
+            data=data_io,
+            timestamps=rec_dci.timestamps,
+            unit="-1",
+        )
+    )
+    nwbfile.processing["analog"].add(analog_events)
+
+
 def test_update_analog_data():
     """Test that update_analog_data correctly overwrites data in an existing NWB file."""
     rec_files = [
@@ -273,10 +414,9 @@ def test_update_analog_data():
     metadata, _ = convert_yaml.load_metadata(metadata_path, [])
     rec_header = convert_rec_header.read_header(rec_files[0])
 
-    # make file with data
+    # make a file in the legacy combined-analog layout that update_analog_data repairs
     nwbfile = convert_yaml.initialize_nwb(metadata, rec_header)
-    get_analog_channel_names(rec_header)
-    add_analog_data(nwbfile, rec_files)
+    _write_legacy_combined_analog(nwbfile, rec_files)
 
     # save file
     ref_filename = "correctly_added_analog.nwb"

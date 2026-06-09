@@ -10,8 +10,8 @@
 
 ### Analog / headstage sensors
 
-- **Breaking:** analog data is now written as separate, physically-united
-  `TimeSeries` in `nwbfile.acquisition` (one per sensor type:
+- **Breaking:** analog data is now written as separate `TimeSeries` carrying
+  physical units in `nwbfile.acquisition` (one per sensor type:
   `accelerometer`, `gyroscope`, `magnetometer`, `analog_input`, and `other`
   for unrecognized channels), replacing the single combined
   `processing["analog"]["analog"]["analog"]` stream. Headstage accelerometer

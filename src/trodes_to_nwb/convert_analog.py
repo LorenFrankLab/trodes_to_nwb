@@ -157,7 +157,13 @@ class _AnalogChannelSubsetIterator(GenericDataChunkIterator):
     def __init__(self, source, column_indices):
         self._source = source
         self._column_indices = list(column_indices)
-        self._n_time, self._n_source_cols = source._get_maxshape()
+        self._n_time, self._n_source_cols = source.maxshape
+        invalid = [i for i in self._column_indices if not 0 <= i < self._n_source_cols]
+        if invalid:
+            raise ValueError(
+                f"column_indices {invalid} are out of range for a source with "
+                f"{self._n_source_cols} columns"
+            )
         super().__init__()
 
     def _get_data(self, selection: tuple[slice, slice]) -> np.ndarray:
@@ -183,7 +189,7 @@ def add_analog_data(
     metadata: dict | None = None,
     **kwargs,
 ) -> None:
-    """Adds analog streams to the nwb file as separate, scaled acquisition TimeSeries.
+    """Adds analog streams as separate acquisition TimeSeries with physical units.
 
     Headstage IMU sensors (accelerometer, gyroscope, magnetometer) and ECU
     analog inputs are written as individual ``TimeSeries`` in
@@ -235,9 +241,22 @@ def add_analog_data(
 
     groups = _categorize_sensor_channels(all_channel_ids)
 
+    # Warn on sensor_units overrides that name an unknown sensor type, so a typo
+    # (e.g. "accel" instead of "accelerometer") is not silently ignored.
+    if metadata and "sensor_units" in metadata:
+        valid_sensor_types = set(SENSOR_TYPE_CONFIG) | {"other"}
+        unknown = set(metadata["sensor_units"]) - valid_sensor_types
+        if unknown:
+            logger.warning(
+                "metadata['sensor_units'] has unrecognized sensor type(s) %s; "
+                "those unit overrides are ignored. Valid keys: %s",
+                sorted(unknown),
+                sorted(valid_sensor_types),
+            )
+
     # Cap the time-axis chunk at the session length so short sessions (fewer than
     # DEFAULT_CHUNK_TIME_DIM samples) get a valid HDF5 chunk shape.
-    n_time = rec_dci._get_maxshape()[0]
+    n_time = rec_dci.maxshape[0]
     chunk_time_dim = min(DEFAULT_CHUNK_TIME_DIM, n_time)
 
     # All sensor streams share one timestamps dataset: the first TimeSeries owns
@@ -322,6 +341,19 @@ def update_analog_data(
     """
     # Reconstruct the same analog channel ID list used in the original conversion
     analog_channel_ids = _get_ecu_analog_channel_ids(rec_file_path[0])
+
+    # Guard: this tool only repairs the legacy combined-analog layout. Files
+    # written by the current add_analog_data store per-sensor TimeSeries in
+    # acquisition and have no processing/analog stream to repair.
+    with h5py.File(nwb_file_path, "r") as f:
+        if _NWB_ANALOG_DATA_PATH not in f:
+            raise ValueError(
+                f"{nwb_file_path!r} has no legacy combined analog stream at "
+                f"{_NWB_ANALOG_DATA_PATH!r}. update_analog_data only repairs files "
+                "written by the pre-sensor-separation layout; files written by the "
+                "current add_analog_data store per-sensor TimeSeries in acquisition "
+                "and need no demux repair."
+            )
 
     # Read timestamps from the existing NWB file if not provided
     if timestamps is None:
