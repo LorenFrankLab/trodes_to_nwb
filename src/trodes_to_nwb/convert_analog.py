@@ -50,6 +50,15 @@ class SensorConfig:
     description: str
     pattern: str | None = None
 
+    def __post_init__(self):
+        if not np.isfinite(self.conversion) or self.conversion == 0:
+            raise ValueError(
+                f"SensorConfig.conversion must be finite and nonzero, "
+                f"got {self.conversion!r}"
+            )
+        if not self.unit:
+            raise ValueError("SensorConfig.unit must be a non-empty string")
+
 
 # IMU values are stored in SI units (the NWB convention): the TimeSeries
 # ``conversion`` maps the raw int16 counts to the SI unit. The SpikeGadgets sensor
@@ -86,7 +95,16 @@ SENSOR_TYPE_CONFIG: dict[str, SensorConfig] = {
         conversion=1.0,  # raw counts; no counts->volts factor is defined
         unit="unspecified",
         description="ECU analog input",
-        pattern=r"(ECU_Ain\d+|Controller_Ain\d+)$",
+        pattern=r"ECU_Ain\d+$",
+    ),
+    # Controller analog inputs ride the multiplexed/aux stream (not the continuous
+    # ECU stream), so they are categorized separately to keep acquisition names
+    # unambiguous: "analog_input" is always the full-rate ECU stream.
+    "controller_analog_input": SensorConfig(
+        conversion=1.0,  # raw counts; no counts->volts factor is defined
+        unit="unspecified",
+        description="Controller analog input",
+        pattern=r"Controller_Ain\d+$",
     ),
 }
 
@@ -381,6 +399,15 @@ def add_analog_data(
             config = _config_for(sensor_type)
             if sensor_type == "other":
                 _warn_other_channels(channel_names, logger)
+            sensor_timestamps = np.concatenate(time_parts)
+            # The continuous (ECU) path inherits the iterator's monotonicity check;
+            # the decimated path builds its own timestamps, so check them here.
+            if np.any(np.diff(sensor_timestamps) <= 0):
+                logger.warning(
+                    "Decimated timestamps for headstage sensor '%s' are not "
+                    "strictly increasing (clock regression at a file boundary?).",
+                    sensor_type,
+                )
             nwbfile.add_acquisition(
                 pynwb.TimeSeries(
                     name=_unique_acquisition_name(nwbfile, sensor_type, logger),
@@ -388,7 +415,7 @@ def add_analog_data(
                     data=np.concatenate(data_parts),
                     unit=_resolve_sensor_unit(sensor_type, config.unit, metadata),
                     conversion=config.conversion,
-                    timestamps=np.concatenate(time_parts),
+                    timestamps=sensor_timestamps,
                 )
             )
 

@@ -261,10 +261,60 @@ def test_add_analog_data_multifile_longer_than_single(monkeypatch):
     nwb_multi = convert_yaml.initialize_nwb(metadata, rec_header)
     add_analog_data(nwb_multi, [rec1, rec2], metadata=metadata)
 
-    stream_name = next(iter(nwb_single.acquisition))
-    len_single = nwb_single.acquisition[stream_name].data.data._get_maxshape()[0]
-    len_multi = nwb_multi.acquisition[stream_name].data.data._get_maxshape()[0]
+    # ECU full-rate stream spans both files
+    ecu_name = next(
+        n for n in nwb_single.acquisition if n not in ("accelerometer", "gyroscope")
+    )
+    len_single = nwb_single.acquisition[ecu_name].data.data._get_maxshape()[0]
+    len_multi = nwb_multi.acquisition[ecu_name].data.data._get_maxshape()[0]
     assert len_multi > len_single
+    # the decimated IMU also spans both files, with timestamps strictly increasing
+    # across the file boundary (guards the file_start offset + concatenation)
+    acc_single = nwb_single.acquisition["accelerometer"]
+    acc_multi = nwb_multi.acquisition["accelerometer"]
+    assert acc_multi.data.shape[0] > acc_single.data.shape[0]
+    assert np.all(np.diff(acc_multi.timestamps[:]) > 0)
+
+
+def test_add_analog_data_multifile_decimation_synthetic(monkeypatch):
+    """Synthetic 2-file: decimated IMU concatenates with globally-offset timestamps.
+
+    The real fixtures cover this end-to-end, but the synthetic harness pins the
+    file_start offset arithmetic deterministically: per-file local update indices
+    must be mapped onto the shared (concatenated) timestamps via cumsum(n_time).
+    """
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    n0, n1 = 100, 80
+    timestamps = np.arange(n0 + n1, dtype=float) * 0.001
+    d0 = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]], dtype=np.int16)
+    i0 = np.array([10, 40, 70])
+    d1 = np.array([[4, 4, 4], [5, 5, 5]], dtype=np.int16)
+    i1 = np.array([5, 35])
+
+    class _MultiFileRecDCI:
+        n_time = [n0, n1]
+        neo_io = [
+            _FakeNeoIO(accel, {tuple(accel): (d0, i0)}),
+            _FakeNeoIO(accel, {tuple(accel): (d1, i1)}),
+        ]
+
+    fake = _MultiFileRecDCI()
+    fake.timestamps = timestamps
+    monkeypatch.setattr(convert_analog, "_get_ecu_analog_channel_ids", lambda path: [])
+    monkeypatch.setattr(
+        convert_analog, "RecFileDataChunkIterator", lambda *a, **k: fake
+    )
+
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["a.rec", "b.rec"])
+
+    acc = nwbfile.acquisition["accelerometer"]
+    # data concatenated in file order
+    assert (acc.data == np.concatenate([d0, d1])).all()
+    # second file's local indices offset by n0 onto the shared timeline
+    expected_idx = np.concatenate([i0, i1 + n0])
+    assert (acc.timestamps[:] == timestamps[expected_idx]).all()
+    assert np.all(np.diff(acc.timestamps[:]) > 0)
 
 
 def test_sensor_unit_metadata_override(monkeypatch):
@@ -387,6 +437,12 @@ def test_get_decimated_multiplexed_real_data():
     data, idx = io.get_analogsignal_multiplexed_decimated(accel)
     assert data.shape == (idx.size, 3) and idx.size > 0
     assert 90.0 < 30000.0 / np.median(np.diff(idx)) < 110.0  # ~100 Hz @ 30 kHz
+    # value oracle: decimated bytes equal the trusted held method's values at the
+    # update packets (catches byte-assembly / offset regressions in the new reader)
+    held = io.get_analogsignal_multiplexed()  # (n_packet, n_mux), held full-rate
+    mux_ids = list(io.multiplexed_channel_xml.keys())
+    accel_cols = [mux_ids.index(c) for c in accel]
+    assert np.array_equal(data, held[np.ix_(idx, accel_cols)])
     # disabled sensor -> empty
     mag = ["Headstage_MagX", "Headstage_MagY", "Headstage_MagZ"]
     mag_data, mag_idx = io.get_analogsignal_multiplexed_decimated(mag)
@@ -604,7 +660,10 @@ def test_categorize_all_sensor_types():
         "Headstage_MagY",
         "Headstage_MagZ",
     ]
-    assert groups["analog_input"] == ["ECU_Ain1", "Controller_Ain2"]
+    # ECU and controller analog inputs are distinct sensor types (different
+    # sources/sampling), so "analog_input" is unambiguously the ECU stream.
+    assert groups["analog_input"] == ["ECU_Ain1"]
+    assert groups["controller_analog_input"] == ["Controller_Ain2"]
     assert groups["other"] == ["Foo_Bar"]
 
 

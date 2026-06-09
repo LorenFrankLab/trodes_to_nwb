@@ -801,6 +801,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
         All requested channels must share an identical update schedule (i.e. belong
         to the same sensor, such as accelerometer X/Y/Z); they are sampled together.
 
+        Unlike :meth:`get_analogsignal_multiplexed`, this method does NOT synthesize
+        a sample at packet 0: only packets whose update flag is set are returned, so
+        the first returned sample is the first genuine acquisition (the held method
+        seeds packet 0 with a possibly-stale value to start the sample-and-hold).
+
         Parameters
         ----------
         channel_names : list of str
