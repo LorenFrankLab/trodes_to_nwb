@@ -28,7 +28,15 @@ ELECTRODES_PATH = "/general/extracellular_ephys/electrodes"
 
 
 def _swap_hwchans(nwb_path, i=0, j=1):
-    """Swap two rows' hwChan values in-place to simulate an incorrect config."""
+    """Swap two rows' hwChan values in-place to simulate an incorrect config.
+
+    Parameters
+    ----------
+    nwb_path : str or Path
+        Path to the NWB file to modify.
+    i, j : int, optional
+        Row indices whose hwChan values are swapped (default 0 and 1).
+    """
     with h5py.File(str(nwb_path), "a") as f:
         hw_chans = f[ELECTRODES_PATH]["hwChan"][:]
         decoded = [v.decode("utf-8") if isinstance(v, bytes) else v for v in hw_chans]
@@ -37,11 +45,22 @@ def _swap_hwchans(nwb_path, i=0, j=1):
 
 
 def _create_test_nwb(nwb_path, with_eseries=False):
-    """Helper to create a test NWB file with electrodes table using reconfig data.
+    """Create a test NWB file with an electrodes table from reconfig data.
 
-    If ``with_eseries`` is True, an ElectricalSeries is added whose data column
-    ``i`` is the constant ``i`` (its electrode-table row index), so tests can
-    verify the electrode-row <-> data-column binding is preserved by an update.
+    Parameters
+    ----------
+    nwb_path : str or Path
+        Destination path for the written NWB file.
+    with_eseries : bool, optional
+        If True, add an ElectricalSeries whose data column ``i`` is the
+        constant ``i`` (its electrode-table row index), so tests can verify the
+        electrode-row <-> data-column binding is preserved by an update.
+        Defaults to False.
+
+    Returns
+    -------
+    pynwb.NWBFile
+        The in-memory NWBFile that was written to ``nwb_path``.
     """
     metadata, probe_metadata = convert_yaml.load_metadata(
         METADATA_PATH, PROBE_METADATA_PATHS

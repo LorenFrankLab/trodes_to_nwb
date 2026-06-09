@@ -1,6 +1,7 @@
-"""Provides a function to update the electrodes table in an existing NWB file
-using a corrected Trodes configuration file. This allows fixing electrode
-metadata (e.g., shank/probe position info) without rewriting the entire file.
+"""In-place correction of the electrodes table in an existing NWB file.
+
+Provides functions to fix electrode metadata (e.g. shank/probe position info)
+using a corrected Trodes configuration, without rewriting the entire file.
 """
 
 import logging
@@ -58,6 +59,17 @@ def _canonical_hwchan(value) -> str:
     valued inputs canonicalize to their integer string (e.g. ``29``, ``29.0``,
     and ``b"29"`` all map to ``"29"``), so a float vs int dtype difference
     between the file and the config cannot cause a spurious lookup miss.
+
+    Parameters
+    ----------
+    value : bytes, str, int, float, or numpy scalar
+        The hardware-channel identifier to normalize.
+
+    Returns
+    -------
+    str
+        The canonical string key. Integer-valued inputs return their integer
+        string; non-numeric inputs return ``str(value)`` unchanged.
     """
     if isinstance(value, bytes):
         value = value.decode("utf-8")
@@ -167,10 +179,26 @@ def build_electrodes_from_config(
 def _prepare_column_data(col: str, dataset: "h5py.Dataset", values: list):
     """Validate and encode one column's values for an in-place HDF5 write.
 
-    Returns the array/list ready to assign to ``dataset[...]``. Raises before
-    any data is written if the values cannot be stored without silent loss,
-    so the caller can validate every column up front and guarantee the actual
-    write loop never fails partway through.
+    Validation happens before any data is written, so the caller can check
+    every column up front and guarantee the actual write loop never fails
+    partway through.
+
+    Parameters
+    ----------
+    col : str
+        Name of the electrodes-table column being written (used in error
+        messages).
+    dataset : h5py.Dataset
+        The existing on-disk dataset whose dtype the returned values must match.
+    values : list
+        The new per-row values to write, in electrode-table row order.
+
+    Returns
+    -------
+    list of bytes or numpy.ndarray
+        The values ready to assign to ``dataset[...]``: a list of UTF-8 bytes
+        for string columns, or an array cast to the dataset dtype for numeric
+        columns.
 
     Raises
     ------
@@ -217,12 +245,11 @@ def update_electrodes_from_config(
     probe_metadata_paths: list[str | Path],
     trodesconf_path: str | Path,
 ) -> None:
-    """Update the electrodes table in an existing NWB file using a corrected
-    Trodes configuration.
+    """Correct an existing NWB file's electrodes table from a Trodes config.
 
     For each row in the existing electrodes table, the hardware channel (hwChan)
-    is used to identify the correct electrode metadata from the new configuration.
-    The row's metadata is then updated in-place using h5py.
+    is used to identify the correct electrode metadata from the new
+    configuration. The row's metadata is then updated in-place using h5py.
 
     Parameters
     ----------
