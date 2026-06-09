@@ -17,8 +17,12 @@ from trodes_to_nwb import convert_rec_header, convert_yaml
 
 logger = logging.getLogger("convert")
 
-# Columns in the electrodes table that define electrode identity/position
-# These are the columns that get remapped when hw channel assignments change
+# Electrode-table columns that this module overwrites from the trodes config.
+# These describe electrode identity, position, referencing, and indexing for a
+# given hardware channel. ``hwChan`` is intentionally excluded: it is the key
+# used to match each existing row to the corrected metadata and must never be
+# modified (it is also the column the underlying ElectricalSeries data is
+# ordered by, so changing it would break the data <-> row binding).
 UPDATABLE_COLUMNS = [
     "group_name",
     "location",
@@ -32,6 +36,29 @@ UPDATABLE_COLUMNS = [
     "probe_electrode",
     "ref_elect_id",
 ]
+
+
+def _canonical_hwchan(value) -> str:
+    """Normalize a hardware-channel identifier to a canonical string key.
+
+    Both the corrected-config side and the on-disk side build their hwChan
+    lookup keys through this function so the keys match regardless of the
+    underlying representation (bytes, numpy scalar, int, or float). Integer
+    valued inputs canonicalize to their integer string (e.g. ``29``, ``29.0``,
+    and ``b"29"`` all map to ``"29"``), so a float vs int dtype difference
+    between the file and the config cannot cause a spurious lookup miss.
+    """
+    if isinstance(value, bytes):
+        value = value.decode("utf-8")
+    if isinstance(value, str):
+        value = value.strip()
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if as_float.is_integer():
+        return str(int(as_float))
+    return str(as_float)
 
 
 def build_electrodes_from_config(
@@ -57,7 +84,23 @@ def build_electrodes_from_config(
     Returns
     -------
     dict
-        A dictionary mapping hwChan (str) to a dict of electrode metadata fields.
+        A dictionary mapping a canonical hwChan key (str) to a dict of electrode
+        metadata fields. Each value contains ``hwChan`` plus every column in
+        ``UPDATABLE_COLUMNS`` (``group_name``, ``location``, ``rel_x``,
+        ``rel_y``, ``rel_z``, ``ntrode_id``, ``channel_id``, ``bad_channel``,
+        ``probe_shank``, ``probe_electrode``, ``ref_elect_id``), with string,
+        float, and bool coercions applied as appropriate.
+
+    Raises
+    ------
+    ValueError
+        If the corrected configuration does not assign a unique hwChan to every
+        electrode (hwChan must be a unique key for the remap to be well-defined).
+
+    Notes
+    -----
+    Assumes each ``hwChan`` value is unique across the electrodes table; this is
+    the invariant the whole remap relies on and it is enforced here.
     """
     metadata, probe_metadata = convert_yaml.load_metadata(
         metadata_path, probe_metadata_paths
@@ -71,8 +114,6 @@ def build_electrodes_from_config(
         metadata, spike_config
     )
 
-    # Build a temporary NWBFile and populate electrodes using the same code
-    # path as normal conversion (add_electrode_groups) to ensure consistency.
     tmp_nwbfile = NWBFile(
         session_description="temp",
         identifier=str(uuid.uuid4()),
@@ -89,8 +130,8 @@ def build_electrodes_from_config(
 
     # Build the hwChan-keyed mapping from the electrode table
     hw_chan_to_metadata = {}
-    for idx, row in electrode_df.iterrows():
-        hw_chan = str(row["hwChan"])
+    for _, row in electrode_df.iterrows():
+        hw_chan = _canonical_hwchan(row["hwChan"])
         hw_chan_to_metadata[hw_chan] = {
             "hwChan": hw_chan,
             "group_name": str(row["group_name"]),
@@ -106,7 +147,64 @@ def build_electrodes_from_config(
             "ref_elect_id": row["ref_elect_id"],
         }
 
+    # hwChan must be a unique key: a collision would silently overwrite an
+    # electrode's metadata with another's and corrupt the remap.
+    if len(hw_chan_to_metadata) != len(electrode_df):
+        raise ValueError(
+            "The corrected configuration does not assign a unique hwChan to "
+            f"every electrode ({len(electrode_df)} electrodes but only "
+            f"{len(hw_chan_to_metadata)} unique hwChan values). hwChan must be "
+            "unique to remap electrode metadata."
+        )
+
     return hw_chan_to_metadata
+
+
+def _prepare_column_data(col: str, dataset: "h5py.Dataset", values: list):
+    """Validate and encode one column's values for an in-place HDF5 write.
+
+    Returns the array/list ready to assign to ``dataset[...]``. Raises before
+    any data is written if the values cannot be stored without silent loss,
+    so the caller can validate every column up front and guarantee the actual
+    write loop never fails partway through.
+
+    Raises
+    ------
+    ValueError
+        If a string value would be truncated by a fixed-width string dataset,
+        or a numeric cast to the dataset dtype would lose precision or overflow.
+    """
+    kind = dataset.dtype.kind
+
+    if kind in ("O", "S"):
+        encoded = [v.encode("utf-8") if isinstance(v, str) else v for v in values]
+        # Fixed-width string datasets silently truncate over-long values; refuse.
+        if kind == "S":
+            itemsize = dataset.dtype.itemsize
+            too_long = [
+                e for e in encoded if isinstance(e, bytes) and len(e) > itemsize
+            ]
+            if too_long:
+                raise ValueError(
+                    f"Column '{col}': new value(s) exceed the fixed string width "
+                    f"of {itemsize} bytes and would be truncated: "
+                    f"{[e.decode('utf-8', 'replace') for e in too_long]}"
+                )
+        return encoded
+
+    # Numeric (and bool) columns: refuse casts that would silently round or
+    # overflow (e.g. float coordinates into an int dataset, or a -1 reference
+    # sentinel into an unsigned dataset).
+    arr = np.asarray(values)
+    if np.can_cast(arr.dtype, dataset.dtype, casting="safe"):
+        return arr.astype(dataset.dtype)
+    cast = arr.astype(dataset.dtype)
+    if arr.size and not np.array_equal(cast.astype(arr.dtype), arr):
+        raise ValueError(
+            f"Column '{col}': new values cannot be cast from {arr.dtype} to "
+            f"{dataset.dtype} without loss or overflow."
+        )
+    return cast
 
 
 def update_electrodes_from_config(
@@ -135,12 +233,29 @@ def update_electrodes_from_config(
 
     Raises
     ------
+    FileNotFoundError
+        If ``nwb_file_path`` does not exist, or (indirectly) if no probe
+        metadata matches a device type in the configuration.
     KeyError
-        If a hardware channel in the existing file cannot be found in the new config.
+        If a hardware channel in the existing file cannot be found in the new
+        config, or a required column is missing from the existing electrodes
+        table.
     ValueError
         If the new configuration would reassign an electrode to a different
-        probe device (group_name). This operation only updates metadata within
-        the same device; changing device assignment requires full reconversion.
+        probe device (group_name); if the existing table is empty or
+        internally inconsistent; or if a corrected value cannot be written to
+        an existing column without silent truncation/overflow. This operation
+        only updates metadata within the same device; changing device
+        assignment requires full reconversion.
+
+    Notes
+    -----
+    The file is modified in place with no backup. All validation (device
+    change, missing columns, hwChan matching, value encodability) runs *before*
+    any data is written, so a validation failure leaves the file untouched.
+    The per-column writes themselves are not transactional, however: a hard
+    interruption (e.g. power loss) during the write phase could still leave the
+    electrodes table partially updated. Back up the file first if that matters.
     """
     nwb_file_path = Path(nwb_file_path)
     if not nwb_file_path.exists():
@@ -157,22 +272,18 @@ def update_electrodes_from_config(
     with h5py.File(nwb_file_path, "a") as f:
         electrodes_group = f[electrodes_path]
 
-        # Read existing hwChan values to use as the key for matching
-        existing_hw_chans = electrodes_group["hwChan"][:]
-        # Decode bytes to str if necessary
-        if existing_hw_chans.dtype.kind == "O" or existing_hw_chans.dtype.kind == "S":
-            existing_hw_chans = [
-                v.decode("utf-8") if isinstance(v, bytes) else v
-                for v in existing_hw_chans
-            ]
-        else:
-            existing_hw_chans = [str(v) for v in existing_hw_chans]
-
+        # Existing hwChan values, normalized to canonical keys for matching.
+        existing_hw_chans = [
+            _canonical_hwchan(v) for v in electrodes_group["hwChan"][:]
+        ]
         n_electrodes = len(existing_hw_chans)
+        if n_electrodes == 0:
+            raise ValueError(
+                f"Electrodes table in {nwb_file_path} is empty; nothing to update."
+            )
 
-        # Build new column data arrays
+        # Build new column data arrays, keyed by hwChan, in existing row order.
         new_data = {col: [] for col in UPDATABLE_COLUMNS}
-
         for hw_chan in existing_hw_chans:
             if hw_chan not in hw_chan_to_metadata:
                 raise KeyError(
@@ -183,23 +294,27 @@ def update_electrodes_from_config(
             for col in UPDATABLE_COLUMNS:
                 new_data[col].append(meta[col])
 
-        # Check if the new config would change any electrode's probe device.
-        # This function only remaps metadata within the same device; changing
-        # the device assignment is not supported and requires full reconversion.
+        # Refuse to silently move an electrode to a different probe device.
+        # group_name is compared positionally, in electrode-table row order:
+        # both arrays are indexed by the same existing rows.
         if "group_name" in electrodes_group:
-            existing_group_names = electrodes_group["group_name"][:]
             existing_group_names = [
                 v.decode("utf-8") if isinstance(v, bytes) else str(v)
-                for v in existing_group_names
+                for v in electrodes_group["group_name"][:]
             ]
-            mismatched = []
-            for i, (existing, new) in enumerate(
-                zip(existing_group_names, new_data["group_name"])
-            ):
-                if existing != new:
-                    mismatched.append(
-                        f"  hwChan {existing_hw_chans[i]}: " f"'{existing}' -> '{new}'"
-                    )
+            if len(existing_group_names) != n_electrodes:
+                raise ValueError(
+                    f"Column 'group_name' has length {len(existing_group_names)} "
+                    f"but the table has {n_electrodes} electrodes; file is "
+                    "inconsistent."
+                )
+            mismatched = [
+                f"  hwChan {existing_hw_chans[i]}: '{existing}' -> '{new}'"
+                for i, (existing, new) in enumerate(
+                    zip(existing_group_names, new_data["group_name"])
+                )
+                if existing != new
+            ]
             if mismatched:
                 details = "\n".join(mismatched[:10])
                 raise ValueError(
@@ -209,30 +324,30 @@ def update_electrodes_from_config(
                     "the same device. Mismatched electrodes:\n" + details
                 )
 
-        # Write updated data back to the HDF5 file
+        # Pre-flight: validate and encode EVERY column before mutating anything.
+        # Every column is required (the set is a coherent description of an
+        # electrode; a partial update would leave the table inconsistent), each
+        # must match the table length, and each value must be writable without
+        # silent loss. Any failure here aborts before a single byte is written.
+        prepared = {}
         for col in UPDATABLE_COLUMNS:
             if col not in electrodes_group:
-                logger.warning(
-                    f"Column '{col}' not found in electrodes table, skipping."
+                raise KeyError(
+                    f"Required column '{col}' is missing from the electrodes "
+                    f"table in {nwb_file_path}; refusing to perform a partial "
+                    "update."
                 )
-                continue
-
             dataset = electrodes_group[col]
-            values = new_data[col]
+            if dataset.shape[0] != n_electrodes:
+                raise ValueError(
+                    f"Column '{col}' has length {dataset.shape[0]} but the table "
+                    f"has {n_electrodes} electrodes; file is inconsistent."
+                )
+            prepared[col] = _prepare_column_data(col, dataset, new_data[col])
 
-            # Handle string vs numeric data
-            if dataset.dtype.kind in ("O", "S") or (
-                len(values) > 0 and isinstance(values[0], str)
-            ):
-                # String data - need to handle variable-length strings
-                encoded = [
-                    v.encode("utf-8") if isinstance(v, str) else v for v in values
-                ]
-                dataset[...] = encoded
-            elif len(values) > 0 and isinstance(values[0], bool):
-                dataset[...] = np.array(values, dtype=dataset.dtype)
-            else:
-                dataset[...] = np.array(values, dtype=dataset.dtype)
+        # All columns validated; perform the writes. This loop cannot raise.
+        for col, arr in prepared.items():
+            electrodes_group[col][...] = arr
 
     logger.info(
         f"Successfully updated electrodes table in {nwb_file_path} "

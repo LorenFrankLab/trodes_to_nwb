@@ -10,18 +10,25 @@ import numpy as np
 import pytest
 from dateutil.tz import tzutc
 from pynwb import NWBHDF5IO, NWBFile
+from pynwb.ecephys import ElectricalSeries
 
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.tests.utils import data_path
 from trodes_to_nwb.update_electrodes import (
     UPDATABLE_COLUMNS,
+    _canonical_hwchan,
     build_electrodes_from_config,
     update_electrodes_from_config,
 )
 
 
-def _create_test_nwb(nwb_path):
-    """Helper to create a test NWB file with electrodes table using reconfig data."""
+def _create_test_nwb(nwb_path, with_eseries=False):
+    """Helper to create a test NWB file with electrodes table using reconfig data.
+
+    If ``with_eseries`` is True, an ElectricalSeries is added whose data column
+    ``i`` is the constant ``i`` (its electrode-table row index), so tests can
+    verify the electrode-row <-> data-column binding is preserved by an update.
+    """
     metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
     probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(
@@ -53,6 +60,24 @@ def _create_test_nwb(nwb_path):
     convert_yaml.add_electrode_groups(
         nwbfile, metadata, probe_metadata, hw_channel_map, ref_electrode_map
     )
+
+    if with_eseries:
+        n_electrodes = len(nwbfile.electrodes)
+        region = nwbfile.create_electrode_table_region(
+            region=list(range(n_electrodes)), description="all electrodes"
+        )
+        # data[:, i] == i marks which electrode-table row each data column maps
+        # to, so we can detect any disturbance of the data <-> row binding.
+        n_samples = 10
+        data = np.tile(np.arange(n_electrodes, dtype="int16"), (n_samples, 1))
+        nwbfile.add_acquisition(
+            ElectricalSeries(
+                name="e-series",
+                data=data,
+                electrodes=region,
+                timestamps=np.arange(n_samples, dtype="float64"),
+            )
+        )
 
     with NWBHDF5IO(str(nwb_path), "w") as io:
         io.write(nwbfile)
@@ -165,17 +190,25 @@ def test_update_electrodes_from_config_swapped():
             updated_nwb = io.read()
             updated_df = updated_nwb.electrodes.to_dataframe()
 
-        # After the update, row 0 should have metadata for hwChan that was
-        # originally at row 1, and vice versa (since we swapped hwChans)
-        # Row 0 now has hw_chan that originally was at row 1
-        assert (
-            updated_df.iloc[0]["probe_electrode"]
-            == original_df.iloc[1]["probe_electrode"]
-        )
-        assert (
-            updated_df.iloc[1]["probe_electrode"]
-            == original_df.iloc[0]["probe_electrode"]
-        )
+        # After the update, row 0 should carry the full metadata that originally
+        # belonged to row 1, and vice versa (since we swapped their hwChans).
+        # Every updatable column must be remapped, not just probe_electrode.
+        for col in UPDATABLE_COLUMNS:
+            assert (
+                updated_df.iloc[0][col] == original_df.iloc[1][col]
+            ), f"Column {col} not remapped to swapped hwChan at row 0"
+            assert (
+                updated_df.iloc[1][col] == original_df.iloc[0][col]
+            ), f"Column {col} not remapped to swapped hwChan at row 1"
+
+        # The swap must actually change observable metadata, otherwise the
+        # assertions above would pass even if nothing were remapped.
+        changed = [
+            col
+            for col in UPDATABLE_COLUMNS
+            if original_df.iloc[0][col] != original_df.iloc[1][col]
+        ]
+        assert changed, "test fixture rows 0/1 are identical; swap is not observable"
 
 
 def test_update_electrodes_file_not_found():
@@ -235,3 +268,97 @@ def test_update_electrodes_device_change_raises():
             update_electrodes_from_config(
                 nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
             )
+
+
+def test_update_preserves_electrical_series_alignment():
+    """Updating metadata must not disturb the electrode-row <-> data-column
+    binding, and each row must end up describing the electrode at its hwChan."""
+    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
+    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        nwb_path = Path(tmpdir) / "test.nwb"
+        _create_test_nwb(nwb_path, with_eseries=True)
+
+        electrodes_path = "/general/extracellular_ephys/electrodes"
+
+        # Capture the ElectricalSeries data and the electrode region before the
+        # update, and simulate the bug by swapping two rows' hwChans.
+        with h5py.File(str(nwb_path), "a") as f:
+            original_es_data = f["/acquisition/e-series/data"][:].copy()
+            original_region = f["/acquisition/e-series/electrodes"][:].copy()
+            hw_chans = f[electrodes_path]["hwChan"][:]
+            decoded = [
+                v.decode("utf-8") if isinstance(v, bytes) else v for v in hw_chans
+            ]
+            decoded[0], decoded[1] = decoded[1], decoded[0]
+            f[electrodes_path]["hwChan"][...] = [v.encode("utf-8") for v in decoded]
+
+        update_electrodes_from_config(
+            nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+        )
+
+        expected = build_electrodes_from_config(
+            metadata_path, probe_metadata_paths, trodesconf_file
+        )
+
+        with NWBHDF5IO(str(nwb_path), "r") as io:
+            updated_nwb = io.read()
+            es = updated_nwb.acquisition["e-series"]
+            updated_es_data = es.data[:]
+            updated_region = np.asarray(es.electrodes.data[:])
+            updated_df = updated_nwb.electrodes.to_dataframe()
+            row_hw_chans = list(updated_df["hwChan"])
+
+        # The module must never touch the data or the region it indexes.
+        np.testing.assert_array_equal(updated_es_data, original_es_data)
+        np.testing.assert_array_equal(updated_region, original_region)
+
+        # Each electrode row must now describe the electrode at its hwChan.
+        for i, hw_chan in enumerate(row_hw_chans):
+            meta = expected[_canonical_hwchan(hw_chan)]
+            for col in UPDATABLE_COLUMNS:
+                assert updated_df.iloc[i][col] == meta[col], (
+                    f"Row {i} (hwChan {hw_chan}) column {col} does not match "
+                    "the corrected config"
+                )
+
+
+def test_update_electrodes_missing_required_column_raises():
+    """A file missing a required updatable column must raise rather than
+    silently perform a partial update."""
+    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
+    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        nwb_path = Path(tmpdir) / "test.nwb"
+        _create_test_nwb(nwb_path)
+
+        electrodes_path = "/general/extracellular_ephys/electrodes"
+        with h5py.File(str(nwb_path), "a") as f:
+            del f[electrodes_path]["ref_elect_id"]
+
+        with pytest.raises(KeyError, match="ref_elect_id"):
+            update_electrodes_from_config(
+                nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+            )
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (b"29", "29"),
+        ("29", "29"),
+        (29, "29"),
+        (29.0, "29"),
+        (np.int64(29), "29"),
+        (np.float64(29.0), "29"),
+        (" 29 ", "29"),
+        ("ref", "ref"),
+    ],
+)
+def test_canonical_hwchan(value, expected):
+    """hwChan keys are canonical across bytes/str/int/float representations."""
+    assert _canonical_hwchan(value) == expected
