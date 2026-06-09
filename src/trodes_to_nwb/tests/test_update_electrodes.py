@@ -21,6 +21,20 @@ from trodes_to_nwb.update_electrodes import (
     update_electrodes_from_config,
 )
 
+METADATA_PATH = data_path / "20230622_sample_metadataProbeReconfig.yml"
+PROBE_METADATA_PATHS = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
+TRODESCONF_FILE = data_path / "reconfig_probeDevice.trodesconf"
+ELECTRODES_PATH = "/general/extracellular_ephys/electrodes"
+
+
+def _swap_hwchans(nwb_path, i=0, j=1):
+    """Swap two rows' hwChan values in-place to simulate an incorrect config."""
+    with h5py.File(str(nwb_path), "a") as f:
+        hw_chans = f[ELECTRODES_PATH]["hwChan"][:]
+        decoded = [v.decode("utf-8") if isinstance(v, bytes) else v for v in hw_chans]
+        decoded[i], decoded[j] = decoded[j], decoded[i]
+        f[ELECTRODES_PATH]["hwChan"][...] = [v.encode("utf-8") for v in decoded]
+
 
 def _create_test_nwb(nwb_path, with_eseries=False):
     """Helper to create a test NWB file with electrodes table using reconfig data.
@@ -29,10 +43,8 @@ def _create_test_nwb(nwb_path, with_eseries=False):
     ``i`` is the constant ``i`` (its electrode-table row index), so tests can
     verify the electrode-row <-> data-column binding is preserved by an update.
     """
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
     metadata, probe_metadata = convert_yaml.load_metadata(
-        metadata_path, probe_metadata_paths
+        METADATA_PATH, PROBE_METADATA_PATHS
     )
 
     # Create NWB file directly (without needing a .rec file for GlobalConfiguration)
@@ -48,8 +60,7 @@ def _create_test_nwb(nwb_path, with_eseries=False):
         experiment_description=metadata["experiment_description"],
     )
 
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
-    rec_header = convert_rec_header.read_header(trodesconf_file)
+    rec_header = convert_rec_header.read_header(TRODESCONF_FILE)
     hw_channel_map = convert_rec_header.make_hw_channel_map(
         metadata, rec_header.find("SpikeConfiguration")
     )
@@ -87,12 +98,9 @@ def _create_test_nwb(nwb_path, with_eseries=False):
 
 def test_build_electrodes_from_config():
     """Test that build_electrodes_from_config returns correct hw_chan mapping."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     hw_chan_map = build_electrodes_from_config(
-        metadata_path, probe_metadata_paths, trodesconf_file
+        METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
     )
 
     # Check that we got a non-empty dictionary
@@ -120,9 +128,6 @@ def test_build_electrodes_from_config():
 
 def test_update_electrodes_from_config_identity():
     """Test that updating with the same config leaves data unchanged."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nwb_path = Path(tmpdir) / "test.nwb"
@@ -133,7 +138,7 @@ def test_update_electrodes_from_config_identity():
 
         # Update with the same config (should be identity operation)
         update_electrodes_from_config(
-            nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+            nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
         )
 
         # Read back the updated file and check values are unchanged
@@ -151,9 +156,6 @@ def test_update_electrodes_from_config_identity():
 def test_update_electrodes_from_config_swapped():
     """Test that updating with a config that has swapped channels
     correctly remaps the metadata."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nwb_path = Path(tmpdir) / "test.nwb"
@@ -162,27 +164,12 @@ def test_update_electrodes_from_config_swapped():
         # Get the original electrode table values
         original_df = nwbfile.electrodes.to_dataframe()
 
-        # Now manually swap two hwChan values in the NWB file to simulate
-        # an incorrect config
-        electrodes_path = "/general/extracellular_ephys/electrodes"
-        with h5py.File(str(nwb_path), "a") as f:
-            hw_chans = f[electrodes_path]["hwChan"][:]
-            # Decode
-            hw_chans_decoded = [
-                v.decode("utf-8") if isinstance(v, bytes) else v for v in hw_chans
-            ]
-            # Swap first two hw channels
-            hw_chans_decoded[0], hw_chans_decoded[1] = (
-                hw_chans_decoded[1],
-                hw_chans_decoded[0],
-            )
-            # Write back
-            encoded = [v.encode("utf-8") for v in hw_chans_decoded]
-            f[electrodes_path]["hwChan"][...] = encoded
+        # Swap two hwChan values in the NWB file to simulate an incorrect config
+        _swap_hwchans(nwb_path)
 
         # Now update with correct config - should fix the metadata
         update_electrodes_from_config(
-            nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+            nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
         )
 
         # Read back the updated file
@@ -216,40 +203,33 @@ def test_update_electrodes_file_not_found():
     with pytest.raises(FileNotFoundError):
         update_electrodes_from_config(
             "/nonexistent/path.nwb",
-            data_path / "20230622_sample_metadataProbeReconfig.yml",
-            [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"],
-            data_path / "reconfig_probeDevice.trodesconf",
+            METADATA_PATH,
+            PROBE_METADATA_PATHS,
+            TRODESCONF_FILE,
         )
 
 
 def test_update_electrodes_missing_hw_chan():
     """Test that KeyError is raised when hwChan in file is not in new config."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nwb_path = Path(tmpdir) / "test.nwb"
         _create_test_nwb(nwb_path)
 
         # Overwrite a hwChan value with something that won't be in the config
-        electrodes_path = "/general/extracellular_ephys/electrodes"
         with h5py.File(str(nwb_path), "a") as f:
-            hw_chans = f[electrodes_path]["hwChan"][:]
+            hw_chans = f[ELECTRODES_PATH]["hwChan"][:]
             hw_chans[0] = b"99999"
-            f[electrodes_path]["hwChan"][...] = hw_chans
+            f[ELECTRODES_PATH]["hwChan"][...] = hw_chans
 
         with pytest.raises(KeyError):
             update_electrodes_from_config(
-                nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+                nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
             )
 
 
 def test_update_electrodes_device_change_raises():
     """Test that ValueError is raised when new config would change probe device."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nwb_path = Path(tmpdir) / "test.nwb"
@@ -257,50 +237,41 @@ def test_update_electrodes_device_change_raises():
 
         # Manually change a group_name in the existing file so it no longer
         # matches what the config would produce for that hwChan
-        electrodes_path = "/general/extracellular_ephys/electrodes"
         with h5py.File(str(nwb_path), "a") as f:
-            group_names = f[electrodes_path]["group_name"][:]
+            group_names = f[ELECTRODES_PATH]["group_name"][:]
             # Change the first electrode's group_name to a different value
             group_names[0] = b"999"
-            f[electrodes_path]["group_name"][...] = group_names
+            f[ELECTRODES_PATH]["group_name"][...] = group_names
 
         with pytest.raises(ValueError, match="different probe devices"):
             update_electrodes_from_config(
-                nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+                nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
             )
 
 
 def test_update_preserves_electrical_series_alignment():
     """Updating metadata must not disturb the electrode-row <-> data-column
     binding, and each row must end up describing the electrode at its hwChan."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nwb_path = Path(tmpdir) / "test.nwb"
         _create_test_nwb(nwb_path, with_eseries=True)
 
-        electrodes_path = "/general/extracellular_ephys/electrodes"
-
         # Capture the ElectricalSeries data and the electrode region before the
-        # update, and simulate the bug by swapping two rows' hwChans.
+        # update.
         with h5py.File(str(nwb_path), "a") as f:
             original_es_data = f["/acquisition/e-series/data"][:].copy()
             original_region = f["/acquisition/e-series/electrodes"][:].copy()
-            hw_chans = f[electrodes_path]["hwChan"][:]
-            decoded = [
-                v.decode("utf-8") if isinstance(v, bytes) else v for v in hw_chans
-            ]
-            decoded[0], decoded[1] = decoded[1], decoded[0]
-            f[electrodes_path]["hwChan"][...] = [v.encode("utf-8") for v in decoded]
+
+        # Simulate the bug by swapping two rows' hwChans.
+        _swap_hwchans(nwb_path)
 
         update_electrodes_from_config(
-            nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+            nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
         )
 
         expected = build_electrodes_from_config(
-            metadata_path, probe_metadata_paths, trodesconf_file
+            METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
         )
 
         with NWBHDF5IO(str(nwb_path), "r") as io:
@@ -328,21 +299,17 @@ def test_update_preserves_electrical_series_alignment():
 def test_update_electrodes_missing_required_column_raises():
     """A file missing a required updatable column must raise rather than
     silently perform a partial update."""
-    metadata_path = data_path / "20230622_sample_metadataProbeReconfig.yml"
-    probe_metadata_paths = [data_path / "128c-4s6mm6cm-15um-26um-sl.yml"]
-    trodesconf_file = data_path / "reconfig_probeDevice.trodesconf"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         nwb_path = Path(tmpdir) / "test.nwb"
         _create_test_nwb(nwb_path)
 
-        electrodes_path = "/general/extracellular_ephys/electrodes"
         with h5py.File(str(nwb_path), "a") as f:
-            del f[electrodes_path]["ref_elect_id"]
+            del f[ELECTRODES_PATH]["ref_elect_id"]
 
         with pytest.raises(KeyError, match="ref_elect_id"):
             update_electrodes_from_config(
-                nwb_path, metadata_path, probe_metadata_paths, trodesconf_file
+                nwb_path, METADATA_PATH, PROBE_METADATA_PATHS, TRODESCONF_FILE
             )
 
 

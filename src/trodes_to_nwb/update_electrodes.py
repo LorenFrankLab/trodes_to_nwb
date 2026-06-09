@@ -37,6 +37,17 @@ UPDATABLE_COLUMNS = [
     "ref_elect_id",
 ]
 
+# Coercions applied to specific columns when reading the corrected electrode
+# table, so the returned mapping holds clean Python scalars. Columns in
+# UPDATABLE_COLUMNS that are not listed here are passed through unchanged.
+_COLUMN_COERCIONS = {
+    "group_name": str,
+    "rel_x": float,
+    "rel_y": float,
+    "rel_z": float,
+    "bad_channel": bool,
+}
+
 
 def _canonical_hwchan(value) -> str:
     """Normalize a hardware-channel identifier to a canonical string key.
@@ -129,23 +140,16 @@ def build_electrodes_from_config(
     electrode_df = tmp_nwbfile.electrodes.to_dataframe()
 
     # Build the hwChan-keyed mapping from the electrode table
+    # UPDATABLE_COLUMNS is the single source of truth for which fields are
+    # carried; _COLUMN_COERCIONS supplies the per-field scalar coercion.
     hw_chan_to_metadata = {}
     for _, row in electrode_df.iterrows():
         hw_chan = _canonical_hwchan(row["hwChan"])
-        hw_chan_to_metadata[hw_chan] = {
-            "hwChan": hw_chan,
-            "group_name": str(row["group_name"]),
-            "location": row["location"],
-            "rel_x": float(row["rel_x"]),
-            "rel_y": float(row["rel_y"]),
-            "rel_z": float(row["rel_z"]),
-            "ntrode_id": row["ntrode_id"],
-            "channel_id": row["channel_id"],
-            "bad_channel": bool(row["bad_channel"]),
-            "probe_shank": row["probe_shank"],
-            "probe_electrode": row["probe_electrode"],
-            "ref_elect_id": row["ref_elect_id"],
-        }
+        entry = {"hwChan": hw_chan}
+        for col in UPDATABLE_COLUMNS:
+            coerce = _COLUMN_COERCIONS.get(col)
+            entry[col] = coerce(row[col]) if coerce else row[col]
+        hw_chan_to_metadata[hw_chan] = entry
 
     # hwChan must be a unique key: a collision would silently overwrite an
     # electrode's metadata with another's and corrupt the remap.
@@ -199,7 +203,7 @@ def _prepare_column_data(col: str, dataset: "h5py.Dataset", values: list):
     if np.can_cast(arr.dtype, dataset.dtype, casting="safe"):
         return arr.astype(dataset.dtype)
     cast = arr.astype(dataset.dtype)
-    if arr.size and not np.array_equal(cast.astype(arr.dtype), arr):
+    if not np.array_equal(cast.astype(arr.dtype), arr):
         raise ValueError(
             f"Column '{col}': new values cannot be cast from {arr.dtype} to "
             f"{dataset.dtype} without loss or overflow."
