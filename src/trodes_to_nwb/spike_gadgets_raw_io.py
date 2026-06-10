@@ -27,6 +27,35 @@ TIMESTAMP_SIZE_BYTES = 4  # uint32
 SYSCLOCK_SIZE_BYTES = 8  # int64
 EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
 EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
+UINT32_WRAP = 2**32  # Trodes timestamp is a uint32 sample counter; it wraps here
+
+
+def _unwrap_uint32(values: np.ndarray) -> np.ndarray:
+    """Unwrap a monotonically increasing uint32 counter that may have wrapped.
+
+    The Trodes per-packet timestamp is a uint32 sample counter that rolls over
+    after ``2**32`` samples (~39.77 h at 30 kHz). A rollover appears as a large
+    negative jump once the values are viewed as signed integers. This adds
+    ``2**32`` at and after each detected wrap and returns ``int64`` values that
+    are globally monotonic relative to ``values[0]``.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        1D array of uint32 timestamp counter values.
+
+    Returns
+    -------
+    np.ndarray
+        ``int64`` array of the same shape, unwrapped.
+    """
+    unwrapped = np.asarray(values, dtype=np.int64)
+    if unwrapped.size < 2:
+        return unwrapped
+    wraps = np.diff(unwrapped) < -(UINT32_WRAP // 2)
+    offsets = np.zeros(unwrapped.size, dtype=np.int64)
+    offsets[1:] = np.cumsum(wraps) * UINT32_WRAP
+    return unwrapped + offsets
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -494,6 +523,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # initialize systime parameters as empty dict so can check if they have been set in a get_regressed_systime call
         self.regressed_systime_parameters = {}
+        # offset of this object's first sample within the full recording; 0 for a
+        # full file, set to start_index for partial iterators. Used to anchor the
+        # uint32 timestamp unwrap to a single global axis (see get_regressed_systime).
+        self._global_sample_offset = 0
 
         self._generate_minimal_annotations()
         # info from GlobalConfiguration in xml are copied to block and seg annotations
@@ -998,11 +1031,27 @@ class SpikeGadgetsRawIO(BaseRawIO):
             A NumPy array containing the adjusted system timestamps.
         """
         NANOSECONDS_PER_SECOND = 1e9
-        # get trodes timestamp values
-        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        # Convert
-        trodestime_index = np.asarray(trodestime, dtype=np.float64)
+        # Get the raw uint32 Trodes timestamps for this slice. The counter wraps
+        # every 2**32 samples (~39.77 h at 30 kHz); unwrap to a globally
+        # monotonic axis anchored at the full recording's sample 0 so that split
+        # (partial) iterators -- which inherit the fitted slope/intercept and may
+        # read a post-wrap sub-range -- land on the same axis (see #169).
+        trodestime = np.asarray(self.get_analogsignal_timestamps(i_start, i_stop))
+        global_start = int(getattr(self, "_global_sample_offset", 0)) + int(
+            i_start or 0
+        )
         if not self.regressed_systime_parameters:
+            # Fitting call (the full recording, in the normal pipeline). Unwrap
+            # this slice and record the global sample index of every wrap so
+            # partial iterators can reconstruct the identical axis.
+            trodestime_index = _unwrap_uint32(trodestime).astype(np.float64)
+            wrap_sample_indices = (
+                np.flatnonzero(
+                    np.diff(trodestime.astype(np.int64)) < -(UINT32_WRAP // 2)
+                )
+                + 1
+                + global_start
+            )
             # get raw systime values
             systime_seconds = self.get_sys_clock(i_start, i_stop)
             # regress
@@ -1010,10 +1059,22 @@ class SpikeGadgetsRawIO(BaseRawIO):
             self.regressed_systime_parameters = {
                 "slope": slope,
                 "intercept": intercept,
+                "wrap_sample_indices": wrap_sample_indices,
             }
         else:
             slope = self.regressed_systime_parameters["slope"]
             intercept = self.regressed_systime_parameters["intercept"]
+            wrap_sample_indices = self.regressed_systime_parameters.get(
+                "wrap_sample_indices", np.empty(0, dtype=np.int64)
+            )
+            # number of wraps before this slice's first global sample, plus any
+            # wrap occurring within the slice, recovers the global axis.
+            prior_wraps = int(
+                np.searchsorted(wrap_sample_indices, global_start, side="right")
+            )
+            trodestime_index = (
+                _unwrap_uint32(trodestime) + prior_wraps * UINT32_WRAP
+            ).astype(np.float64)
         adjusted_timestamps = intercept + slope * trodestime_index
         return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
 
@@ -1224,6 +1285,9 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         self.selected_streams = full_io.selected_streams
         self._generate_minimal_annotations()
         self.regressed_systime_parameters = full_io.regressed_systime_parameters
+        # this partial starts at start_index within the full recording; anchor
+        # the timestamp unwrap to the same global axis as the full-file fit.
+        self._global_sample_offset = start_index
 
         # crop key information to range of interest
         header_size = None
