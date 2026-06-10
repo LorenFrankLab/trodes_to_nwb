@@ -266,9 +266,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # The trailing total acts as a sentinel for searchsorted.
         file_start_ind = np.append(0, np.cumsum(self.n_time)).astype(int)
         # Requested global time range. step is asserted None above, so the
-        # selection is the contiguous half-open interval [start, stop).
+        # selection is the contiguous half-open interval [start, stop). Clamp the
+        # stop to the total number of samples (file_start_ind[-1]) so a selection
+        # that runs past the end of the data returns the available rows instead
+        # of indexing past the last file -- restores the maxshape guard the
+        # pre-#171 loop had via min(time_index[-1], self._get_maxshape()[0]).
         start = int(selection_list[0].start)
-        stop = int(selection_list[0].stop)
+        stop = min(int(selection_list[0].stop), int(file_start_ind[-1]))
         data = []
         i = start
         while i < stop:

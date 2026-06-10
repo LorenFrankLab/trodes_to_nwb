@@ -115,3 +115,19 @@ def test_get_data_reassembles_full_ramp(n_time, chunk_t, buffer_t):
     total = sum(n_time)
     col0 = _assemble(n_time, chunk_t, buffer_t)
     np.testing.assert_array_equal(col0, np.arange(total, dtype=np.int16))
+
+
+def test_get_data_clamps_selection_past_end_of_data():
+    """A selection whose stop runs past the total sample count must not index
+    past the last file. It returns the available rows (the old maxshape clamp).
+
+    hdmf never requests past maxshape, so this calls _get_data directly.
+    """
+    n_time = [100, 80, 120]
+    total = sum(n_time)
+    it = _make_iterator(n_time, chunk_t=50, buffer_t=50)
+
+    data = it._get_data((slice(0, total + 50), slice(0, N_CHANNEL)))
+
+    assert data.shape == (total, N_CHANNEL)  # clamped to the available samples
+    np.testing.assert_array_equal(data[:, 0], np.arange(total, dtype=np.int16))
