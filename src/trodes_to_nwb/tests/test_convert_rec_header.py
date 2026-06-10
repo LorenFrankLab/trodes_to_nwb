@@ -177,7 +177,8 @@ def test_write_reconfig_trodesconf_roundtrips_and_validates(tmp_path):
     """Issue #113: a generated reconfig .trodesconf must be re-readable and pass
     the conversion's own header/metadata validation."""
     out_path = tmp_path / "generated_reconfig.trodesconf"
-    ntrode_groups = [list(range(i, i + 8)) for i in range(1, 33, 8)]
+    # 32 tetrodes -> 4 probes of 8, via the uniform-grouping convenience.
+    ntrode_groups = convert_rec_header.group_ntrodes_uniformly(32, 8)
 
     convert_rec_header.write_reconfig_trodesconf(
         data_path / "20230622_sample_01_a1.rec", out_path, ntrode_groups
@@ -201,20 +202,28 @@ def test_write_reconfig_trodesconf_roundtrips_and_validates(tmp_path):
     convert_rec_header.validate_yaml_header_electrode_map(metadata, spike_config)
 
 
-def test_reconfig_ntrode_groups_from_metadata_differing_contacts():
-    """Issue #113: deriving merge-groups from the metadata groups source ntrodes
-    by electrode_group_id, which handles probes with differing contact counts."""
-    metadata = {
-        "ntrode_electrode_group_channel_map": [
-            {"ntrode_id": 1, "electrode_group_id": 0, "map": {}},
-            {"ntrode_id": 2, "electrode_group_id": 0, "map": {}},
-            {"ntrode_id": 3, "electrode_group_id": 1, "map": {}},
-            {"ntrode_id": 4, "electrode_group_id": 0, "map": {}},
-        ]
-    }
-    groups = convert_rec_header.reconfig_ntrode_groups_from_metadata(metadata)
-    # electrode group 0 has three ntrodes, group 1 has one (differing sizes).
-    assert groups == [[1, 2, 4], [3]]
+def test_group_ntrodes_uniformly():
+    """Issue #113: uniform grouping chunks consecutive 1-based source ntrode ids
+    into equal-size groups (the equal-shank-probe convenience)."""
+    assert convert_rec_header.group_ntrodes_uniformly(32, 8) == [
+        list(range(1, 9)),
+        list(range(9, 17)),
+        list(range(17, 25)),
+        list(range(25, 33)),
+    ]
+    assert convert_rec_header.group_ntrodes_uniformly(8, 2) == [
+        [1, 2],
+        [3, 4],
+        [5, 6],
+        [7, 8],
+    ]
+    assert convert_rec_header.group_ntrodes_uniformly(4, 4) == [[1, 2, 3, 4]]
+
+    # Non-uniform / invalid inputs are rejected rather than guessing.
+    with pytest.raises(ValueError, match="not a multiple"):
+        convert_rec_header.group_ntrodes_uniformly(30, 8)
+    with pytest.raises(ValueError, match="positive"):
+        convert_rec_header.group_ntrodes_uniformly(0, 8)
 
 
 def test_generate_reconfig_header_rejects_duplicate_or_dropped_channels():
@@ -237,32 +246,3 @@ def test_generate_reconfig_header_rejects_duplicate_or_dropped_channels():
         raw, [[1, 2]], allow_partial=True
     )
     assert len(list(partial.find("SpikeConfiguration"))) == 1
-
-
-def test_reconfig_from_metadata_roundtrips_end_to_end(tmp_path):
-    """Issue #113 review: groups derived from metadata feed generate/write and
-    re-read cleanly (end-to-end coverage of the metadata-derivation path)."""
-    raw_path = data_path / "20230622_sample_01_a1.rec"
-    # Pre-reconfig metadata: one entry per source (acquisition) ntrode, the 32
-    # tetrodes grouped into 4 probes of 8 by electrode_group_id.
-    metadata = {
-        "ntrode_electrode_group_channel_map": [
-            {"ntrode_id": n, "electrode_group_id": (n - 1) // 8, "map": {}}
-            for n in range(1, 33)
-        ]
-    }
-    groups = convert_rec_header.reconfig_ntrode_groups_from_metadata(metadata)
-    assert groups == [
-        list(range(1, 9)),
-        list(range(9, 17)),
-        list(range(17, 25)),
-        list(range(25, 33)),
-    ]
-
-    out_path = tmp_path / "from_metadata.trodesconf"
-    convert_rec_header.write_reconfig_trodesconf(raw_path, out_path, groups)
-    new_ntrodes = list(
-        convert_rec_header.read_header(out_path).find("SpikeConfiguration")
-    )
-    assert [nt.attrib["id"] for nt in new_ntrodes] == ["1", "2", "3", "4"]
-    assert all(len(nt) == 32 for nt in new_ntrodes)
