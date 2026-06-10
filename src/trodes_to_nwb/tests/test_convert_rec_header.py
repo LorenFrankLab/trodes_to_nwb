@@ -188,6 +188,12 @@ def test_write_reconfig_trodesconf_roundtrips_and_validates(tmp_path):
     spike_config = reread.find("SpikeConfiguration")
     assert len(list(spike_config)) == 4
 
+    # Non-SpikeConfiguration sections must survive the write/read round-trip --
+    # GlobalConfiguration in particular is required by add_header_device.
+    source = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    assert reread.find("GlobalConfiguration") is not None
+    assert {child.tag for child in source} == {child.tag for child in reread}
+
     # The generated header validates against the matching reconfig metadata.
     metadata, _ = convert_yaml.load_metadata(
         data_path / "20230622_sample_metadataProbeReconfig.yml", []
@@ -209,3 +215,54 @@ def test_reconfig_ntrode_groups_from_metadata_differing_contacts():
     groups = convert_rec_header.reconfig_ntrode_groups_from_metadata(metadata)
     # electrode group 0 has three ntrodes, group 1 has one (differing sizes).
     assert groups == [[1, 2, 4], [3]]
+
+
+def test_generate_reconfig_header_rejects_duplicate_or_dropped_channels():
+    """Issue #113 review: a non-partition ntrode_groups would silently duplicate
+    or drop channels in the probe map, so it must fail loudly."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+
+    # A source ntrode assigned to two groups (one channel -> two electrode groups)
+    with pytest.raises(ValueError, match="more than one"):
+        convert_rec_header.generate_reconfig_header(raw, [[1, 2], [2, 3]])
+    # The same source ntrode twice within one group
+    with pytest.raises(ValueError, match="more than one"):
+        convert_rec_header.generate_reconfig_header(raw, [[1, 1]])
+    # Leaving most of the 32 source ntrodes unassigned (their channels dropped)
+    with pytest.raises(ValueError, match="not assigned"):
+        convert_rec_header.generate_reconfig_header(raw, [[1, 2]])
+
+    # allow_partial=True permits intentionally dropping the unassigned ntrodes.
+    partial = convert_rec_header.generate_reconfig_header(
+        raw, [[1, 2]], allow_partial=True
+    )
+    assert len(list(partial.find("SpikeConfiguration"))) == 1
+
+
+def test_reconfig_from_metadata_roundtrips_end_to_end(tmp_path):
+    """Issue #113 review: groups derived from metadata feed generate/write and
+    re-read cleanly (end-to-end coverage of the metadata-derivation path)."""
+    raw_path = data_path / "20230622_sample_01_a1.rec"
+    # Pre-reconfig metadata: one entry per source (acquisition) ntrode, the 32
+    # tetrodes grouped into 4 probes of 8 by electrode_group_id.
+    metadata = {
+        "ntrode_electrode_group_channel_map": [
+            {"ntrode_id": n, "electrode_group_id": (n - 1) // 8, "map": {}}
+            for n in range(1, 33)
+        ]
+    }
+    groups = convert_rec_header.reconfig_ntrode_groups_from_metadata(metadata)
+    assert groups == [
+        list(range(1, 9)),
+        list(range(9, 17)),
+        list(range(17, 25)),
+        list(range(25, 33)),
+    ]
+
+    out_path = tmp_path / "from_metadata.trodesconf"
+    convert_rec_header.write_reconfig_trodesconf(raw_path, out_path, groups)
+    new_ntrodes = list(
+        convert_rec_header.read_header(out_path).find("SpikeConfiguration")
+    )
+    assert [nt.attrib["id"] for nt in new_ntrodes] == ["1", "2", "3", "4"]
+    assert all(len(nt) == 32 for nt in new_ntrodes)
