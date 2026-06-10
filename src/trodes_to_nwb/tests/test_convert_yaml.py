@@ -3,6 +3,7 @@ import os
 import shutil
 from datetime import datetime
 
+import pytest
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
@@ -12,6 +13,15 @@ from trodes_to_nwb.convert_position import add_associated_video_files
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
+
+
+def test_load_metadata_strict_raises_on_invalid(tmp_path):
+    # schema-invalid metadata: has a (null) subject so validate() doesn't itself
+    # KeyError, but is missing required top-level fields (lab, institution, ...)
+    bad = tmp_path / "20230101_bad_metadata.yml"
+    bad.write_text("subject:\nexperimenter_name:\n- Last\n- First\n")
+    with pytest.raises(ValueError, match="failed validation"):
+        convert_yaml.load_metadata(str(bad), [], strict=True)
 
 
 def test_initial_nwb_creation():

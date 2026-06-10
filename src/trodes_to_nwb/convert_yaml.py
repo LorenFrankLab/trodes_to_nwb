@@ -33,6 +33,7 @@ from trodes_to_nwb import __version__
 def load_metadata(
     metadata_path: str,
     device_metadata_paths: list[str],
+    strict: bool = True,
 ) -> tuple[dict, list[dict]]:
     """Loads metadata files as dictionaries.
 
@@ -43,11 +44,21 @@ def load_metadata(
     device_metadata_paths : list[str]
         List of paths to yaml files with information on standard devices (e.g. probes,
         optical fibers, viruses).
+    strict : bool, optional
+        If True (default), raise a ``ValueError`` when the metadata fails schema
+        validation, so the conversion stops before building a file from invalid
+        metadata. If False, log the validation errors and continue (the previous
+        behavior), which is useful for debugging.
 
     Returns
     -------
     tuple[dict, list[dict]]
         The yaml generator metadata and list of device metadatas.
+
+    Raises
+    ------
+    ValueError
+        If ``strict`` is True and the metadata fails schema validation.
     """
     metadata = None
     with open(metadata_path) as stream:
@@ -58,7 +69,13 @@ def load_metadata(
     ) = trodes_to_nwb.metadata_validation.validate(metadata)
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
-        logger.exception("".join(metadata_errors))
+        message = (
+            f"Metadata file {metadata_path} failed validation against "
+            "nwb_schema.json:\n" + "\n".join(metadata_errors)
+        )
+        if strict:
+            raise ValueError(message)
+        logger.error(message)
     device_metadata = []
     for path in device_metadata_paths:
         with open(path) as stream:

@@ -53,16 +53,20 @@ def validate(metadata: dict) -> tuple:
     assert isinstance(metadata, dict)  # cannot proceed if metadata is not a dictionary
 
     # date_of_birth is set to a datetime by the YAML-to-dict converter.
-    # This code converts date_of_birth  to string
+    # This code converts date_of_birth to an ISO-8601 string for schema checking.
     metadata_content = copy.deepcopy(metadata) or {}
     if (
         metadata_content["subject"]
         and metadata_content["subject"]["date_of_birth"]
         and type(metadata_content["subject"]["date_of_birth"]) is datetime.datetime
     ):
-        metadata_content["subject"]["date_of_birth"] = (
-            metadata_content["subject"]["date_of_birth"].utcnow().isoformat()
-        )
+        # NOTE: use the instance's own value. `datetime.utcnow()` is a classmethod
+        # that ignores the instance and returns the current time, so the previous
+        # `.utcnow().isoformat()` validated *today's* date instead of the subject's
+        # date of birth.
+        metadata_content["subject"]["date_of_birth"] = metadata_content["subject"][
+            "date_of_birth"
+        ].isoformat()
 
     schema = _get_json_schema()
     validator = jsonschema.Draft202012Validator(schema)
