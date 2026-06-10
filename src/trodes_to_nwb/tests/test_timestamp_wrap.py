@@ -46,7 +46,9 @@ def test_unwrap_multiple_wraps_is_monotonic():
     np.testing.assert_array_equal(out, true)
 
 
-@pytest.mark.parametrize("v", [np.array([], dtype=np.uint32), np.array([7], dtype=np.uint32)])
+@pytest.mark.parametrize(
+    "v", [np.array([], dtype=np.uint32), np.array([7], dtype=np.uint32)]
+)
 def test_unwrap_short_arrays(v):
     np.testing.assert_array_equal(_unwrap_uint32(v), v.astype(np.int64))
 
