@@ -1285,7 +1285,7 @@ _STATESCRIPT_COLUMN_DESCRIPTIONS = {
     "timestamp_sync": "event time in the NWB timebase (seconds), aligned to the DIO events; NaN if alignment was not possible",
     "type": "the parsed line type (e.g. ts_int_int, ts_str_int, ts_str_equals_int, ts_str)",
     "text": "string label/message for the event, if any",
-    "value": "integer value associated with the event, if any",
+    "value": "integer value associated with the event, if any (stored as float; NaN when absent)",
     "active_DIO_inputs_bitmask": "bitmask of active DIO inputs (from ts_int_int lines)",
     "active_DIO_outputs_bitmask": "bitmask of active DIO outputs (from ts_int_int lines)",
     "active_DIO_inputs": "list of active DIO input pin numbers",
@@ -1312,6 +1312,7 @@ def estimate_statescript_time_offset(
     tolerance: float = 0.02,
     min_matches: int = 5,
     min_fraction: float = 0.5,
+    max_residual_fraction: float = 0.25,
 ) -> Optional[float]:
     """Estimate the constant offset aligning StateScript events to reference times.
 
@@ -1319,9 +1320,20 @@ def estimate_statescript_time_offset(
     starts at a different origin, so StateScript event times differ from the
     recorded DIO event times by a constant offset (in seconds). This finds that
     offset ``delta`` such that ``log_event_times + delta`` line up with
-    ``reference_times`` (e.g. the converted NWB digital I/O event times), by
-    testing candidate offsets and keeping the one that aligns the most events
-    within ``tolerance`` seconds.
+    ``reference_times`` (e.g. the converted NWB digital I/O event times).
+
+    Because the reference set can be dense (the union of every DIO channel's
+    changes), a naive "fraction of events within tolerance" criterion would
+    accept a spurious offset by chance. An offset is therefore accepted only when
+    it is both *strong* and *tight*:
+
+    - it aligns enough events to **distinct** reference points (``min_matches`` /
+      ``min_fraction``), so clustered references cannot inflate the count; and
+    - the matched events align **tightly** (median residual below
+      ``max_residual_fraction * tolerance``). A true constant offset aligns the
+      same physical events to within a millisecond, whereas a spurious offset
+      (even one that matches many events on a dense reference set) leaves
+      residuals scattered across the tolerance window.
 
     Parameters
     ----------
@@ -1334,15 +1346,18 @@ def estimate_statescript_time_offset(
         Maximum distance (seconds) for a shifted log event to count as matching a
         reference event. Default 0.02 (20 ms).
     min_matches : int, optional
-        Minimum number of matched events required to accept an offset. Default 5.
+        Minimum number of distinct matched references required. Default 5.
     min_fraction : float, optional
         Minimum fraction of ``log_event_times`` that must match. Default 0.5.
+    max_residual_fraction : float, optional
+        The median matched residual must be at most this fraction of ``tolerance``
+        for an offset to be accepted. Default 0.25.
 
     Returns
     -------
     Optional[float]
         The estimated offset in seconds (add to log times to reach the reference
-        timebase), or ``None`` if no offset matches enough events confidently.
+        timebase), or ``None`` if no offset aligns the events confidently.
     """
     log_event_times = np.asarray(log_event_times, dtype=float)
     reference_times = np.asarray(reference_times, dtype=float)
@@ -1351,20 +1366,25 @@ def estimate_statescript_time_offset(
 
     reference_sorted = np.sort(reference_times)
 
-    def _count_matches(delta: float) -> int:
+    def _score(delta: float) -> tuple[int, float]:
+        """Return (number of distinct matched references, median matched residual)."""
         shifted = log_event_times + delta
         if reference_sorted.size == 1:
-            nearest = np.full_like(shifted, reference_sorted[0])
+            nearest_idx = np.zeros(shifted.shape, dtype=int)
         else:
             idx = np.clip(
                 np.searchsorted(reference_sorted, shifted), 1, reference_sorted.size - 1
             )
-            left = reference_sorted[idx - 1]
-            right = reference_sorted[idx]
-            nearest = np.where(
-                np.abs(shifted - left) <= np.abs(shifted - right), left, right
+            choose_left = np.abs(shifted - reference_sorted[idx - 1]) <= np.abs(
+                shifted - reference_sorted[idx]
             )
-        return int(np.sum(np.abs(shifted - nearest) <= tolerance))
+            nearest_idx = np.where(choose_left, idx - 1, idx)
+        residual = np.abs(shifted - reference_sorted[nearest_idx])
+        within = residual <= tolerance
+        if not within.any():
+            return 0, np.inf
+        n_distinct = int(np.unique(nearest_idx[within]).size)
+        return n_distinct, float(np.median(residual[within]))
 
     # Candidate offsets: align each of the first few log events to every reference
     # event. The true offset is among these if any anchor event has a reference.
@@ -1372,14 +1392,20 @@ def estimate_statescript_time_offset(
     candidates = np.unique(
         (reference_sorted[None, :] - log_event_times[:n_anchor, None]).ravel()
     )
-    best_delta, best_count = None, 0
-    for delta in candidates:
-        count = _count_matches(float(delta))
-        if count > best_count:
-            best_count, best_delta = count, float(delta)
+    scored = sorted(
+        ((_score(float(delta)), float(delta)) for delta in candidates),
+        key=lambda item: item[0][0],
+        reverse=True,
+    )
 
+    (best_distinct, best_residual), best_delta = scored[0]
     threshold = max(min_matches, int(np.ceil(min_fraction * log_event_times.size)))
-    if best_delta is None or best_count < threshold:
+    if best_distinct < threshold:
+        return None
+    # Matched events must align tightly, not merely within tolerance. This is what
+    # separates a true constant offset (sub-millisecond residuals) from a spurious
+    # one that happens to land many events within tolerance of a dense reference.
+    if best_residual > tolerance * max_residual_fraction:
         return None
     return best_delta
 
@@ -1489,47 +1515,85 @@ def add_statescript(
     if statescript_rows.empty:
         return
 
-    reference_times = (
-        _get_dio_reference_times(nwbfile) if align_to_dios else np.array([])
-    )
+    if align_to_dios:
+        reference_times = _get_dio_reference_times(nwbfile)
+        if reference_times.size == 0:
+            logger.warning(
+                "StateScript: DIO alignment requested but no DIO reference events "
+                "were found in the NWB file (no behavior/behavioral_events); "
+                "'timestamp_sync' left NaN for all epochs."
+            )
+    else:
+        reference_times = np.array([])
 
     per_epoch_frames = []
     for _, file_row in statescript_rows.sort_values("epoch").iterrows():
         epoch = int(file_row["epoch"])
-        processor = StateScriptLogProcessor.from_file(file_row["full_path"])
+        # Parsing an optional auxiliary file must not abort the whole conversion:
+        # degrade to "this epoch missing" on an unreadable/unparseable log.
+        try:
+            processor = StateScriptLogProcessor.from_file(file_row["full_path"])
 
-        if align_to_dios and reference_times.size:
-            unaligned = processor.get_events_dataframe(
-                apply_offset=False, exclude_comments_unknown=True
-            )
-            log_dio_times = unaligned.loc[
-                unaligned["type"] == "ts_int_int", "trodes_timestamp_sec"
-            ].to_numpy()
-            offset = estimate_statescript_time_offset(
-                log_dio_times, reference_times, tolerance=dio_match_tolerance
-            )
-            if offset is not None:
-                processor.time_offset = offset
-                logger.info(
-                    f"StateScript epoch {epoch}: aligned to DIO events "
-                    f"(offset={offset:.4f}s)"
+            if align_to_dios and reference_times.size:
+                unaligned = processor.get_events_dataframe(
+                    apply_offset=False, exclude_comments_unknown=True
                 )
-            else:
-                logger.warning(
-                    f"StateScript epoch {epoch}: could not confidently align to DIO "
-                    f"events; 'timestamp_sync' left NaN for this epoch."
+                log_dio_times = np.array([])
+                if not unaligned.empty and "type" in unaligned.columns:
+                    log_dio_times = unaligned.loc[
+                        unaligned["type"] == "ts_int_int", "trodes_timestamp_sec"
+                    ].to_numpy()
+                offset = estimate_statescript_time_offset(
+                    log_dio_times, reference_times, tolerance=dio_match_tolerance
                 )
+                if offset is not None:
+                    processor.time_offset = offset
+                    logger.info(
+                        f"StateScript epoch {epoch}: aligned to DIO events "
+                        f"(offset={offset:.4f}s)"
+                    )
+                else:
+                    logger.warning(
+                        f"StateScript epoch {epoch}: could not confidently align to "
+                        f"DIO events; 'timestamp_sync' left NaN for this epoch."
+                    )
 
-        events_df = processor.get_events_dataframe(
-            apply_offset=processor.time_offset is not None,
-            exclude_comments_unknown=True,
-        ).reset_index()
+            events_df = processor.get_events_dataframe(
+                apply_offset=processor.time_offset is not None,
+                exclude_comments_unknown=True,
+            )
+        except (OSError, UnicodeDecodeError, pd.errors.ParserError) as err:
+            logger.error(
+                f"StateScript epoch {epoch}: failed to read/parse "
+                f"{file_row['full_path']}: {err}; skipping this epoch."
+            )
+            continue
+
+        if events_df.empty:
+            logger.warning(
+                f"StateScript epoch {epoch}: log contained no parseable events; "
+                f"skipping."
+            )
+            continue
+        events_df = events_df.reset_index()
         events_df.insert(0, "epoch", epoch)
         per_epoch_frames.append(events_df)
 
+    if not per_epoch_frames:
+        logger.warning(
+            "StateScript: no events were added from any log for this session."
+        )
+        return
+
     combined = pd.concat(per_epoch_frames, ignore_index=True)
-    # Ensure timestamp_sync exists even if no epoch was aligned, so the column is
-    # always present and downstream code can rely on it.
-    if "timestamp_sync" not in combined.columns:
-        combined["timestamp_sync"] = float("nan")
+    # Always materialize the documented columns (in order) so the NWB schema is
+    # stable across sessions regardless of which event types a log contained.
+    for column in _STATESCRIPT_COLUMN_ORDER:
+        if column not in combined.columns:
+            if column in _STATESCRIPT_LIST_COLUMNS:
+                combined[column] = [[] for _ in range(len(combined))]
+            elif column in _STATESCRIPT_TEXT_COLUMNS:
+                combined[column] = ""
+            else:
+                combined[column] = float("nan")
     _add_statescript_table(nwbfile, combined)

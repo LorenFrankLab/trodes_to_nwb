@@ -180,3 +180,158 @@ def test_add_statescript_no_log_is_noop():
     )
     add_statescript(nwbfile, empty_df)
     assert "behavior" not in nwbfile.processing
+
+
+# --- estimator robustness (review follow-up) -------------------------------
+
+
+def test_estimate_offset_rejects_dense_random_references():
+    """A dense, unrelated reference set must NOT yield a confident (wrong) offset.
+
+    Reproduces the silent-failure risk: many reference points spaced near the
+    tolerance let a spurious offset match every event by chance. The estimator
+    must return None rather than a plausible-but-wrong alignment."""
+    rng = np.random.default_rng(0)
+    log_times = np.sort(rng.uniform(0, 600, size=50))
+    # ~8000 references over the same window => spacing ~0.075s (< 4x tolerance)
+    dense_reference = np.sort(rng.uniform(0, 600, size=8000))
+    assert (
+        estimate_statescript_time_offset(log_times, dense_reference, tolerance=0.02)
+        is None
+    )
+
+
+def test_estimate_offset_found_even_with_dense_references():
+    """The hardening must not break true positives: a genuine constant offset
+    embedded in a dense reference set is still recovered."""
+    rng = np.random.default_rng(1)
+    log_times = np.sort(rng.uniform(0, 600, size=40))
+    delta = 12345.0
+    dense_reference = np.sort(
+        np.concatenate([log_times + delta, rng.uniform(0, 600, size=2000) + delta])
+    )
+    estimated = estimate_statescript_time_offset(
+        log_times, dense_reference, tolerance=0.02
+    )
+    assert estimated is not None
+    assert abs(estimated - delta) < 1e-6
+
+
+def test_estimate_offset_below_fraction_threshold_returns_none():
+    # Only 3 of 10 events can share a consistent offset -> below min_fraction=0.5.
+    matched = np.array([0.0, 1.0, 2.0])
+    log_times = np.concatenate(
+        [matched, np.array([50.5, 61.7, 72.9, 83.3, 94.1, 105.6, 116.2])]
+    )
+    reference = matched + 1000.0
+    assert estimate_statescript_time_offset(log_times, reference) is None
+
+
+# --- writer robustness (review follow-up) ----------------------------------
+
+
+def test_add_statescript_multi_epoch():
+    """Two epochs are concatenated into one table with a correct epoch column."""
+    log2 = data_path / "20230622_sample_02_a1.stateScriptLog"
+    session_df = pd.DataFrame(
+        [
+            {
+                "epoch": 1,
+                "file_extension": ".stateScriptLog",
+                "full_path": str(SAMPLE_LOG),
+            },
+            {"epoch": 2, "file_extension": ".stateScriptLog", "full_path": str(log2)},
+        ]
+    )
+    metadata, _ = convert_yaml.load_metadata(SAMPLE_METADATA, [])
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+    add_statescript(nwbfile, session_df, align_to_dios=False)
+
+    table_df = nwbfile.processing["behavior"]["statescript_events"].to_dataframe()
+    assert set(table_df["epoch"]) == {1, 2}
+    n1 = len(
+        StateScriptLogProcessor.from_file(SAMPLE_LOG).get_events_dataframe(
+            apply_offset=False
+        )
+    )
+    n2 = len(
+        StateScriptLogProcessor.from_file(log2).get_events_dataframe(apply_offset=False)
+    )
+    assert len(table_df) == n1 + n2
+    # epoch-1 rows precede epoch-2 rows (concatenation order preserved)
+    epochs = table_df["epoch"].to_numpy()
+    assert np.all(np.diff(epochs) >= 0)
+
+
+def test_add_statescript_alignment_failure_leaves_nan_and_warns(monkeypatch, caplog):
+    """DIOs present but no confident match -> timestamp_sync NaN + a warning, and
+    raw Trodes timestamps are still stored."""
+    import logging
+
+    nwbfile, _ = _nwb_with_dios()
+    monkeypatch.setattr(
+        "trodes_to_nwb.convert_statescript.estimate_statescript_time_offset",
+        lambda *args, **kwargs: None,
+    )
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        add_statescript(nwbfile, _session_df())
+
+    table_df = nwbfile.processing["behavior"]["statescript_events"].to_dataframe()
+    assert table_df["timestamp_sync"].isna().all()
+    assert table_df["trodes_timestamp_sec"].notna().any()  # raw times kept
+    assert "could not confidently align" in caplog.text
+
+
+def test_add_statescript_comment_only_log_does_not_abort(tmp_path):
+    """A comment-only / empty log must be skipped, not crash the conversion, even
+    when DIO alignment is requested (regression: KeyError on empty events)."""
+    empty_log = tmp_path / "20230622_sample_09_a1.stateScriptLog"
+    empty_log.write_text("# only a comment\n\n# another comment\n")
+
+    nwbfile, _ = _nwb_with_dios()
+    session_df = pd.DataFrame(
+        [
+            {
+                "epoch": 1,
+                "file_extension": ".stateScriptLog",
+                "full_path": str(SAMPLE_LOG),
+            },
+            {
+                "epoch": 9,
+                "file_extension": ".stateScriptLog",
+                "full_path": str(empty_log),
+            },
+        ]
+    )
+    add_statescript(nwbfile, session_df)  # must not raise
+
+    table_df = nwbfile.processing["behavior"]["statescript_events"].to_dataframe()
+    # only the real epoch made it in; the comment-only epoch was skipped
+    assert set(table_df["epoch"]) == {1}
+
+
+def test_add_statescript_missing_file_skips_epoch(caplog):
+    """An unreadable/missing log is logged and skipped, not fatal."""
+    import logging
+
+    nwbfile, _ = _nwb_with_dios()
+    session_df = pd.DataFrame(
+        [
+            {
+                "epoch": 1,
+                "file_extension": ".stateScriptLog",
+                "full_path": str(SAMPLE_LOG),
+            },
+            {
+                "epoch": 9,
+                "file_extension": ".stateScriptLog",
+                "full_path": "/nonexistent/does_not_exist.stateScriptLog",
+            },
+        ]
+    )
+    with caplog.at_level(logging.ERROR, logger="convert"):
+        add_statescript(nwbfile, session_df)  # must not raise
+
+    table_df = nwbfile.processing["behavior"]["statescript_events"].to_dataframe()
+    assert set(table_df["epoch"]) == {1}
+    assert "failed to read/parse" in caplog.text
