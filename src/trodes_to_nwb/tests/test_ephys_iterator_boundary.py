@@ -8,16 +8,16 @@ sample directly observable, while letting us control the file sizes and the
 buffer alignment cheaply (a real ``.rec`` would need hundreds of millions of
 samples to exercise the same buffer edges with the default buffer size).
 
-Background: the assembly loop in ``_get_data`` uses a strict terminal condition
+Background (#171): the old assembly loop used a strict terminal condition
 ``while i < time_index[-1]`` (the last *index*, not the stop). For ordinary
-buffer-aligned, boundary-spanning reads this tiles correctly. But a buffer
-selection that is a single sample, or one whose final sample is the first sample
-of the next file, is not swept up by a chunk's ``+1`` and the loop exits early.
-The result is not silent corruption -- ``_get_data`` returns too few rows and the
-HDF5 write raises (``need at least one array to concatenate`` for the
-single-sample case, or a broadcast error for the boundary case). The xfail cases
-below document that bug; they should flip to passing once the terminal bound is
-fixed (at which point the ``xfail`` markers should be removed).
+buffer-aligned, boundary-spanning reads it tiled correctly, but a buffer
+selection that was a single sample, or one whose final sample was the first
+sample of the next file, was not swept up by a chunk's ``+1`` and the loop
+exited early -- ``_get_data`` returned too few rows and the HDF5 write raised
+(``need at least one array to concatenate`` for the single-sample case, or a
+broadcast error for the boundary case). The loop now reads the contiguous
+``[start, stop)`` range file-by-file, so every config below must reassemble the
+ramp exactly; the last four configs are the alignments that used to crash.
 """
 
 import numpy as np
