@@ -473,3 +473,56 @@ def test_produce_ephys_channel_ids():
     with pytest.raises(ValueError) as excinfo:
         SpikeGadgetsRawIO._produce_ephys_channel_ids(64, 63, 16, ["1", "2", "3"])
     assert "hw_channels_recorded must be provided" in str(excinfo.value)
+
+
+def _write_minimal_rec(path, extra_available):
+    """Write a tiny .rec for testing the available-device packet layout.
+
+    Always includes a 2-byte, available Controller_DIO device. An optional 4-byte
+    "Extra" device's availability is parametrized (``"0"``, ``"1"``, or ``None``
+    to omit it). numChannels=0 and an empty SpikeConfiguration keep the ephys
+    path out of the way. Parses cleanly with no real binary data.
+    """
+    if extra_available is None:
+        extra_block = ""
+    else:
+        extra_block = (
+            f'<Device name="Extra" numBytes="4" available="{extra_available}">'
+            '<Channel id="extra0" dataType="digital" startByte="0" bit="0"/>'
+            "</Device>"
+        )
+    header = (
+        "<Configuration>"
+        '<GlobalConfiguration systemTimeAtCreation="1700000000000" timestampAtCreation="0"/>'
+        '<HardwareConfiguration samplingRate="30000" numChannels="0">'
+        '<Device name="Controller_DIO" numBytes="2" available="1">'
+        '<Channel id="Din1" dataType="digital" startByte="0" bit="0"/>'
+        "</Device>"
+        f"{extra_block}"
+        "</HardwareConfiguration>"
+        '<SpikeConfiguration chanPerChip="32"></SpikeConfiguration>'
+        "</Configuration>"
+    )
+    with open(path, "wb") as f:
+        # newline-terminate the header line (as real .rec files do) so the header
+        # reader stops at </Configuration> rather than reading into the body
+        f.write(header.encode("utf8") + b"\n")
+        f.write(b"\x00" * 64)  # non-empty binary body so the memmap can be created
+    io = SpikeGadgetsRawIO(filename=str(path))
+    io._parse_header()
+    return io
+
+
+def test_parse_header_skips_unavailable_devices(tmp_path):
+    # With Controller_DIO (2 bytes) + a 4-byte Extra device, the timestamp byte
+    # sits at 1 (sync) + 2 + 4 = 7 if Extra is available, or at 1 + 2 = 3 if it
+    # is not -- i.e. an unavailable device must contribute zero bytes, exactly
+    # as Trodes writes the packet.
+    avail = _write_minimal_rec(tmp_path / "avail.rec", "1")
+    unavail = _write_minimal_rec(tmp_path / "unavail.rec", "0")
+    absent = _write_minimal_rec(tmp_path / "absent.rec", None)
+
+    assert avail._timestamp_byte == 7
+    assert unavail._timestamp_byte == 3
+    # an unavailable device is equivalent to the device being absent entirely
+    assert unavail._timestamp_byte == absent._timestamp_byte
