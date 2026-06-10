@@ -637,12 +637,14 @@ def _get_position_timestamps_ptp(
         logger.warning(
             "PTP timestamps correspond to a time earlier than 2000. This may be due to a PTP clock reset."
         )
-    # Downstream consumers (e.g. Spyglass) assume monotonically increasing
-    # position timestamps; warn rather than silently writing a backward jump.
-    if not ptp_timestamps.is_monotonic_increasing:
+    # Downstream consumers (e.g. Spyglass) assume strictly increasing position
+    # timestamps; warn rather than silently writing a backward jump or a stalled
+    # (duplicate) timestamp. `is_monotonic_increasing` is non-strict, so check
+    # diffs > 0 to also catch duplicates, matching the ephys guard.
+    if ptp_timestamps.size > 1 and not np.all(np.diff(ptp_timestamps.values) > 0):
         logger.warning(
-            "PTP timestamps are not monotonically increasing. This may be due to "
-            "a PTP clock reset and can break downstream epoch/position handling."
+            "PTP timestamps are not strictly increasing. This may be due to a "
+            "PTP clock reset and can break downstream epoch/position handling."
         )
 
     video_timestamps = video_timestamps.drop(
@@ -682,19 +684,28 @@ def _get_position_timestamps_ptp(
 
     # Video frames with no matching position tracking (the camera can keep
     # running after online/offline tracking stops) arrive from the upstream
-    # left-merge as NaN x/y. Drop them so they are not written as
-    # valid-timestamped NaN positions. The non-PTP path filters these
-    # incidentally; the PTP path did not. Bookkeeping columns are never NaN.
-    bookkeeping = {"video_frame_ind", "non_repeat_timestamp_labels"}
-    position_columns = [c for c in video_timestamps.columns if c not in bookkeeping]
+    # left-merge as NaN for every position column. Drop ONLY those fully
+    # unmatched frames: rows where just one LED is missing, or interior
+    # single-frame dropouts, are preserved so trajectories are not silently
+    # elided. (The non-PTP path removes unmatched frames separately, by
+    # sample-count membership, not by NaN.)
+    position_columns = [
+        c for c in ("xloc", "yloc", "xloc2", "yloc2") if c in video_timestamps.columns
+    ]
     if position_columns:
-        n_missing = int(video_timestamps[position_columns].isna().any(axis=1).sum())
-        if n_missing:
-            logger.warning(
-                f"Dropping {n_missing} PTP video frame(s) with no matching "
-                "position tracking (NaN position)."
+        unmatched = video_timestamps[position_columns].isna().all(axis=1)
+        if unmatched.any():
+            dropped_frames = (
+                video_timestamps.loc[unmatched, "video_frame_ind"].tolist()
+                if "video_frame_ind" in video_timestamps.columns
+                else "unknown"
             )
-            video_timestamps = video_timestamps.dropna(subset=position_columns)
+            logger.warning(
+                f"Dropping {int(unmatched.sum())} PTP video frame(s) with no "
+                "matching position tracking (all position columns NaN); "
+                f"video_frame_ind={dropped_frames}."
+            )
+            video_timestamps = video_timestamps[~unmatched]
 
     return video_timestamps
 

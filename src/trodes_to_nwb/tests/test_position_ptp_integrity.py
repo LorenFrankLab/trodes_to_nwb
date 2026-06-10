@@ -54,7 +54,7 @@ def test_non_monotonic_timestamps_warn(caplog):
     seconds[30] -= 10.0  # backward jump
     with caplog.at_level(logging.WARNING, logger="convert"):
         _get_position_timestamps_ptp(_ptp_df(seconds), LOGGER)
-    assert any("monotonic" in r.message.lower() for r in caplog.records)
+    assert any("strictly increasing" in r.message.lower() for r in caplog.records)
 
 
 def test_trailing_nan_positions_are_dropped(caplog):
@@ -69,3 +69,17 @@ def test_trailing_nan_positions_are_dropped(caplog):
     assert int(out[["xloc", "yloc"]].isna().sum().sum()) == 0
     assert len(out) == n - 2
     assert any("no matching" in r.message.lower() for r in caplog.records)
+
+
+def test_partial_nan_rows_are_preserved():
+    # Only fully-unmatched rows (every position column NaN) are dropped. A row
+    # where one column is NaN but another is valid must be kept, so a real
+    # single-LED dropout (or interior gap) is not silently elided.
+    n = 20
+    seconds = EPOCH_2023 + np.arange(n) / FS
+    xloc = np.arange(n, dtype=float)
+    yloc = np.arange(n, dtype=float)
+    xloc[5] = np.nan  # interior, single-column NaN -> row is NOT fully unmatched
+    xloc[-1] = np.nan
+    out = _get_position_timestamps_ptp(_ptp_df(seconds, xloc, yloc), LOGGER)
+    assert len(out) == n  # nothing dropped; yloc still present on those rows
