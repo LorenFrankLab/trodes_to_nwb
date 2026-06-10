@@ -209,6 +209,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
         packet_size = 1
         device_bytes = {}
         for device in hconf:
+            # Trodes only writes a device's bytes into each packet if the device
+            # is available; an unavailable device with numBytes>0 would otherwise
+            # shift every downstream byte offset (timestamp, sysClock, analog/DIO
+            # masks, neural data) and silently corrupt the read. Skip them here
+            # and in the channel walk below so the layout matches the packets.
+            if not int(device.attrib.get("available", "1")):
+                continue
             device_name = device.attrib["name"]
             num_bytes = int(device.attrib["numBytes"])
             device_bytes[device_name] = packet_size
@@ -249,6 +256,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # walk through xml devices
         for device in hconf:
+            # skip unavailable devices to match the packet layout computed above
+            if not int(device.attrib.get("available", "1")):
+                continue
             device_name = device.attrib["name"]
             for channel in device:
                 if (
@@ -1313,9 +1323,16 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # if no previous state, assume first segment. Default to superclass behavior
         analog_multiplexed_data[0] = data[0]
         if self.previous_multiplex_state is not None:
-            # if previous state, use it to initialize elements of first row not updated in that packet
-            ind = np.where(initialize_stream_mask[0])[0]
-            analog_multiplexed_data[0][ind] = self.previous_multiplex_state[ind]
+            # Carry the last value from the previous segment forward, but ONLY
+            # for channels that did NOT update in this segment's first packet.
+            # Channels that DID update keep their fresh packet-0 value. Using
+            # initialize_stream_mask[0] here was a bug: it is forced all-True (it
+            # ORs in `arange == 0`), so it overwrote *every* channel and
+            # discarded a genuine update carried in the boundary packet.
+            not_updated = np.where(interleaved_data_id_bit_values[0] == 0)[0]
+            analog_multiplexed_data[0][not_updated] = self.previous_multiplex_state[
+                not_updated
+            ]
         # for packets that do not have an update for a channel, use the previous value
         for i in range(1, num_packet):
             analog_multiplexed_data[i] = np.where(
