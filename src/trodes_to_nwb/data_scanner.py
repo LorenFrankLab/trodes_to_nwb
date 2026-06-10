@@ -114,9 +114,7 @@ def get_file_info(path: Path) -> pd.DataFrame:
     ]
 
     paths = [p for ext in VALID_FILE_EXTENSIONS for p in path.glob(f"**/*.{ext}")]
-    file_info = pd.DataFrame(
-        [_process_path(p) for p in paths], columns=COLUMN_NAMES
-    )
+    file_info = pd.DataFrame([_process_path(p) for p in paths], columns=COLUMN_NAMES)
 
     n_skipped = int(file_info["full_path"].isna().sum())
     if n_skipped:
