@@ -196,6 +196,7 @@ def create_nwbs(
     query_expression: str | None = None,
     disable_ptp: bool = False,
     behavior_only: bool = False,
+    overwrite: bool = False,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -227,6 +228,10 @@ def create_nwbs(
     behavior_only : bool, optional
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
+    overwrite : bool, optional
+        If False (default), refuse to overwrite an existing output ``.nwb`` file
+        and raise ``FileExistsError`` (checked up front, before conversion). If
+        True, replace any existing output file.
 
     """
 
@@ -241,6 +246,12 @@ def create_nwbs(
 
     if query_expression is not None:
         file_info = file_info.query(query_expression)
+
+    # Create/validate the output directory up front so a missing or non-writable
+    # path fails immediately instead of after a full (possibly hours-long)
+    # conversion.
+    output_dir = str(output_dir)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     if n_workers > 1:
 
@@ -258,6 +269,7 @@ def create_nwbs(
                     fs_gui_dir,
                     disable_ptp,
                     behavior_only=behavior_only,
+                    overwrite=overwrite,
                 )
                 return True
             except Exception as e:
@@ -288,6 +300,7 @@ def create_nwbs(
                 fs_gui_dir,
                 disable_ptp,
                 behavior_only=behavior_only,
+                overwrite=overwrite,
             )
 
 
@@ -302,11 +315,20 @@ def _create_nwb(
     fs_gui_dir: str = "",
     disable_ptp: bool = False,
     behavior_only: bool = False,
+    overwrite: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
 
     logger.info(f"Creating NWB file for session: {session}")
+    # Resolve the output path up front and fail fast if it already exists, so a
+    # whole conversion isn't run only to refuse to write at the very end.
+    output_path = Path(f"{output_dir}/{session[1]}{session[0]}.nwb")
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"Output file already exists: {output_path}. Pass overwrite=True to "
+            "create_nwbs to replace it."
+        )
     rec_filepaths = _get_file_paths(session_df, ".rec")
     logger.info(f"\trec_filepaths: {rec_filepaths}")
     check_file_timing(rec_filepaths, logger)
@@ -423,8 +445,7 @@ def _create_nwb(
             .data,
         )
 
-    # write file
-    output_path = Path(f"{output_dir}/{session[1]}{session[0]}.nwb")
+    # write file (output_path was resolved and existence-checked up front)
     logger.info(f"WRITING: {output_path}")
     with NWBHDF5IO(output_path, "w") as io:
         io.write(nwb_file)
