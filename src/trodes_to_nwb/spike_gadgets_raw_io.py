@@ -736,9 +736,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             If any specified `channel_names` are not found in the file.
         """
-        logging.getLogger("convert").debug(
-            "compute multiplex cache %s", self.filename
-        )
+        logging.getLogger("convert").debug("compute multiplex cache %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -822,9 +820,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             _description_
         """
-        logging.getLogger("convert").debug(
-            "compute multiplex cache %s", self.filename
-        )
+        logging.getLogger("convert").debug("compute multiplex cache %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -1272,9 +1268,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
         """
-        logging.getLogger("convert").debug(
-            "compute multiplex cache %s", self.filename
-        )
+        logging.getLogger("convert").debug("compute multiplex cache %s", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
