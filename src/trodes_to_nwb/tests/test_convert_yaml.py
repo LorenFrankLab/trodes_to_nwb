@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime
 
-from hdmf.common.table import DynamicTable, VectorData
+from hdmf.common.table import DynamicTable
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
 
@@ -278,39 +278,64 @@ def test_add_tasks():
     assert tasks_module.name == "tasks"
     assert tasks_module.description == "Contains all tasks information"
 
-    # Check if the tasks were added correctly
-    assert len(tasks_module.data_interfaces) == len(metadata["tasks"])
+    # Issue #8: tasks are now stored in a single combined DynamicTable with one
+    # row per task and an explicit id column (instead of one table per task).
+    assert len(tasks_module.data_interfaces) == 1
+    tasks_table = next(iter(tasks_module.data_interfaces.values()))
+    assert isinstance(tasks_table, DynamicTable)
+    assert len(tasks_table) == len(metadata["tasks"])
+
+    expected_columns = (
+        "task_id",
+        "task_name",
+        "task_description",
+        "camera_id",
+        "task_epochs",
+        "task_environment",
+    )
+    for column in expected_columns:
+        assert column in tasks_table.colnames
+
+    # Each row matches the corresponding task in the metadata, in order.
+    task_df = tasks_table.to_dataframe()
     for i, task_metadata in enumerate(metadata["tasks"]):
-        task = tasks_module.data_interfaces[f"task_{i}"]
-        assert isinstance(task, DynamicTable)
-        assert task.name == f"task_{i}"
-        assert task.description == ""
-        assert len(task.columns) == 5
-
-        # Check if the task metadata columns were added correctly
-        for val in task.columns:
-            assert isinstance(val, VectorData)
-        for a, b in zip(
-            task.colnames,
-            (
-                "task_name",
-                "task_description",
-                "camera_id",
-                "task_epochs",
-                "task_environment",
-            ),
-        ):
-            assert a == b
-
-        # Check if the task metadata values were added correctly
-        task_df = task.to_dataframe()
-        assert task_df["task_name"][0] == task_metadata["task_name"]
-        assert task_df["task_description"][0] == task_metadata["task_description"]
-        assert task_df["camera_id"][0] == [int(id) for id in task_metadata["camera_id"]]
-        assert task_df["task_epochs"][0] == [
+        row = task_df.iloc[i]
+        assert row["task_id"] == i
+        assert row["task_name"] == task_metadata["task_name"]
+        assert row["task_description"] == task_metadata["task_description"]
+        assert list(row["camera_id"]) == [
+            int(camera_id) for camera_id in task_metadata["camera_id"]
+        ]
+        assert list(row["task_epochs"]) == [
             int(epoch) for epoch in task_metadata["task_epochs"]
         ]
-        assert task_df["task_environment"][0] == task_metadata["task_environment"]
+        assert row["task_environment"] == task_metadata["task_environment"]
+
+
+def test_add_tasks_persists_to_nwb(tmp_path):
+    """Issue #8: the combined task table has ragged (variable-length) camera_id
+    and task_epochs columns, so it must survive a write/read round-trip to HDF5."""
+    from pynwb import NWBHDF5IO
+
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+    convert_yaml.add_tasks(nwbfile, metadata)
+
+    nwb_path = tmp_path / "tasks_roundtrip.nwb"
+    with NWBHDF5IO(nwb_path, mode="w") as io:
+        io.write(nwbfile)
+    with NWBHDF5IO(nwb_path, mode="r") as io:
+        read_nwb = io.read()
+        tasks_table = next(iter(read_nwb.processing["tasks"].data_interfaces.values()))
+        task_df = tasks_table.to_dataframe()
+
+        assert len(task_df) == len(metadata["tasks"])
+        for i, task_metadata in enumerate(metadata["tasks"]):
+            assert task_df.iloc[i]["task_id"] == i
+            assert list(task_df.iloc[i]["task_epochs"]) == [
+                int(epoch) for epoch in task_metadata["task_epochs"]
+            ]
 
 
 def test_add_associated_files(capsys):
