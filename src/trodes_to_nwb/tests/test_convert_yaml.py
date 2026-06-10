@@ -2,7 +2,9 @@ import logging
 import os
 import shutil
 from datetime import datetime
+from pathlib import Path
 
+import yaml
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
@@ -33,6 +35,53 @@ def test_initial_nwb_creation():
     assert len(nwb_file.acquisition) == 0
     assert len(nwb_file.processing) == 0
     assert len(nwb_file.devices) == 0
+
+
+def test_probe_metadata_num_shanks_matches_shank_entries():
+    """Issue #114: every bundled probe yaml must declare a ``num_shanks`` that
+    equals the number of shank entries it actually defines, so the declared
+    geometry is self-consistent (e.g. a ``3s`` probe must not claim 4 shanks)."""
+    probe_dir = Path(convert.__file__).parent / "device_metadata" / "probe_metadata"
+    probe_files = sorted(probe_dir.glob("*.yml"))
+    assert probe_files, f"no probe yaml files found in {probe_dir}"
+
+    mismatches = []
+    for probe_file in probe_files:
+        meta = yaml.safe_load(probe_file.read_text())
+        shanks = meta.get("shanks")
+        if shanks is None or "num_shanks" not in meta:
+            continue  # not a probe-geometry file
+        if meta["num_shanks"] != len(shanks):
+            mismatches.append(
+                f"{probe_file.name}: num_shanks={meta['num_shanks']} "
+                f"but {len(shanks)} shank(s) defined"
+            )
+    assert not mismatches, "probe yaml num_shanks mismatch:\n" + "\n".join(mismatches)
+
+
+def test_warn_on_inconsistent_num_shanks(caplog):
+    """Issue #114: a user-supplied probe whose declared ``num_shanks`` disagrees
+    with the shanks it defines should be flagged at conversion time. ``num_shanks``
+    is inert (never written to the NWB Probe), so this is a warning, not an error."""
+    probe_meta = {
+        "probe_type": "64c-3s6mm6cm-20um-40um-sl",
+        "num_shanks": 4,
+        "shanks": [{"shank_id": 0}, {"shank_id": 1}, {"shank_id": 2}],
+    }
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any(
+        "num_shanks=4" in m and "3 shank" in m and "64c-3s6mm6cm-20um-40um-sl" in m
+        for m in messages
+    ), messages
+
+    # A consistent probe must not warn.
+    caplog.clear()
+    probe_meta["num_shanks"] = 3
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
+    assert not caplog.records
 
 
 def test_subject_creation():

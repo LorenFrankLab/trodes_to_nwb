@@ -177,6 +177,32 @@ def add_acquisition_devices(nwbfile: NWBFile, metadata: dict) -> None:
         )
 
 
+def warn_on_inconsistent_num_shanks(probe_meta: dict) -> None:
+    """Warn if a probe's declared ``num_shanks`` disagrees with its shank entries.
+
+    ``num_shanks`` is not written to the NWB ``Probe`` (the ndx-franklab-novela
+    ``Probe`` has no such field); the probe geometry is taken entirely from the
+    ``shanks`` list. A mismatch therefore does not corrupt the conversion, but it
+    almost always signals a typo in the probe yaml, so it is surfaced as a warning.
+
+    Parameters
+    ----------
+    probe_meta : dict
+        Metadata for a single probe (one entry from the probe metadata list).
+    """
+    declared = probe_meta.get("num_shanks")
+    defined = len(probe_meta.get("shanks", []))
+    if declared is not None and declared != defined:
+        logging.getLogger("convert").warning(
+            "Probe '%s': metadata declares num_shanks=%d but defines %d shank(s). "
+            "The %d defined shank(s) will be used; check the probe yaml.",
+            probe_meta.get("probe_type", "<unknown>"),
+            declared,
+            defined,
+            defined,
+        )
+
+
 def add_electrode_groups(
     nwbfile: NWBFile,
     metadata: dict,
@@ -219,6 +245,7 @@ def add_electrode_groups(
             raise FileNotFoundError(
                 f"No probe metadata found for {egroup_metadata['device_type']}"
             )
+        warn_on_inconsistent_num_shanks(probe_meta)
         # Build the relevant Probe
         probe = Probe(
             id=egroup_metadata["id"],
