@@ -62,6 +62,12 @@ def setup_logger(name_logfile: str, path_logfile: str) -> logging.Logger:
         Logger object
     """
     logger = logging.getLogger(name_logfile)
+    # This is called once per session with the same logger name, so remove any
+    # handlers left over from a previous session; otherwise handlers accumulate
+    # and each session logs duplicate lines and leaks open file handles.
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
     formatter = logging.Formatter(
         "%(asctime)s %(message)s", datefmt="%d-%b-%y %H:%M:%S"
     )
@@ -330,13 +336,13 @@ def _create_nwb(
 
     metadata_filepaths = _get_file_paths(session_df, ".yml")
     if len(metadata_filepaths) != 1:
-        try:
-            raise ValueError("There must be exactly one metadata file per session")
-        except ValueError as e:
-            logger.exception("ERROR:")
-            raise e
-    else:
-        metadata_filepaths = metadata_filepaths[0]
+        message = (
+            "There must be exactly one metadata file per session, found "
+            f"{len(metadata_filepaths)}: {metadata_filepaths}"
+        )
+        logger.error(message)
+        raise ValueError(message)
+    metadata_filepaths = metadata_filepaths[0]
     logger.info(f"\tmetadata_filepath: {metadata_filepaths}")
 
     metadata, device_metadata = load_metadata(
