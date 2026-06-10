@@ -372,46 +372,44 @@ def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
     nwbfile.add_processing_module(
         ProcessingModule(name="tasks", description="Contains all tasks information")
     )
-    # loop through tasks in the metadata and add them
+    # Store every task as a row in a single DynamicTable (one table, not one per
+    # task) with an explicit id column. camera_id and task_epochs vary in length
+    # between tasks, so they are ragged (indexed) columns.
+    tasks_table = DynamicTable(
+        name="tasks",
+        description="Metadata for each task, one row per task",
+    )
+    tasks_table.add_column(name="task_id", description="the id number of the task")
+    tasks_table.add_column(name="task_name", description="the name of the task")
+    tasks_table.add_column(
+        name="task_description", description="a description of the task"
+    )
+    tasks_table.add_column(
+        name="camera_id",
+        description="the ID number(s) of the camera(s) used for video",
+        index=True,
+    )
+    tasks_table.add_column(
+        name="task_epochs",
+        description="the temporal epochs where the animal was exposed to this task",
+        index=True,
+    )
+    # NOTE: rec_to_nwb checked that this value existed and filed with none otherwise. Do we require this in yaml?
+    tasks_table.add_column(
+        name="task_environment",
+        description="the environment in which the animal performed the task",
+    )
+    # loop through tasks in the metadata and add a row for each
     for i, task_metadata in enumerate(metadata["tasks"]):
-        task_name = VectorData(
-            name="task_name",
-            description="the name of the task",
-            data=[task_metadata["task_name"]],
+        tasks_table.add_row(
+            task_id=i,
+            task_name=task_metadata["task_name"],
+            task_description=task_metadata["task_description"],
+            camera_id=[int(camera_id) for camera_id in task_metadata["camera_id"]],
+            task_epochs=[int(epoch) for epoch in task_metadata["task_epochs"]],
+            task_environment=task_metadata["task_environment"],
         )
-        task_description = VectorData(
-            name="task_description",
-            description="a description of the task",
-            data=[task_metadata["task_description"]],
-        )
-        camera_id = VectorData(
-            name="camera_id",
-            description="the ID number of the camera used for video",
-            data=[[int(camera_id) for camera_id in task_metadata["camera_id"]]],
-        )
-        task_epochs = VectorData(
-            name="task_epochs",
-            description="the temporal epochs where the animal was exposed to this task",
-            data=[[int(epoch) for epoch in task_metadata["task_epochs"]]],
-        )
-        # NOTE: rec_to_nwb checked that this value existed and filed with none otherwise. Do we require this in yaml?
-        task_environment = VectorData(
-            name="task_environment",
-            description="the environment in which the animal performed the task",
-            data=[task_metadata["task_environment"]],
-        )
-        task = DynamicTable(
-            name=f"task_{i}",  # NOTE: Do we want this name to match the descriptive name entered?
-            description="",
-            columns=[
-                task_name,
-                task_description,
-                camera_id,
-                task_epochs,
-                task_environment,
-            ],
-        )
-        nwbfile.processing["tasks"].add(task)
+    nwbfile.processing["tasks"].add(tasks_table)
 
 
 def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
