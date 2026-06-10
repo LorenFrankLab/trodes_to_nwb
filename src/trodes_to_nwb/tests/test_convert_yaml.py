@@ -83,6 +83,21 @@ def test_warn_on_inconsistent_num_shanks(caplog):
         convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
     assert not caplog.records
 
+    # A yaml-quoted count that matches must not warn (coerced before comparing).
+    caplog.clear()
+    probe_meta["num_shanks"] = "3"
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
+    assert not caplog.records
+
+    # A non-numeric count is reported safely (no %d formatting error) and warns.
+    caplog.clear()
+    probe_meta["num_shanks"] = "four"
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("num_shanks='four'" in m for m in messages), messages
+
 
 def test_subject_creation():
     metadata_path = data_path / "20230622_sample_metadata.yml"
