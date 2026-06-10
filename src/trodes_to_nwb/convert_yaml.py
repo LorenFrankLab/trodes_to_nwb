@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 import pandas as pd
 import yaml
 from dateutil.tz import tzutc
-from hdmf.common.table import DynamicTable, VectorData
+from hdmf.common.table import DynamicTable
 from ndx_franklab_novela import (
     AssociatedFiles,
     CameraDevice,
@@ -359,7 +359,13 @@ def extend_electrode_table(nwbfile, electrode_df):
 
 
 def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
-    """Creates processing module for tasks and adds their metadata info
+    """Creates the ``tasks`` processing module and adds task metadata.
+
+    All tasks are stored as rows of a single ``tasks`` ``DynamicTable`` (one row
+    per task) with an explicit ``task_id`` column, rather than one table per
+    task. ``camera_id`` and ``task_epochs`` are ragged (indexed) columns since
+    they vary in length across tasks. Spyglass ingests this single multi-row
+    table (requires the spyglass#1278 layout; see #8).
 
     Parameters
     ----------
