@@ -115,3 +115,97 @@ def test_validate_yaml_header_electrode_map():
         convert_rec_header.validate_yaml_header_electrode_map(
             metadata, rec_header.find("SpikeConfiguration")
         )
+
+
+def _hwchans(ntrode):
+    return [channel.attrib["hwChan"] for channel in ntrode]
+
+
+def test_generate_reconfig_header_reproduces_handmade_reconfig():
+    """Issue #113: merging the per-tetrode ntrodes of a raw header into per-probe
+    ntrodes should reproduce the hand-edited reconfig .trodesconf exactly."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    # 32 tetrodes -> 4 probes of 8 tetrodes (32 channels) each
+    ntrode_groups = [list(range(i, i + 8)) for i in range(1, 33, 8)]
+
+    new_header = convert_rec_header.generate_reconfig_header(raw, ntrode_groups)
+    new_ntrodes = list(new_header.find("SpikeConfiguration"))
+
+    assert [nt.attrib["id"] for nt in new_ntrodes] == ["1", "2", "3", "4"]
+    assert all(len(nt) == 32 for nt in new_ntrodes)
+
+    # Channel order must match the real hand-made reconfig file.
+    reference = list(
+        convert_rec_header.read_header(
+            data_path / "reconfig_probeDevice.trodesconf"
+        ).find("SpikeConfiguration")
+    )
+    for produced, expected in zip(new_ntrodes, reference):
+        assert _hwchans(produced) == _hwchans(expected)
+
+    # The input header must not be mutated.
+    assert len(list(raw.find("SpikeConfiguration"))) == 32
+
+
+def test_generate_reconfig_header_supports_differing_contact_counts():
+    """Issue #113: probes can have differing numbers of contacts, so merged
+    ntrodes may have different channel counts."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    raw_ntrodes = list(raw.find("SpikeConfiguration"))
+    # Unequal groups: sizes 4, 12, 12, 4 tetrodes -> 16, 48, 48, 16 channels
+    ntrode_groups = [
+        list(range(1, 5)),
+        list(range(5, 17)),
+        list(range(17, 29)),
+        list(range(29, 33)),
+    ]
+
+    new_ntrodes = list(
+        convert_rec_header.generate_reconfig_header(raw, ntrode_groups).find(
+            "SpikeConfiguration"
+        )
+    )
+
+    assert [len(nt) for nt in new_ntrodes] == [16, 48, 48, 16]
+    # Each merged ntrode is the in-order concatenation of its source ntrodes.
+    for produced, group in zip(new_ntrodes, ntrode_groups):
+        expected = [h for src in group for h in _hwchans(raw_ntrodes[src - 1])]
+        assert _hwchans(produced) == expected
+
+
+def test_write_reconfig_trodesconf_roundtrips_and_validates(tmp_path):
+    """Issue #113: a generated reconfig .trodesconf must be re-readable and pass
+    the conversion's own header/metadata validation."""
+    out_path = tmp_path / "generated_reconfig.trodesconf"
+    ntrode_groups = [list(range(i, i + 8)) for i in range(1, 33, 8)]
+
+    convert_rec_header.write_reconfig_trodesconf(
+        data_path / "20230622_sample_01_a1.rec", out_path, ntrode_groups
+    )
+    assert out_path.exists()
+
+    reread = convert_rec_header.read_header(out_path)
+    spike_config = reread.find("SpikeConfiguration")
+    assert len(list(spike_config)) == 4
+
+    # The generated header validates against the matching reconfig metadata.
+    metadata, _ = convert_yaml.load_metadata(
+        data_path / "20230622_sample_metadataProbeReconfig.yml", []
+    )
+    convert_rec_header.validate_yaml_header_electrode_map(metadata, spike_config)
+
+
+def test_reconfig_ntrode_groups_from_metadata_differing_contacts():
+    """Issue #113: deriving merge-groups from the metadata groups source ntrodes
+    by electrode_group_id, which handles probes with differing contact counts."""
+    metadata = {
+        "ntrode_electrode_group_channel_map": [
+            {"ntrode_id": 1, "electrode_group_id": 0, "map": {}},
+            {"ntrode_id": 2, "electrode_group_id": 0, "map": {}},
+            {"ntrode_id": 3, "electrode_group_id": 1, "map": {}},
+            {"ntrode_id": 4, "electrode_group_id": 0, "map": {}},
+        ]
+    }
+    groups = convert_rec_header.reconfig_ntrode_groups_from_metadata(metadata)
+    # electrode group 0 has three ntrodes, group 1 has one (differing sizes).
+    assert groups == [[1, 2, 4], [3]]
