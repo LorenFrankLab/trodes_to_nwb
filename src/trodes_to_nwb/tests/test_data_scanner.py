@@ -1,10 +1,15 @@
-"""Filename-parsing robustness tests for ``data_scanner`` (#170).
+"""Filename-parsing robustness tests for ``data_scanner`` (#170, #179).
 
 A stray/misnamed file used to crash the scan of the whole directory, and animal
-names containing ``_`` were silently dropped. These tests pin both behaviours.
-The scanner only reads file *names*, so empty placeholder files are sufficient.
+names containing ``_`` were silently dropped. Per @samuelbray32's review, a file
+that *looks like* a botched session recording (a session-data extension and a
+leading YYYYMMDD date) now aborts the scan loudly rather than being silently
+skipped, while genuine non-session files (auxiliary configs, un-dated fixtures)
+are ignored with a warning. These tests pin those behaviours. The scanner only
+reads file *names*, so empty placeholder files are sufficient.
 """
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -82,3 +87,44 @@ def test_too_few_tokens_are_skipped(bad_name, tmp_path):
     p = tmp_path / bad_name
     p.write_text("")
     assert _process_path(p) == NONE_RESULT
+
+
+def test_date_prefixed_botched_session_file_raises(tmp_path):
+    # Looks like a session recording (data extension + leading YYYYMMDD date) but
+    # is malformed -- must abort rather than silently dropping the epoch (#179).
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    _touch(tmp_path, "20260610sample_03_r2.rec")  # missing underscore after date
+    with pytest.raises(ValueError, match="naming convention"):
+        get_file_info(tmp_path)
+
+
+def test_non_dated_strict_file_is_skipped_not_raised(tmp_path, caplog):
+    # A session-data extension with no leading date is clearly not an attempted
+    # session file (e.g. the behavior_only.rec fixture) -- skip with a warning,
+    # do not abort.
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    _touch(tmp_path, "behavior_only.rec")
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        df = get_file_info(tmp_path)  # must not raise
+
+    names = {Path(p).name for p in df.full_path}
+    assert "behavior_only.rec" not in names
+    assert any("ignored" in r.message.lower() for r in caplog.records)
+
+
+def test_auxiliary_and_botched_yaml_are_skipped_not_raised(tmp_path):
+    # yaml is a lenient extension (shared with probe/device configs), so a
+    # non-conforming yml -- even a date-prefixed, botched *metadata* file -- is
+    # skipped, not raised. A missing metadata file is caught later by the
+    # "exactly one metadata file per session" check, not here.
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    _touch(tmp_path, "tetrode_12.5.yml")  # probe config, not a session file
+    _touch(tmp_path, "20230622_metadata.yml")  # date-prefixed but lenient ext
+
+    df = get_file_info(tmp_path)  # must not raise
+
+    names = {Path(p).name for p in df.full_path}
+    assert names == {"20230622_sample_01_a1.rec", "20230622_sample_metadata.yml"}
