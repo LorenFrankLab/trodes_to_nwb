@@ -3,6 +3,7 @@ information embedded within Trodes .rec files. Extracts hardware configuration,
 electrode mappings, and other essential metadata.
 """
 
+import copy
 import logging
 from pathlib import Path
 from xml.etree import ElementTree
@@ -47,6 +48,139 @@ def read_header(recfile: Path | str) -> ElementTree.Element:
         header_txt = f.read(header_size).decode("utf8")
 
     return ElementTree.fromstring(header_txt)
+
+
+def reconfig_ntrode_groups_from_metadata(metadata: dict) -> list[list[int]]:
+    """Derive ntrode merge-groups from the metadata channel map.
+
+    Source ntrodes that share an ``electrode_group_id`` in
+    ``ntrode_electrode_group_channel_map`` belong to the same probe and should be
+    merged into one reconfigured ntrode. Grouping this way naturally supports
+    probes with differing numbers of contacts (each group has as many source
+    ntrodes as that probe needs). Electrode groups are returned in first-seen
+    order, and ntrodes within a group preserve their order in the metadata.
+
+    Parameters
+    ----------
+    metadata : dict
+        Parsed session metadata containing ``ntrode_electrode_group_channel_map``.
+
+    Returns
+    -------
+    list[list[int]]
+        Merge-groups suitable for :func:`generate_reconfig_header`, each a list
+        of source ntrode ids.
+    """
+    groups: dict = {}
+    order: list = []
+    for entry in metadata["ntrode_electrode_group_channel_map"]:
+        electrode_group_id = entry["electrode_group_id"]
+        if electrode_group_id not in groups:
+            groups[electrode_group_id] = []
+            order.append(electrode_group_id)
+        groups[electrode_group_id].append(int(entry["ntrode_id"]))
+    return [groups[electrode_group_id] for electrode_group_id in order]
+
+
+def generate_reconfig_header(
+    rec_header: ElementTree.Element,
+    ntrode_groups: list[list[int]],
+) -> ElementTree.Element:
+    """Build a reconfigured header by merging SpikeNTrode groups.
+
+    Trodes records one ``SpikeNTrode`` per acquisition group (e.g. one per
+    tetrode). To represent a multi-contact probe as a single electrode group,
+    those ntrodes must be merged into one ntrode per probe/shank -- the manual
+    "delete groupings" step otherwise done by hand in the Trodes GUI. This
+    function automates it by concatenating, in order, the channels of the source
+    ntrodes in each group into a single new ntrode.
+
+    Parameters
+    ----------
+    rec_header : xml.etree.ElementTree.Element
+        Parsed header (root ``<Configuration>``) returned by :func:`read_header`.
+    ntrode_groups : list[list[int]]
+        Each inner list gives the source ``SpikeNTrode`` ids to merge, in order,
+        into one new ntrode. Inner lists may have different lengths to support
+        probes with differing contact counts. New ntrodes are numbered
+        ``1..len(ntrode_groups)``. Every referenced id must exist in the header.
+
+    Returns
+    -------
+    xml.etree.ElementTree.Element
+        A deep copy of ``rec_header`` whose ``SpikeConfiguration`` holds the
+        merged ntrodes. The input element is not modified.
+
+    Raises
+    ------
+    ValueError
+        If the header has no ``SpikeConfiguration`` or ``ntrode_groups`` is empty.
+    KeyError
+        If a referenced ntrode id is not present in the header.
+    """
+    if not ntrode_groups:
+        raise ValueError("ntrode_groups must contain at least one group")
+
+    new_header = copy.deepcopy(rec_header)
+    spike_config = new_header.find("SpikeConfiguration")
+    if spike_config is None:
+        raise ValueError("rec_header has no SpikeConfiguration element")
+
+    source_by_id = {ntrode.attrib["id"]: ntrode for ntrode in spike_config}
+
+    merged_ntrodes = []
+    for new_id, group in enumerate(ntrode_groups, start=1):
+        if not group:
+            raise ValueError("each entry in ntrode_groups must be non-empty")
+        missing = [src_id for src_id in group if str(src_id) not in source_by_id]
+        if missing:
+            raise KeyError(
+                f"ntrode id(s) {missing} not present in the header SpikeConfiguration"
+            )
+        # Base the merged ntrode on the first source ntrode so it keeps the
+        # group-level attributes (scaling, reference settings, ...).
+        merged = copy.deepcopy(source_by_id[str(group[0])])
+        merged.attrib["id"] = str(new_id)
+        for channel in list(merged):
+            merged.remove(channel)
+        for src_id in group:
+            for channel in source_by_id[str(src_id)]:
+                merged.append(copy.deepcopy(channel))
+        merged_ntrodes.append(merged)
+
+    for ntrode in list(spike_config):
+        spike_config.remove(ntrode)
+    spike_config.extend(merged_ntrodes)
+    return new_header
+
+
+def write_reconfig_trodesconf(
+    rec_header_path: Path | str,
+    output_path: Path | str,
+    ntrode_groups: list[list[int]],
+) -> Path:
+    """Read a header, merge its ntrodes, and write a reconfigured ``.trodesconf``.
+
+    Parameters
+    ----------
+    rec_header_path : Path or str
+        Path to the source ``.rec`` or ``.trodesconf`` whose header is reconfigured.
+    output_path : Path or str
+        Where to write the generated ``.trodesconf`` file.
+    ntrode_groups : list[list[int]]
+        Merge-groups passed to :func:`generate_reconfig_header`.
+
+    Returns
+    -------
+    Path
+        The ``output_path`` that was written.
+    """
+    new_header = generate_reconfig_header(read_header(rec_header_path), ntrode_groups)
+    output_path = Path(output_path)
+    # No XML declaration: matches the embedded .rec header format and keeps the
+    # output re-readable by read_header (which parses a str, not bytes).
+    ElementTree.ElementTree(new_header).write(output_path, encoding="unicode")
+    return output_path
 
 
 def add_header_device(nwbfile: NWBFile, rec_header: ElementTree.Element) -> None:
