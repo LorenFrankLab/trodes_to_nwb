@@ -66,3 +66,19 @@ def test_unparseable_names_return_none(bad_name, tmp_path):
     p = tmp_path / bad_name
     p.write_text("")
     assert _process_path(p) == NONE_RESULT
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    [
+        "20230622_metadata.yml",  # .yml with too few tokens (no animal)
+        "20230622_01_a1.rec",  # data file with too few tokens (no animal/epoch/tag)
+    ],
+)
+def test_too_few_tokens_are_skipped(bad_name, tmp_path):
+    # Without the length guards these would parse to an *empty* animal name with
+    # no exception raised (all remaining tokens are integers), silently producing
+    # a bogus row. The guards must reject them.
+    p = tmp_path / bad_name
+    p.write_text("")
+    assert _process_path(p) == NONE_RESULT
