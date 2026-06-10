@@ -59,12 +59,17 @@ Component Definitions:
 """
 
 import pathlib
+import logging
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import numpy as np
 import pandas as pd
+from hdmf.common.table import DynamicTable
+from pynwb import NWBFile
 
 from .convert_dios import _get_channel_name_map as _get_dio_channel_name_map
+
+logger = logging.getLogger("convert")
 
 T_StateScriptLogProcessor = TypeVar(
     "T_StateScriptLogProcessor", bound="StateScriptLogProcessor"
@@ -114,18 +119,18 @@ def parse_ts_int_int(parts: list) -> Optional[Dict[str, Any]]:
         if the line matches the expected structure and all parts are valid integers.
         Returns None otherwise.
     """
-    if len(parts) == 3:
-        # Attempt to parse all three parts as integers
-        timestamp, val1, val2 = [_parse_int(part) for part in parts]
-
-        # Check if all parsing attempts were successful
-        if timestamp is not None and val1 is not None and val2 is not None:
-            return {
-                "type": "ts_int_int",
-                "timestamp": timestamp,
-                "value1": val1,
-                "value2": val2,
-            }
+    if len(parts) != 3:
+        return None
+    # Attempt to parse all three parts as integers
+    timestamp, val1, val2 = (_parse_int(part) for part in parts)
+    if timestamp is None or val1 is None or val2 is None:
+        return None
+    return {
+        "type": "ts_int_int",
+        "timestamp": timestamp,
+        "value1": val1,
+        "value2": val2,
+    }
 
 
 def parse_ts_str_int(parts: list) -> Optional[Dict[str, Any]]:
@@ -1250,3 +1255,281 @@ class StateScriptLogProcessor:
             )  # String/object type
 
         return trials_df
+
+
+# --- NWB conversion --------------------------------------------------------
+
+# Columns of the events DataFrame, in the order they appear in the NWB table.
+# active_DIO_inputs/outputs are per-row lists (ragged), so they become indexed columns.
+_STATESCRIPT_LIST_COLUMNS = ("active_DIO_inputs", "active_DIO_outputs")
+_STATESCRIPT_COLUMN_ORDER = (
+    "epoch",
+    "line_num",
+    "trodes_timestamp",
+    "trodes_timestamp_sec",
+    "timestamp_sync",
+    "type",
+    "text",
+    "value",
+    "active_DIO_inputs_bitmask",
+    "active_DIO_outputs_bitmask",
+    "active_DIO_inputs",
+    "active_DIO_outputs",
+    "raw_line",
+)
+_STATESCRIPT_COLUMN_DESCRIPTIONS = {
+    "epoch": "the session epoch the event belongs to",
+    "line_num": "line number of the event in the source .stateScriptLog file",
+    "trodes_timestamp": "raw Trodes timestamp (milliseconds since the start of the recording session)",
+    "trodes_timestamp_sec": "Trodes timestamp in seconds since the start of the recording session",
+    "timestamp_sync": "event time in the NWB timebase (seconds), aligned to the DIO events; NaN if alignment was not possible",
+    "type": "the parsed line type (e.g. ts_int_int, ts_str_int, ts_str_equals_int, ts_str)",
+    "text": "string label/message for the event, if any",
+    "value": "integer value associated with the event, if any",
+    "active_DIO_inputs_bitmask": "bitmask of active DIO inputs (from ts_int_int lines)",
+    "active_DIO_outputs_bitmask": "bitmask of active DIO outputs (from ts_int_int lines)",
+    "active_DIO_inputs": "list of active DIO input pin numbers",
+    "active_DIO_outputs": "list of active DIO output pin numbers",
+    "raw_line": "the original, unparsed log line",
+}
+# Columns kept as floating point so missing values can be represented as NaN
+# (HDF5 has no native nullable-integer type).
+_STATESCRIPT_FLOAT_COLUMNS = (
+    "trodes_timestamp_sec",
+    "timestamp_sync",
+    "value",
+    "active_DIO_inputs_bitmask",
+    "active_DIO_outputs_bitmask",
+)
+_STATESCRIPT_INT_COLUMNS = ("epoch", "line_num", "trodes_timestamp")
+_STATESCRIPT_TEXT_COLUMNS = ("type", "text", "raw_line")
+
+
+def estimate_statescript_time_offset(
+    log_event_times: np.ndarray,
+    reference_times: np.ndarray,
+    *,
+    tolerance: float = 0.02,
+    min_matches: int = 5,
+    min_fraction: float = 0.5,
+) -> Optional[float]:
+    """Estimate the constant offset aligning StateScript events to reference times.
+
+    The StateScript (ECU) clock runs at the same rate as the recording clock but
+    starts at a different origin, so StateScript event times differ from the
+    recorded DIO event times by a constant offset (in seconds). This finds that
+    offset ``delta`` such that ``log_event_times + delta`` line up with
+    ``reference_times`` (e.g. the converted NWB digital I/O event times), by
+    testing candidate offsets and keeping the one that aligns the most events
+    within ``tolerance`` seconds.
+
+    Parameters
+    ----------
+    log_event_times : np.ndarray
+        StateScript DIO event times, in seconds since the start of the recording.
+    reference_times : np.ndarray
+        Reference event times in the target timebase (seconds), e.g. NWB DIO
+        event change times.
+    tolerance : float, optional
+        Maximum distance (seconds) for a shifted log event to count as matching a
+        reference event. Default 0.02 (20 ms).
+    min_matches : int, optional
+        Minimum number of matched events required to accept an offset. Default 5.
+    min_fraction : float, optional
+        Minimum fraction of ``log_event_times`` that must match. Default 0.5.
+
+    Returns
+    -------
+    Optional[float]
+        The estimated offset in seconds (add to log times to reach the reference
+        timebase), or ``None`` if no offset matches enough events confidently.
+    """
+    log_event_times = np.asarray(log_event_times, dtype=float)
+    reference_times = np.asarray(reference_times, dtype=float)
+    if log_event_times.size == 0 or reference_times.size == 0:
+        return None
+
+    reference_sorted = np.sort(reference_times)
+
+    def _count_matches(delta: float) -> int:
+        shifted = log_event_times + delta
+        if reference_sorted.size == 1:
+            nearest = np.full_like(shifted, reference_sorted[0])
+        else:
+            idx = np.clip(
+                np.searchsorted(reference_sorted, shifted), 1, reference_sorted.size - 1
+            )
+            left = reference_sorted[idx - 1]
+            right = reference_sorted[idx]
+            nearest = np.where(
+                np.abs(shifted - left) <= np.abs(shifted - right), left, right
+            )
+        return int(np.sum(np.abs(shifted - nearest) <= tolerance))
+
+    # Candidate offsets: align each of the first few log events to every reference
+    # event. The true offset is among these if any anchor event has a reference.
+    n_anchor = min(5, log_event_times.size)
+    candidates = np.unique(
+        (reference_sorted[None, :] - log_event_times[:n_anchor, None]).ravel()
+    )
+    best_delta, best_count = None, 0
+    for delta in candidates:
+        count = _count_matches(float(delta))
+        if count > best_count:
+            best_count, best_delta = count, float(delta)
+
+    threshold = max(min_matches, int(np.ceil(min_fraction * log_event_times.size)))
+    if best_delta is None or best_count < threshold:
+        return None
+    return best_delta
+
+
+def _get_dio_reference_times(nwbfile: NWBFile) -> np.ndarray:
+    """Collect all DIO event change times (seconds) from the NWB behavioral_events."""
+    behavior = nwbfile.processing.get("behavior")
+    if behavior is None:
+        return np.array([])
+    events = behavior.data_interfaces.get("behavioral_events")
+    if events is None:
+        return np.array([])
+    times = [
+        np.asarray(time_series.timestamps[:])
+        for time_series in events.time_series.values()
+    ]
+    if not times:
+        return np.array([])
+    return np.sort(np.concatenate(times))
+
+
+def _coerce_statescript_cell(column: str, value: Any) -> Any:
+    """Convert a DataFrame cell to a type the NWB table can store."""
+    if column in _STATESCRIPT_LIST_COLUMNS:
+        if isinstance(value, (list, tuple, np.ndarray)):
+            return [int(v) for v in value]
+        return []
+    if column in _STATESCRIPT_TEXT_COLUMNS:
+        if (
+            value is None
+            or (isinstance(value, float) and np.isnan(value))
+            or pd.isna(value)
+        ):
+            return ""
+        return str(value)
+    if column in _STATESCRIPT_INT_COLUMNS:
+        return int(value)
+    if column in _STATESCRIPT_FLOAT_COLUMNS:
+        return float(value) if not pd.isna(value) else float("nan")
+    return value
+
+
+def _add_statescript_table(nwbfile: NWBFile, events_df: pd.DataFrame) -> DynamicTable:
+    """Build the statescript_events DynamicTable and add it to the behavior module."""
+    if "behavior" not in nwbfile.processing:
+        nwbfile.create_processing_module(
+            name="behavior", description="Contains all behavior-related data"
+        )
+
+    columns = [c for c in _STATESCRIPT_COLUMN_ORDER if c in events_df.columns]
+    columns += [c for c in events_df.columns if c not in columns]
+
+    table = DynamicTable(
+        name="statescript_events",
+        description="Parsed StateScript log events, one row per event",
+    )
+    for column in columns:
+        table.add_column(
+            name=column,
+            description=_STATESCRIPT_COLUMN_DESCRIPTIONS.get(column, column),
+            index=column in _STATESCRIPT_LIST_COLUMNS,
+        )
+    for _, row in events_df.iterrows():
+        table.add_row(
+            **{
+                column: _coerce_statescript_cell(column, row[column])
+                for column in columns
+            }
+        )
+
+    nwbfile.processing["behavior"].add(table)
+    return table
+
+
+def add_statescript(
+    nwbfile: NWBFile,
+    session_df: pd.DataFrame,
+    *,
+    align_to_dios: bool = True,
+    dio_match_tolerance: float = 0.02,
+) -> None:
+    """Add parsed StateScript log events to the NWB file as a single DynamicTable.
+
+    For every ``.stateScriptLog`` file in ``session_df``, the log is parsed and its
+    events are collected into one ``statescript_events`` table (one row per event,
+    with an ``epoch`` column) in the ``behavior`` processing module. The raw Trodes
+    timestamps are always stored. When ``align_to_dios`` is set and the NWB file
+    already contains converted DIO events, a constant offset is estimated by
+    matching the log's DIO events to the NWB DIO event times, and a NWB-timebase
+    ``timestamp_sync`` column is filled; if no confident alignment is found, that
+    column is left NaN and a warning is logged.
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        The NWB file being assembled. Call after :func:`convert_dios.add_dios` so
+        DIO events are available for alignment.
+    session_df : pd.DataFrame
+        File-info table for the session (from ``data_scanner.get_file_info``),
+        containing ``epoch``, ``file_extension`` and ``full_path`` columns.
+    align_to_dios : bool, optional
+        Attempt to align event times to the NWB DIO events. Default True.
+    dio_match_tolerance : float, optional
+        Matching tolerance (seconds) for DIO alignment. Default 0.02.
+    """
+    statescript_rows = session_df[session_df["file_extension"] == ".stateScriptLog"]
+    if statescript_rows.empty:
+        return
+
+    reference_times = (
+        _get_dio_reference_times(nwbfile) if align_to_dios else np.array([])
+    )
+
+    per_epoch_frames = []
+    for _, file_row in statescript_rows.sort_values("epoch").iterrows():
+        epoch = int(file_row["epoch"])
+        processor = StateScriptLogProcessor.from_file(file_row["full_path"])
+
+        if align_to_dios and reference_times.size:
+            unaligned = processor.get_events_dataframe(
+                apply_offset=False, exclude_comments_unknown=True
+            )
+            log_dio_times = unaligned.loc[
+                unaligned["type"] == "ts_int_int", "trodes_timestamp_sec"
+            ].to_numpy()
+            offset = estimate_statescript_time_offset(
+                log_dio_times, reference_times, tolerance=dio_match_tolerance
+            )
+            if offset is not None:
+                processor.time_offset = offset
+                logger.info(
+                    f"StateScript epoch {epoch}: aligned to DIO events "
+                    f"(offset={offset:.4f}s)"
+                )
+            else:
+                logger.warning(
+                    f"StateScript epoch {epoch}: could not confidently align to DIO "
+                    f"events; 'timestamp_sync' left NaN for this epoch."
+                )
+
+        events_df = processor.get_events_dataframe(
+            apply_offset=processor.time_offset is not None,
+            exclude_comments_unknown=True,
+        ).reset_index()
+        events_df.insert(0, "epoch", epoch)
+        per_epoch_frames.append(events_df)
+
+    combined = pd.concat(per_epoch_frames, ignore_index=True)
+    # Ensure timestamp_sync exists even if no epoch was aligned, so the column is
+    # always present and downstream code can rely on it.
+    if "timestamp_sync" not in combined.columns:
+        combined["timestamp_sync"] = float("nan")
+    _add_statescript_table(nwbfile, combined)

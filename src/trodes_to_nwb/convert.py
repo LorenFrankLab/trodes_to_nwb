@@ -20,6 +20,7 @@ from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
 from trodes_to_nwb.convert_optogenetics import add_optogenetic_epochs, add_optogenetics
 from trodes_to_nwb.convert_position import add_associated_video_files, add_position
+from trodes_to_nwb.convert_statescript import add_statescript
 from trodes_to_nwb.convert_rec_header import (
     add_header_device,
     detect_ptp_from_header,
@@ -402,6 +403,8 @@ def _create_nwb(
         neo_io=rec_dci.neo_io,
     )
     add_optogenetic_epochs(nwb_file, metadata, fs_gui_dir)
+    logger.info("ADDING STATESCRIPT")
+    add_statescript(nwb_file, session_df)
     logger.info("ADDING POSITION")
     # add position
     ptp_enabled = False if disable_ptp else detect_ptp_from_header(rec_header)
