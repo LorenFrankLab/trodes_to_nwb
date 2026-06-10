@@ -128,3 +128,55 @@ def test_non_wrapping_session_is_unchanged():
 
     np.testing.assert_allclose(out, true / FS, rtol=0, atol=1e-9)
     assert list(io.regressed_systime_parameters["wrap_sample_indices"]) == []
+
+
+def _fit_then_partial(raw, systime_ns, start, stop):
+    """Fit on the full recording, then read a [start, stop) partial that inherits
+    the fit (mirrors how split iterators are created)."""
+    full = _make_io(raw, systime_ns)
+    full.get_regressed_systime(0, None)  # fit; populates wrap_sample_indices
+    partial = _make_io(
+        raw[start:stop],
+        systime_ns[start:stop],  # unused once params are set, kept aligned
+        global_offset=start,
+        params=full.regressed_systime_parameters,
+    )
+    return partial.get_regressed_systime(0, None)
+
+
+def test_partial_straddling_the_wrap():
+    # a partial that *contains* the wrap: prior_wraps == 0, but the in-slice
+    # _unwrap_uint32 must detect the jump.
+    raw, systime_ns, expected = _wrapping_session()  # wrap at sample 500
+    out = _fit_then_partial(raw, systime_ns, 450, 650)
+    np.testing.assert_allclose(out, expected[450:650], rtol=0, atol=1e-6)
+
+
+def test_partial_starting_exactly_on_the_wrap():
+    # start == wrap_sample_index (500): the single case that distinguishes
+    # searchsorted side="right" (correct) from side="left" (off by one wrap).
+    raw, systime_ns, expected = _wrapping_session()
+    out = _fit_then_partial(raw, systime_ns, 500, 700)
+    np.testing.assert_allclose(out, expected[500:700], rtol=0, atol=1e-6)
+
+
+def _multi_wrap_session(n=300):
+    # large per-sample step so the counter wraps several times within n samples
+    step = UINT32_WRAP // 100
+    true = np.arange(n, dtype=np.int64) * step
+    raw = (true % UINT32_WRAP).astype(np.uint32)
+    systime_ns = true.astype(np.float64) * 1e9 / FS
+    return raw, systime_ns, true / FS
+
+
+def test_multi_wrap_full_and_partial():
+    raw, systime_ns, expected = _multi_wrap_session()  # ~2 wraps within the file
+    full = _make_io(raw, systime_ns)
+    out_full = full.get_regressed_systime(0, None)
+    assert np.all(np.diff(out_full) > 0)
+    np.testing.assert_allclose(out_full, expected, rtol=0, atol=1e-6)
+    assert len(full.regressed_systime_parameters["wrap_sample_indices"]) >= 2
+
+    # a partial after several wraps (prior_wraps == 2) must land on the same axis
+    out = _fit_then_partial(raw, systime_ns, 250, 300)
+    np.testing.assert_allclose(out, expected[250:300], rtol=0, atol=1e-6)
