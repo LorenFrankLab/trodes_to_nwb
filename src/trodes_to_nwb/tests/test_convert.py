@@ -69,6 +69,7 @@ def test_convert_full():
         n_workers=1,
         query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
         fs_gui_dir=data_path,
+        overwrite=True,
     )
 
     output_file_path = data_path / "sample20230622.nwb"
@@ -116,6 +117,7 @@ def test_convert_full_with_inspector_error(mocker):
         fs_gui_dir=data_path,
         n_workers=1,
         query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
+        overwrite=True,
     )
 
     output_file_path = data_path / "sample20230622.nwb"
