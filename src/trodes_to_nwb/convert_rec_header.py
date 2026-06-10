@@ -119,8 +119,7 @@ def validate_yaml_header_electrode_map(
         ntrode_id = group.attrib["id"]
         # find appropriate channel map metadata
         channel_map = None
-        map_number = None
-        for _, test_meta in enumerate(metadata["ntrode_electrode_group_channel_map"]):
+        for test_meta in metadata["ntrode_electrode_group_channel_map"]:
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
@@ -140,7 +139,7 @@ def validate_yaml_header_electrode_map(
             )
         else:
             # add this channel map to the validated list
-            validated_channel_maps.append(map_number)
+            validated_channel_maps.append(channel_map)
 
     n_yaml_ntrodes = len(metadata["ntrode_electrode_group_channel_map"])
     n_header_ntrodes = len(validated_channel_maps)
