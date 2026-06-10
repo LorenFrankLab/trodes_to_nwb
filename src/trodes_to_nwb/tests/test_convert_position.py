@@ -306,9 +306,11 @@ def test_add_position_non_ptp():
     # make session_df
     path_df = get_file_info(data_path)
     session_df = path_df[(path_df.animal == "ginny")]
-    # get metadata
+    # get metadata. This non-PTP fixture predates the current schema and is
+    # missing a required `name`, so load it with strict=False: this test
+    # exercises position handling, not metadata validation.
     metadata_path = data_path / "nonptp_metadata.yml"
-    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [], strict=False)
     # load the prepped non-ptp nwbfile
     with NWBHDF5IO(data_path / "non_ptp_prep.nwb", "a", load_namespaces=True) as io:
         nwbfile = io.read()
