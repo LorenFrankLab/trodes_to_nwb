@@ -118,7 +118,7 @@ def test_convert_full_with_inspector_error(mocker):
     # Removing the Subject makes NWB Inspector report a CRITICAL issue
     # (check_subject_exists). With strict=True (the default) this must fail the
     # conversion rather than silently writing a DANDI-invalid file.
-    with pytest.raises(ValueError, match="CRITICAL/ERROR"):
+    with pytest.raises(ValueError, match="block DANDI upload"):
         create_nwbs(
             path=data_path,
             device_metadata_paths=device_metadata,

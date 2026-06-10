@@ -230,8 +230,8 @@ def create_nwbs(
         files, by default False.
     strict : bool, optional
         If True (default), stop the conversion of a session when its metadata
-        fails schema validation or when NWB Inspector reports CRITICAL/ERROR
-        issues (which block DANDI upload). If False, log those problems and write
+        fails schema validation or when NWB Inspector reports DANDI-blocking
+        issues (ERROR/CRITICAL/pynwb-validation). If False, log those problems and write
         the file anyway (the previous behavior).
 
     """
@@ -454,7 +454,7 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger, strict: bool = True
     required for upload to the DANDI archive.
 
     If ``strict`` is True (default), raise a ``ValueError`` when the inspector
-    reports any CRITICAL or ERROR issue (which block DANDI upload), so the
+    reports any DANDI-blocking issue (ERROR, CRITICAL, or pynwb-validation), so the
     session is marked failed rather than silently producing an invalid file.
     Best-practice violations and suggestions are always reported but never
     raise."""
@@ -522,19 +522,25 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger, strict: bool = True
         f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report"
     )
 
-    # Gate the conversion on DANDI-blocking issues. CRITICAL/ERROR importances
-    # prevent DANDI upload, so by default fail the session rather than silently
-    # report success on an invalid file. Best-practice violations/suggestions are
-    # reported above but never block.
-    gating_levels = (
-        nwbinspector.Importance.CRITICAL,
+    # Gate the conversion on DANDI-blocking issues. ERROR and CRITICAL
+    # importances prevent DANDI upload, as does PYNWB_VALIDATION (an actual pynwb
+    # schema-validation failure, which inspect_nwbfile runs by default and which
+    # sits between ERROR and CRITICAL in severity). Best-practice
+    # violations/suggestions are reported above but never block. By default fail
+    # the session rather than silently reporting success on an invalid file.
+    gating_levels = [
         nwbinspector.Importance.ERROR,
-    )
+        nwbinspector.Importance.CRITICAL,
+    ]
+    # PYNWB_VALIDATION was added in newer nwbinspector; include it if present.
+    pynwb_validation = getattr(nwbinspector.Importance, "PYNWB_VALIDATION", None)
+    if pynwb_validation is not None:
+        gating_levels.append(pynwb_validation)
     gating_messages = [m for m in messages if m.importance in gating_levels]
     if gating_messages and strict:
         raise ValueError(
-            f"NWB Inspector found {len(gating_messages)} CRITICAL/ERROR issue(s) "
-            "that block DANDI upload. See the report at "
+            f"NWB Inspector found {len(gating_messages)} issue(s) that block "
+            f"DANDI upload (ERROR/CRITICAL/pynwb-validation). See the report at "
             f"{Path(report_file_path).absolute()}. Pass strict=False to "
             "create_nwbs to write the file anyway."
         )
