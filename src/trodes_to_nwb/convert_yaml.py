@@ -191,10 +191,19 @@ def warn_on_inconsistent_num_shanks(probe_meta: dict) -> None:
         Metadata for a single probe (one entry from the probe metadata list).
     """
     declared = probe_meta.get("num_shanks")
+    if declared is None:
+        return
     defined = len(probe_meta.get("shanks", []))
-    if declared is not None and declared != defined:
+    # Coerce for the comparison so a yaml-quoted count (num_shanks: "3") does not
+    # warn spuriously, and format `declared` with %r so a non-numeric value is
+    # reported safely rather than blowing up the %d formatting.
+    try:
+        declared_count = int(declared)
+    except (TypeError, ValueError):
+        declared_count = None
+    if declared_count != defined:
         logging.getLogger("convert").warning(
-            "Probe '%s': metadata declares num_shanks=%d but defines %d shank(s). "
+            "Probe '%s': metadata declares num_shanks=%r but defines %d shank(s). "
             "The %d defined shank(s) will be used; check the probe yaml.",
             probe_meta.get("probe_type", "<unknown>"),
             declared,
