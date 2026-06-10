@@ -5,6 +5,7 @@ electrode mappings, and other essential metadata.
 
 import copy
 import logging
+from collections import Counter
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -85,6 +86,7 @@ def reconfig_ntrode_groups_from_metadata(metadata: dict) -> list[list[int]]:
 def generate_reconfig_header(
     rec_header: ElementTree.Element,
     ntrode_groups: list[list[int]],
+    allow_partial: bool = False,
 ) -> ElementTree.Element:
     """Build a reconfigured header by merging SpikeNTrode groups.
 
@@ -103,7 +105,13 @@ def generate_reconfig_header(
         Each inner list gives the source ``SpikeNTrode`` ids to merge, in order,
         into one new ntrode. Inner lists may have different lengths to support
         probes with differing contact counts. New ntrodes are numbered
-        ``1..len(ntrode_groups)``. Every referenced id must exist in the header.
+        ``1..len(ntrode_groups)``. Every referenced id must exist in the header,
+        and (unless ``allow_partial``) ``ntrode_groups`` must be a partition of
+        the source ntrodes -- each used exactly once.
+    allow_partial : bool, optional
+        If False (default), every source ntrode must be assigned to exactly one
+        group; leaving some unassigned raises (their channels would be silently
+        dropped). Set True to intentionally drop the unassigned source ntrodes.
 
     Returns
     -------
@@ -114,12 +122,17 @@ def generate_reconfig_header(
     Raises
     ------
     ValueError
-        If the header has no ``SpikeConfiguration`` or ``ntrode_groups`` is empty.
+        If the header has no ``SpikeConfiguration``; if ``ntrode_groups`` is
+        empty or contains an empty group; if a source ntrode is assigned to more
+        than one group (which would place one channel in two electrode groups);
+        or if source ntrodes are left unassigned and ``allow_partial`` is False.
     KeyError
         If a referenced ntrode id is not present in the header.
     """
     if not ntrode_groups:
         raise ValueError("ntrode_groups must contain at least one group")
+    if any(not group for group in ntrode_groups):
+        raise ValueError("each entry in ntrode_groups must be non-empty")
 
     new_header = copy.deepcopy(rec_header)
     spike_config = new_header.find("SpikeConfiguration")
@@ -128,15 +141,38 @@ def generate_reconfig_header(
 
     source_by_id = {ntrode.attrib["id"]: ntrode for ntrode in spike_config}
 
+    # Validate that ntrode_groups is a clean partition of the source ntrodes.
+    # Assigning a source ntrode to two groups (or twice within a group) would
+    # place the same physical channels in two electrode groups, and leaving a
+    # source ntrode unassigned silently drops its channels -- both are almost
+    # always caller typos, so fail loudly rather than misbuild the probe map.
+    flat = [str(src_id) for group in ntrode_groups for src_id in group]
+    missing = [src_id for src_id in dict.fromkeys(flat) if src_id not in source_by_id]
+    if missing:
+        raise KeyError(
+            f"ntrode id(s) {missing} not present in the header SpikeConfiguration"
+        )
+    counts = Counter(flat)
+    duplicated = sorted((src_id for src_id, n in counts.items() if n > 1), key=int)
+    if duplicated:
+        raise ValueError(
+            f"ntrode id(s) {duplicated} appear in more than one reconfig group "
+            "(or twice in one group); each source ntrode's channels can only be "
+            "assigned to a single merged ntrode."
+        )
+    unassigned = sorted(
+        (src_id for src_id in source_by_id if src_id not in counts), key=int
+    )
+    if unassigned and not allow_partial:
+        raise ValueError(
+            f"source ntrode id(s) {unassigned} are not assigned to any reconfig "
+            "group; their channels would be dropped from the reconfigured header. "
+            "Assign them to a group, or pass allow_partial=True to drop them "
+            "intentionally."
+        )
+
     merged_ntrodes = []
     for new_id, group in enumerate(ntrode_groups, start=1):
-        if not group:
-            raise ValueError("each entry in ntrode_groups must be non-empty")
-        missing = [src_id for src_id in group if str(src_id) not in source_by_id]
-        if missing:
-            raise KeyError(
-                f"ntrode id(s) {missing} not present in the header SpikeConfiguration"
-            )
         # Base the merged ntrode on the first source ntrode so it keeps the
         # group-level attributes (scaling, reference settings, ...).
         merged = copy.deepcopy(source_by_id[str(group[0])])
@@ -158,6 +194,7 @@ def write_reconfig_trodesconf(
     rec_header_path: Path | str,
     output_path: Path | str,
     ntrode_groups: list[list[int]],
+    allow_partial: bool = False,
 ) -> Path:
     """Read a header, merge its ntrodes, and write a reconfigured ``.trodesconf``.
 
@@ -169,16 +206,24 @@ def write_reconfig_trodesconf(
         Where to write the generated ``.trodesconf`` file.
     ntrode_groups : list[list[int]]
         Merge-groups passed to :func:`generate_reconfig_header`.
+    allow_partial : bool, optional
+        Passed through to :func:`generate_reconfig_header`; if False (default),
+        every source ntrode must be assigned to a group.
 
     Returns
     -------
     Path
         The ``output_path`` that was written.
     """
-    new_header = generate_reconfig_header(read_header(rec_header_path), ntrode_groups)
+    new_header = generate_reconfig_header(
+        read_header(rec_header_path), ntrode_groups, allow_partial=allow_partial
+    )
     output_path = Path(output_path)
-    # No XML declaration: matches the embedded .rec header format and keeps the
-    # output re-readable by read_header (which parses a str, not bytes).
+    # read_header re-parses this file by line-scanning for the line containing
+    # </Configuration> and truncating there, so the writer must emit no XML
+    # declaration and must keep </Configuration> on a single line (no
+    # pretty-printing that would split it). encoding="unicode" + the default
+    # serializer satisfy both and match the embedded .rec header format.
     ElementTree.ElementTree(new_header).write(output_path, encoding="unicode")
     return output_path
 
