@@ -51,36 +51,50 @@ def read_header(recfile: Path | str) -> ElementTree.Element:
     return ElementTree.fromstring(header_txt)
 
 
-def reconfig_ntrode_groups_from_metadata(metadata: dict) -> list[list[int]]:
-    """Derive ntrode merge-groups from the metadata channel map.
+def group_ntrodes_uniformly(n_source: int, per_group: int) -> list[list[int]]:
+    """Build uniform reconfig merge-groups of consecutive source ntrode ids.
 
-    Source ntrodes that share an ``electrode_group_id`` in
-    ``ntrode_electrode_group_channel_map`` belong to the same probe and should be
-    merged into one reconfigured ntrode. Grouping this way naturally supports
-    probes with differing numbers of contacts (each group has as many source
-    ntrodes as that probe needs). Electrode groups are returned in first-seen
-    order, and ntrodes within a group preserve their order in the metadata.
+    Convenience for the common case of a probe whose shanks each have the same
+    number of source ntrodes -- e.g. a 128-channel, 4-shank probe recorded as 32
+    tetrodes is ``group_ntrodes_uniformly(32, 8)``. Source ntrode ids are 1-based
+    and taken in order, so this assumes the source ntrodes are ordered such that
+    each consecutive block of ``per_group`` belongs to one shank. For non-uniform
+    probes, or wiring where consecutive source ntrodes do not map to one shank,
+    pass explicit groups to :func:`generate_reconfig_header` instead -- there is
+    no way to infer the grouping from the metadata.
 
     Parameters
     ----------
-    metadata : dict
-        Parsed session metadata containing ``ntrode_electrode_group_channel_map``.
+    n_source : int
+        Total number of source ntrodes in the header (a positive multiple of
+        ``per_group``).
+    per_group : int
+        Number of consecutive source ntrodes merged into each new ntrode.
 
     Returns
     -------
     list[list[int]]
-        Merge-groups suitable for :func:`generate_reconfig_header`, each a list
-        of source ntrode ids.
+        ``[[1, ..., per_group], [per_group + 1, ...], ...]``, suitable for
+        :func:`generate_reconfig_header`.
+
+    Raises
+    ------
+    ValueError
+        If ``n_source`` or ``per_group`` is not positive, or ``n_source`` is not
+        a multiple of ``per_group`` (the groups would not be uniform).
     """
-    groups: dict = {}
-    order: list = []
-    for entry in metadata["ntrode_electrode_group_channel_map"]:
-        electrode_group_id = entry["electrode_group_id"]
-        if electrode_group_id not in groups:
-            groups[electrode_group_id] = []
-            order.append(electrode_group_id)
-        groups[electrode_group_id].append(int(entry["ntrode_id"]))
-    return [groups[electrode_group_id] for electrode_group_id in order]
+    if n_source < 1 or per_group < 1:
+        raise ValueError("n_source and per_group must be positive integers")
+    if n_source % per_group != 0:
+        raise ValueError(
+            f"n_source ({n_source}) is not a multiple of per_group ({per_group}); "
+            "the groups would not be uniform. Pass explicit ntrode_groups to "
+            "generate_reconfig_header for non-uniform probes."
+        )
+    return [
+        list(range(start, start + per_group))
+        for start in range(1, n_source + 1, per_group)
+    ]
 
 
 def generate_reconfig_header(
