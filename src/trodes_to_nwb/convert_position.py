@@ -637,21 +637,37 @@ def _get_position_timestamps_ptp(
         logger.warning(
             "PTP timestamps correspond to a time earlier than 2000. This may be due to a PTP clock reset."
         )
+    # Downstream consumers (e.g. Spyglass) assume monotonically increasing
+    # position timestamps; warn rather than silently writing a backward jump.
+    if not ptp_timestamps.is_monotonic_increasing:
+        logger.warning(
+            "PTP timestamps are not monotonically increasing. This may be due to "
+            "a PTP clock reset and can break downstream epoch/position handling."
+        )
 
     video_timestamps = video_timestamps.drop(
         columns=["HWframeCount", "HWTimestamp"]
     ).set_index(ptp_timestamps)
 
-    # Ignore positions before the timing pause.
-    pause_mid_ind = (
-        np.nonzero(
-            np.logical_and(
-                np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
-                np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
-            )
-        )[0][0]
-        + 1
-    )
+    # Ignore positions before the timing pause. If no pause is found in the first
+    # 100 frames, keep all frames (mirrors the guarded non-PTP path) rather than
+    # aborting the whole conversion with an IndexError.
+    try:
+        pause_mid_ind = (
+            np.nonzero(
+                np.logical_and(
+                    np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
+                    np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
+                )
+            )[0][0]
+            + 1
+        )
+    except IndexError:
+        logger.warning(
+            "No acquisition timing pause found in the first 100 PTP frames; "
+            "keeping all frames."
+        )
+        pause_mid_ind = 0
     video_timestamps = video_timestamps.iloc[pause_mid_ind:]
     if len(video_timestamps.index) > 1:
         frame_rate = 1 / np.median(np.diff(video_timestamps.index))
@@ -663,6 +679,22 @@ def _get_position_timestamps_ptp(
         logger.warning(
             "Less than 2 timestamps remain after PTP pause removal; cannot estimate frame rate."
         )
+
+    # Video frames with no matching position tracking (the camera can keep
+    # running after online/offline tracking stops) arrive from the upstream
+    # left-merge as NaN x/y. Drop them so they are not written as
+    # valid-timestamped NaN positions. The non-PTP path filters these
+    # incidentally; the PTP path did not. Bookkeeping columns are never NaN.
+    bookkeeping = {"video_frame_ind", "non_repeat_timestamp_labels"}
+    position_columns = [c for c in video_timestamps.columns if c not in bookkeeping]
+    if position_columns:
+        n_missing = int(video_timestamps[position_columns].isna().any(axis=1).sum())
+        if n_missing:
+            logger.warning(
+                f"Dropping {n_missing} PTP video frame(s) with no matching "
+                "position tracking (NaN position)."
+            )
+            video_timestamps = video_timestamps.dropna(subset=position_columns)
 
     return video_timestamps
 
