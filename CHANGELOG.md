@@ -7,6 +7,7 @@
 ### General
 
 - Update conversions for use of `pynwb>=3.1` #153, #155
+- Add method to rectify nwb converted with incorrect trodes config #166
 
 ### Optogenetics
 
