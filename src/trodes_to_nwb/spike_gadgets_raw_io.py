@@ -1408,9 +1408,22 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         self.selected_streams = full_io.selected_streams
         self._generate_minimal_annotations()
         self.regressed_systime_parameters = full_io.regressed_systime_parameters
-        # this partial starts at start_index within the full recording; anchor
-        # the timestamp unwrap to the same global axis as the full-file fit.
-        self._global_sample_offset = start_index
+        # This partial starts at start_index within the full recording; anchor the
+        # timestamp unwrap to the same global axis as the full-file fit. The fit's
+        # wrap_sample_indices are on the POST-interpolation axis (get_regressed_systime
+        # resolves dropped-packet interpolation before fitting), but start_index is a
+        # PRE-interpolation index. If a dropped packet was inserted before a uint32
+        # wrap, leaving these on different axes undercounts prior_wraps and lands the
+        # partial ~39.77 h off. Translate start_index through the full file's
+        # interpolation map so both are post-interpolation (#47).
+        if isinstance(full_io._raw_memmap, InsertedMemmap):
+            self._global_sample_offset = int(
+                np.searchsorted(
+                    full_io._raw_memmap.mapped_index, start_index, side="left"
+                )
+            )
+        else:
+            self._global_sample_offset = start_index
 
         # crop key information to range of interest
         header_size = None

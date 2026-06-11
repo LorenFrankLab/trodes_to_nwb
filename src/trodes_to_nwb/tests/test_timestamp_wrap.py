@@ -14,8 +14,10 @@ import pytest
 from trodes_to_nwb.spike_gadgets_raw_io import (
     UINT32_WRAP,
     SpikeGadgetsRawIO,
+    SpikeGadgetsRawIOPartial,
     _unwrap_uint32,
 )
+from trodes_to_nwb.tests.utils import data_path
 
 FS = 30000.0  # Hz
 
@@ -117,6 +119,63 @@ def test_partial_after_wrap_lands_on_same_axis_as_full():
     out = partial.get_regressed_systime(0, None)
 
     np.testing.assert_allclose(out, expected[start:stop], rtol=0, atol=1e-6)
+
+
+def _synthetic_drop_before_wrap_io(n=500, drops=(50, 60, 70, 80, 90), wrap_at=300):
+    """A real SpikeGadgetsRawIO whose memmap is replaced with synthetic packets:
+    a uint32 counter with single dropped packets (diff==2) *before* a wrap, plus a
+    matching int64 sysclock. Built off a real .rec so the partial constructor (which
+    reads the file header and copies parsed attributes) works unchanged."""
+    io = SpikeGadgetsRawIO(filename=str(data_path / "20230622_sample_01_a1.rec"))
+    io.parse_header()
+    ts_byte, sys_byte, pkt = (
+        io._timestamp_byte,
+        io.sysClock_byte,
+        io._raw_memmap.shape[1],
+    )
+    drops = np.asarray(drops)
+    extra = np.zeros(n, dtype=np.int64)
+    for d in drops:
+        extra[d + 1 :] += 1  # a single dropped packet -> a +1 gap (counter diff 2)
+    unwrapped = np.arange(n, dtype=np.int64) + extra
+    unwrapped_global = (UINT32_WRAP - int(unwrapped[wrap_at])) + unwrapped
+    raw_counter = (unwrapped_global % UINT32_WRAP).astype("<u4")
+    sysclock = (1.7e18 + (1e9 / FS) * unwrapped_global).astype("<i8")
+
+    raw = np.zeros((n, pkt), dtype=np.uint8)
+    raw[:, ts_byte : ts_byte + 4] = raw_counter.view(np.uint8).reshape(n, 4)
+    raw[:, sys_byte : sys_byte + 8] = sysclock.view(np.uint8).reshape(n, 8)
+
+    io._raw_memmap = raw
+    io.interpolate_dropped_packets = True
+    io.interpolate_index = None
+    io.regressed_systime_parameters = {}
+    io._global_sample_offset = 0
+    return io
+
+
+def test_partial_offset_translates_to_post_interpolation_axis():
+    # A dropped-packet insertion BEFORE a uint32 wrap shifts the wrap onto the
+    # post-interpolation axis. A post-wrap partial inherits those (post-interp)
+    # wrap indices but its start_index is a pre-interpolation index; if the offset
+    # is not translated, prior_wraps is undercounted and the partial lands ~39.77 h
+    # off (one missed wrap). (#47 -- pre-existing interpolation x split x wrap bug.)
+    io = _synthetic_drop_before_wrap_io()
+    full_ts = io.get_regressed_systime(0, None)
+    assert np.all(np.diff(full_ts) > 0)  # monotonic across the drops and the wrap
+    # the wrap sits one sample later than its pre-interp index 300 (one insertion
+    # of the 5 drops is... all 5 are before it -> +5)
+    assert list(io.regressed_systime_parameters["wrap_sample_indices"]) == [305]
+
+    start, stop = 302, 400  # a post-wrap partial; no drops in [start, stop)
+    partial = SpikeGadgetsRawIOPartial(io, start_index=start, stop_index=stop)
+    partial_ts = partial.get_regressed_systime(0, None)
+
+    # those pre-interp samples sit at these post-interp positions in the full file
+    post_offset = int(np.searchsorted(io._raw_memmap.mapped_index, start, side="left"))
+    np.testing.assert_array_equal(
+        partial_ts, full_ts[post_offset : post_offset + (stop - start)]
+    )
 
 
 def test_non_wrapping_session_is_unchanged():
