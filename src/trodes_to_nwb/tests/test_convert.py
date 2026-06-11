@@ -1,14 +1,19 @@
+import functools
 import os
 import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+import cloudpickle
 import numpy as np
+import pandas as pd
+import pytest
 from pynwb import NWBHDF5IO
 
 from unittest.mock import MagicMock
 
 from trodes_to_nwb.convert import (
+    _convert_session,
     check_file_timing,
     create_nwbs,
     get_included_device_metadata_paths,
@@ -52,6 +57,227 @@ def test_get_included_device_metadata_paths():
     probes = list(get_included_device_metadata_paths())
     assert len(probes) == 19
     assert all(probe.exists() for probe in probes)
+
+
+def test_get_included_device_metadata_paths_returns_reusable_list():
+    # Must be a list, not the rglob generator: it is reused across sessions and
+    # pickled for dask workers (issue #141).
+    paths = get_included_device_metadata_paths()
+    assert isinstance(paths, list)
+    assert len(list(paths)) == len(paths)  # not exhausted by a first iteration
+
+
+def test_convert_session_partial_serializes_with_cloudpickle():
+    # The #141 cause was that the per-session function was a *closure* inside
+    # create_nwbs, which recent distributed cannot deterministically hash.
+    # _convert_session is module-level, so the partial that binds the config
+    # serializes cleanly with cloudpickle (the serializer dask actually uses).
+    # Serialization alone is a weak proxy (closures also survive cloudpickle);
+    # the real guard is the parallel-path test below.
+    func = functools.partial(
+        _convert_session, output_dir="/tmp", device_metadata_paths=[]
+    )
+    restored = cloudpickle.loads(cloudpickle.dumps(func))
+    assert restored.func is _convert_session
+    assert restored.keywords["output_dir"] == "/tmp"
+
+
+def test_convert_session_reports_success_and_failure(mocker):
+    session_item = (("20230101", "rat"), MagicMock())
+
+    # Success -> None
+    mocker.patch("trodes_to_nwb.convert._create_nwb", return_value=None)
+    assert _convert_session(session_item, output_dir="/tmp") is None
+
+    # Failure -> (session, error repr), not a raised exception (so the batch can
+    # continue and aggregate every failure).
+    mocker.patch(
+        "trodes_to_nwb.convert._create_nwb", side_effect=ValueError("bad metadata")
+    )
+    result = _convert_session(session_item, output_dir="/tmp")
+    assert result[0] == ("20230101", "rat")
+    assert "bad metadata" in result[1]
+
+
+def test_create_nwbs_aggregates_session_failures(mocker, tmp_path):
+    # Two sessions, both fail: create_nwbs must not silently succeed (parallel)
+    # or abort on the first (serial) -- it collects every failure and raises one
+    # summary (issue #141).
+    file_info = pd.DataFrame(
+        {
+            "date": [20230101, 20230102],
+            "animal": ["rat", "rat"],
+            "epoch": [1, 1],
+            "tag": ["a1", "a1"],
+            "tag_index": [1, 1],
+            "file_extension": [".rec", ".rec"],
+            "full_path": ["a.rec", "b.rec"],
+        }
+    )
+    mocker.patch("trodes_to_nwb.convert.get_file_info", return_value=file_info)
+    mocker.patch("trodes_to_nwb.convert._create_nwb", side_effect=RuntimeError("boom"))
+
+    with pytest.raises(RuntimeError, match="2 of 2 session.* failed to convert"):
+        create_nwbs(tmp_path, output_dir=str(tmp_path), device_metadata_paths=[])
+
+
+class _FakeFuture:
+    """A dask-Future stand-in: .result() returns a value or re-raises."""
+
+    def __init__(self, value=None, exc=None):
+        self._value = value
+        self._exc = exc
+
+    def result(self):
+        if self._exc is not None:
+            raise self._exc
+        return self._value
+
+
+class _FakeClient:
+    """Synchronous stand-in for dask's Client so the n_workers>1 branch runs
+    deterministically (no real cluster). map() runs the function inline; a task
+    that raises becomes a future that re-raises on .result() (a hard worker
+    death)."""
+
+    def __init__(self, *args, **kwargs):
+        self.closed = False
+
+    def map(self, func, iterable):
+        futures = []
+        for item in iterable:
+            try:
+                futures.append(_FakeFuture(value=func(item)))
+            except Exception as e:
+                futures.append(_FakeFuture(exc=e))
+        return futures
+
+    def close(self):
+        self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+
+def _session_file_info(dates):
+    n = len(dates)
+    return pd.DataFrame(
+        {
+            "date": list(dates),
+            "animal": ["rat"] * n,
+            "epoch": [1] * n,
+            "tag": ["a1"] * n,
+            "tag_index": [1] * n,
+            "file_extension": [".rec"] * n,
+            "full_path": [f"{d}.rec" for d in dates],
+        }
+    )
+
+
+def test_create_nwbs_parallel_path_aggregates_and_closes(mocker, tmp_path):
+    # The n_workers>1 branch (the literal #141 bug) run via a synchronous fake
+    # Client: failures must aggregate (not be swallowed) and the client must be
+    # closed.
+    created = []
+
+    def make_client(*a, **k):
+        client = _FakeClient(*a, **k)
+        created.append(client)
+        return client
+
+    mocker.patch(
+        "trodes_to_nwb.convert.get_file_info",
+        return_value=_session_file_info([20230101, 20230102]),
+    )
+    mocker.patch("trodes_to_nwb.convert.Client", make_client)
+    mocker.patch("trodes_to_nwb.convert._create_nwb", side_effect=RuntimeError("boom"))
+
+    with pytest.raises(RuntimeError, match="2 of 2 session.* failed to convert"):
+        create_nwbs(
+            tmp_path, output_dir=str(tmp_path), device_metadata_paths=[], n_workers=2
+        )
+
+    assert created and created[0].closed is True  # client/cluster torn down
+
+
+def test_create_nwbs_parallel_surfaces_worker_death_with_other_failures(
+    mocker, tmp_path
+):
+    # A worker that dies hard makes future.result() raise; that session must still
+    # become a failure entry, and must NOT discard the other session's failure
+    # (silent-failure review C1).
+    mocker.patch(
+        "trodes_to_nwb.convert.get_file_info",
+        return_value=_session_file_info([20230101, 20230102]),
+    )
+    mocker.patch("trodes_to_nwb.convert.Client", _FakeClient)
+
+    def convert_side_effect(session_item, **kwargs):
+        session = session_item[0]
+        if session[0] == 20230102:  # date is an int from get_file_info
+            raise RuntimeError("KilledWorker")  # hard death: escapes the task
+        return (session, "boom")  # ordinary failure, returned
+
+    mocker.patch(
+        "trodes_to_nwb.convert._convert_session", side_effect=convert_side_effect
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        create_nwbs(
+            tmp_path, output_dir=str(tmp_path), device_metadata_paths=[], n_workers=2
+        )
+    message = str(excinfo.value)
+    assert "2 of 2 session" in message
+    assert "20230101" in message  # ordinary failure NOT lost
+    assert "worker died" in message  # hard death surfaced as a failure
+
+
+def test_create_nwbs_reports_only_failed_sessions(mocker, tmp_path):
+    # Partial batch: only the failed session is named, and the success count is
+    # reported so a caller knows the rest were written.
+    mocker.patch(
+        "trodes_to_nwb.convert.get_file_info",
+        return_value=_session_file_info([20230101, 20230102, 20230103]),
+    )
+
+    def create_side_effect(session, session_df, **kwargs):
+        if session[0] == 20230102:  # date is an int from get_file_info
+            raise RuntimeError("boom")
+        return None
+
+    mocker.patch("trodes_to_nwb.convert._create_nwb", side_effect=create_side_effect)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        create_nwbs(tmp_path, output_dir=str(tmp_path), device_metadata_paths=[])
+    message = str(excinfo.value)
+    assert "1 of 3 session" in message
+    assert "2 succeeded" in message
+    assert "20230102" in message  # the failed session is named
+    assert "20230101" not in message  # successes are not listed
+
+
+def test_create_nwbs_reuses_metadata_paths_across_sessions(mocker, tmp_path):
+    # A generator passed as device_metadata_paths must not be exhausted after the
+    # first session -- it is materialized to a list so session 2+ still gets the
+    # full set (#141).
+    mocker.patch(
+        "trodes_to_nwb.convert.get_file_info",
+        return_value=_session_file_info([20230101, 20230102]),
+    )
+    spy = mocker.patch("trodes_to_nwb.convert._create_nwb", return_value=None)
+    paths_generator = (Path(p) for p in ["x.yml", "y.yml"])
+
+    create_nwbs(
+        tmp_path, output_dir=str(tmp_path), device_metadata_paths=paths_generator
+    )
+
+    seen = [call.kwargs["device_metadata_paths"] for call in spy.call_args_list]
+    assert len(seen) == 2
+    assert all(len(paths) == 2 for paths in seen)  # 2nd session not exhausted
 
 
 def test_convert_full():

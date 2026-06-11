@@ -5,6 +5,7 @@ calling conversion functions for different data types (ephys, position, DIOs, et
 and final NWB file writing and validation.
 """
 
+import functools
 import logging
 from pathlib import Path
 
@@ -86,7 +87,10 @@ def get_included_device_metadata_paths() -> list[Path]:
     """
     package_dir = Path(__file__).parent.resolve()
     device_folder = package_dir / "device_metadata"
-    return device_folder.rglob("*.yml")
+    # Return a list, not the rglob generator: callers reuse it across sessions
+    # (a generator is exhausted after the first) and dask must pickle it for
+    # n_workers > 1 (issue #141).
+    return list(device_folder.rglob("*.yml"))
 
 
 def _get_file_paths(df: pd.DataFrame, file_extension: str) -> list[str]:
@@ -228,67 +232,122 @@ def create_nwbs(
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
 
+    Raises
+    ------
+    RuntimeError
+        If any session fails to convert. Successful sessions are still written;
+        the error summarizes every failed session (it does not abort on the
+        first failure).
+
     """
 
     if not isinstance(path, Path):
         path = Path(path)
 
-    # provide the included probe metadata files if none are provided
+    # provide the included probe metadata files if none are provided, and
+    # materialize to a list so it can be reused across sessions and pickled for
+    # dask workers (a generator would be exhausted / unpicklable -- issue #141).
     if device_metadata_paths is None:
         device_metadata_paths = get_included_device_metadata_paths()
+    device_metadata_paths = list(device_metadata_paths)
 
     file_info = get_file_info(path)
 
     if query_expression is not None:
         file_info = file_info.query(query_expression)
 
+    logger = logging.getLogger("convert")
+    sessions = list(file_info.groupby(["date", "animal"]))
+    session_kwargs = dict(
+        header_reconfig_path=header_reconfig_path,
+        device_metadata_paths=device_metadata_paths,
+        output_dir=output_dir,
+        video_directory=video_directory,
+        convert_video=convert_video,
+        fs_gui_dir=fs_gui_dir,
+        disable_ptp=disable_ptp,
+        behavior_only=behavior_only,
+    )
+
     if n_workers > 1:
-
-        def pass_func(args):
-            session, session_df = args
-            try:
-                _create_nwb(
-                    session,
-                    session_df,
-                    header_reconfig_path,
-                    device_metadata_paths,
-                    output_dir,
-                    video_directory,
-                    convert_video,
-                    fs_gui_dir,
-                    disable_ptp,
-                    behavior_only=behavior_only,
-                )
-                return True
-            except Exception as e:
-                print(session, e)
-                return e
-
-        # initialize the workers
-        client = Client(threads_per_worker=20, n_workers=n_workers)
-        # run conversion for each animal and date
-        argument_list = list(file_info.groupby(["date", "animal"]))
-        futures = client.map(pass_func, argument_list)
-        # print out error results
-        for args, future in zip(argument_list, futures, strict=True):
-            result = future.result()
-            if result is not True:
-                print(args, result)
-
+        # _convert_session is a module-level function (not a closure) so dask can
+        # serialize it; a closure defined here "cannot be deterministically
+        # hashed" by recent distributed, so n_workers > 1 failed outright (#141).
+        # Use the Client as a context manager so the implicit LocalCluster is torn
+        # down and a teardown error can't mask a real failure.
+        with Client(threads_per_worker=20, n_workers=n_workers) as client:
+            convert = functools.partial(_convert_session, **session_kwargs)
+            futures = client.map(convert, sessions)
+            # Resolve each future individually. A worker that dies hard (OOM kill,
+            # segfault in the Neo/HDF5 C stack) never returns a tuple and makes
+            # `.result()` raise; catch it so that session becomes an explicit
+            # failure entry instead of a gather-level exception that would discard
+            # every other session's result.
+            results = []
+            for session_item, future in zip(sessions, futures, strict=True):
+                session = session_item[0]
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    logger.exception(f"Worker died for session {session}")
+                    results.append((session, f"worker died: {e!r}"))
     else:
-        for session, session_df in file_info.groupby(["date", "animal"]):
-            _create_nwb(
-                session,
-                session_df,
-                header_reconfig_path,
-                device_metadata_paths,
-                output_dir,
-                video_directory,
-                convert_video,
-                fs_gui_dir,
-                disable_ptp,
-                behavior_only=behavior_only,
-            )
+        results = [
+            _convert_session(session_item, **session_kwargs)
+            for session_item in sessions
+        ]
+
+    # Aggregate per-session outcomes. A failed session yields (session, error)
+    # rather than (parallel) being swallowed by a print or (serial) aborting the
+    # whole batch -- surface every failure together and fail loudly.
+    failures = [result for result in results if result is not None]
+    if failures:
+        n_succeeded = len(sessions) - len(failures)
+        summary = "\n".join(f"  - {session}: {error}" for session, error in failures)
+        message = (
+            f"{len(failures)} of {len(sessions)} session(s) failed to convert "
+            f"({n_succeeded} succeeded and were written to {output_dir}):\n{summary}"
+        )
+        logger.error(message)
+        raise RuntimeError(message)
+
+
+def _convert_session(session_item, **kwargs):
+    """Convert a single ``(date, animal)`` session for :func:`create_nwbs`.
+
+    Defined at module level (not as a closure inside ``create_nwbs``) so
+    dask/distributed can serialize it for ``n_workers > 1`` -- a local closure
+    "cannot be deterministically hashed" by recent ``distributed``, which made
+    parallel conversion fail outright (issue #141). Used by both the serial and
+    parallel paths so per-session failures are handled identically.
+
+    Parameters
+    ----------
+    session_item : tuple
+        A ``(session, session_df)`` pair from ``DataFrame.groupby``.
+    **kwargs
+        Forwarded to :func:`_create_nwb`.
+
+    Returns
+    -------
+    tuple or None
+        ``None`` if the session converted successfully, otherwise
+        ``(session, repr(exception))`` describing the failure.
+    """
+    session, session_df = session_item
+    logger = logging.getLogger("convert")
+    try:
+        _create_nwb(session, session_df, **kwargs)
+        return None
+    except Exception as e:
+        # logger.exception records the full traceback in the per-session log so a
+        # failure deep in the ephys/HDF5/metadata stack is debuggable; the
+        # returned repr (type + message) feeds the aggregated summary. The broad
+        # except is deliberate batch resilience -- one bad session must not abort
+        # the others -- so programming errors surface as failures too, but the
+        # logged traceback distinguishes them from data errors.
+        logger.exception(f"Conversion FAILED for session {session}")
+        return (session, repr(e))
 
 
 def _create_nwb(
