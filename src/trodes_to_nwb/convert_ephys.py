@@ -33,6 +33,27 @@ DEFAULT_CHUNK_TIME_DIM = 16384
 DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
+def _is_strictly_increasing(values, chunk_size: int = 1_000_000) -> bool:
+    """Return whether ``values`` is strictly increasing, streaming in chunks.
+
+    Equivalent to ``np.all(np.diff(values) > 0)`` but never allocates the full
+    diff array -- for the ~15 GB timestamp array at 17 h that diff would double
+    peak memory (#47). Reads at most ``chunk_size`` elements at a time and checks
+    the within-chunk diffs plus each chunk boundary, returning early on the first
+    non-increase.
+    """
+    n = len(values)
+    if n < 2:
+        return True
+    previous = values[0]
+    for start in range(1, n, chunk_size):
+        block = np.asarray(values[start : start + chunk_size])
+        if block[0] <= previous or not np.all(np.diff(block) > 0):
+            return False
+        previous = block[-1]
+    return True
+
+
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
@@ -216,10 +237,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
 
         logger.info("Reading timestamps COMPLETE")
-        is_timestamps_sequential = np.all(np.diff(self.timestamps))
+        # Must be strictly increasing. `np.all(np.diff(...))` only checks that no
+        # two timestamps are *equal* (nonzero diff); it silently accepts a
+        # backward jump (negative diff), which is exactly what a clock reset or
+        # an out-of-order file concatenation would produce.
+        is_timestamps_sequential = _is_strictly_increasing(self.timestamps)
         if not is_timestamps_sequential:
             warn(
-                "Timestamps are not sequential. This may cause problems with some software or data analysis.",
+                "Timestamps are not strictly increasing. This may cause problems with some software or data analysis.",
                 stacklevel=2,
             )
 

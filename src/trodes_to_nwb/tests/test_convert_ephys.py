@@ -4,11 +4,37 @@ import numpy as np
 import pynwb
 
 from trodes_to_nwb import convert_rec_header, convert_yaml
-from trodes_to_nwb.convert_ephys import add_raw_ephys
+from trodes_to_nwb.convert_ephys import _is_strictly_increasing, add_raw_ephys
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
 
 MICROVOLTS_PER_VOLT = 1e6
+
+
+def test_is_strictly_increasing_matches_full_diff():
+    # The streaming check (#47, avoids the full np.diff for the ~15 GB timestamp
+    # array) must agree with np.all(np.diff(...) > 0) on every case, including
+    # violations that land exactly on a chunk boundary.
+    def reference(a):
+        return bool(np.all(np.diff(a) > 0)) if len(a) > 1 else True
+
+    cases = [
+        np.arange(50, dtype=float),  # strictly increasing
+        np.array([0.0, 1.0, 1.0, 2.0]),  # equal (not strict)
+        np.array([0.0, 1.0, 2.0, 1.5, 3.0]),  # backward jump
+        np.array([5.0]),  # single element
+        np.array([]),  # empty
+    ]
+    for values in cases:
+        for chunk in (3, 1_000_000):
+            assert _is_strictly_increasing(values, chunk) == reference(values)
+
+    # planted equal-value violation straddling a small chunk boundary
+    increasing = np.cumsum(np.abs(np.sin(np.arange(5000))) + 0.01)
+    assert _is_strictly_increasing(increasing, 1000) is True
+    broken = increasing.copy()
+    broken[2000] = broken[1999]
+    assert _is_strictly_increasing(broken, 1000) is False
 
 
 def test_add_raw_ephys_single_rec():
