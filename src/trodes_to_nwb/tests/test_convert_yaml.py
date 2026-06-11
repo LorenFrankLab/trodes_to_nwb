@@ -3,6 +3,8 @@ import os
 import shutil
 from datetime import datetime
 
+import pytest
+import yaml
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
 from pynwb.file import ProcessingModule, Subject
@@ -398,3 +400,22 @@ def test_add_associated_video_files():
 
     # cleanup
     shutil.rmtree(video_directory)
+
+
+def test_load_metadata_raises_on_broken_references(tmp_path, mocker):
+    # load_metadata validates cross-references on schema-valid metadata and
+    # raises early -- before any conversion work and regardless of behavior_only
+    # (#147). A schema-valid file with an unmapped electrode group must raise.
+    metadata = {
+        "electrode_groups": [{"id": 0}],
+        "ntrode_electrode_group_channel_map": [],  # electrode group 0 unmapped
+        "associated_files": None,
+        "associated_video_files": None,
+    }
+    metadata_path = tmp_path / "20230101_rat_metadata.yml"
+    metadata_path.write_text(yaml.safe_dump(metadata))
+    # treat the schema as valid so the referential check (the code under test) runs
+    mocker.patch("trodes_to_nwb.metadata_validation.validate", return_value=(True, []))
+
+    with pytest.raises(ValueError, match="Metadata reference error"):
+        convert_yaml.load_metadata(metadata_path, [])
