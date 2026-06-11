@@ -6,6 +6,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile, TimeSeries
 
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
@@ -13,6 +14,45 @@ from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
+
+
+class _TrodesSampleCountIterator(GenericDataChunkIterator):
+    """Stream the Trodes sample counts as one virtual 1-D ``uint32`` array.
+
+    The sample-count data spans every rec file in the session. Concatenating all
+    of them up front materialises the whole array (~7 GB at 17 h @30 kHz); this
+    iterator instead reads each requested chunk on demand from the files'
+    memmaps, so the counts are never all resident at once (issue #47). The values
+    and their order are identical to
+    ``np.concatenate([io.get_analogsignal_timestamps(0, None) for io in neo_io])``.
+    """
+
+    def __init__(self, neo_io: list[SpikeGadgetsRawIO], **kwargs):
+        self._neo_io = list(neo_io)
+        lengths = [io._raw_memmap.shape[0] for io in self._neo_io]
+        # global index of the first sample of each file (plus a final total)
+        self._file_starts = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+        self._total = int(self._file_starts[-1])
+        super().__init__(**kwargs)
+
+    def _get_data(self, selection: tuple) -> np.ndarray:
+        start, stop, _ = selection[0].indices(self._total)
+        out = np.empty(stop - start, dtype=np.uint32)
+        for i, io in enumerate(self._neo_io):
+            file_start = int(self._file_starts[i])
+            file_stop = int(self._file_starts[i + 1])
+            lo, hi = max(start, file_start), min(stop, file_stop)
+            if lo < hi:
+                out[lo - start : hi - start] = io.get_analogsignal_timestamps(
+                    lo - file_start, hi - file_start
+                )
+        return out
+
+    def _get_maxshape(self) -> tuple:
+        return (self._total,)
+
+    def _get_dtype(self) -> np.dtype:
+        return np.dtype("uint32")
 
 
 def add_epochs(
@@ -94,10 +134,9 @@ def add_sample_count(
     # copying them -- the copy duplicated the whole array (~15 GB at 17 h). This
     # matches how add_analog/add_raw_ephys already reuse rec_dci.timestamps (#47).
     systime = rec_dci.timestamps
-    # get the sample count information
-    trodes_sample = np.concatenate(
-        [neo_io.get_analogsignal_timestamps(0, None) for neo_io in rec_dci.neo_io]
-    )
+    # Stream the sample counts instead of concatenating every file's into one
+    # array (~7 GB at 17 h); they are written chunk-by-chunk from the memmaps.
+    trodes_sample = _TrodesSampleCountIterator(rec_dci.neo_io)
 
     # insert into nwbfile
     nwbfile.processing["sample_count"].add(
