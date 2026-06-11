@@ -842,10 +842,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
             data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
 
-        # per-packet, per-channel update flags
+        # per-packet, per-channel update flags. Cast the shift amount to uint8 so
+        # the mask stays uint8 instead of upcasting to int64 (8x the memory) across
+        # all packets -- the dominant allocation for long sessions.
+        bit_positions = data_offsets[:, 2].astype(np.uint8)
         update = (
-            (self._raw_memmap[:, data_offsets[:, 1]] >> data_offsets[:, 2]) & 1
-        ) == 1
+            (self._raw_memmap[:, data_offsets[:, 1]] >> bit_positions) & 1
+        ).astype(bool)
         # channels of one sensor are sampled together; require a shared schedule
         common = update[:, 0]
         if not np.all(update == common[:, None]):
@@ -860,10 +863,16 @@ class SpikeGadgetsRawIO(BaseRawIO):
                 update_indices,
             )
 
-        rows = self._raw_memmap[update_indices]
-        data = rows[:, data_offsets[:, 0]].astype(np.int16) + (
-            rows[:, data_offsets[:, 0] + 1].astype(np.int16) * INT_16_CONVERSION
+        # Select only the data byte-columns at the update packets, rather than
+        # copying whole packet rows (each ~hundreds of bytes); the row copy would
+        # scale with the full packet width and reach GBs on long, high-channel runs.
+        low = self._raw_memmap[np.ix_(update_indices, data_offsets[:, 0])].astype(
+            np.int16
         )
+        high = self._raw_memmap[np.ix_(update_indices, data_offsets[:, 0] + 1)].astype(
+            np.int16
+        )
+        data = low + high * INT_16_CONVERSION
         return data, update_indices
 
     def get_analogsignal_multiplexed_partial(
