@@ -119,14 +119,12 @@ def test_validate_yaml_header_electrode_map():
 
 def _two_ntrode_spike_config() -> ElementTree.Element:
     """Minimal SpikeConfiguration with two ntrodes (ids 1 and 2), two channels each."""
-    return ElementTree.fromstring(
-        """
+    return ElementTree.fromstring("""
         <SpikeConfiguration>
           <SpikeNTrode id="1"><SpikeChannel/><SpikeChannel/></SpikeNTrode>
           <SpikeNTrode id="2"><SpikeChannel/><SpikeChannel/></SpikeNTrode>
         </SpikeConfiguration>
-        """
-    )
+        """)
 
 
 def _two_ntrode_metadata() -> dict:
