@@ -7,6 +7,7 @@ import pytest
 from trodes_to_nwb import convert_rec_header, convert_yaml
 from trodes_to_nwb.convert_ephys import (
     RecFileDataChunkIterator,
+    _is_non_decreasing,
     _is_strictly_increasing,
     _LazyTimestamps,
     add_raw_ephys,
@@ -67,6 +68,8 @@ def test_lazy_timestamps_matches_concatenation():
     # scalars
     for i in [0, boundary - 1, boundary, -1]:
         assert lazy[i] == expected[i]
+    # real rec timestamps are monotonic, so the non-decreasing check passes
+    assert lazy.is_non_decreasing() is True
 
 
 def test_lazy_timestamps_non_sysclock_fallback_matches():
@@ -159,6 +162,36 @@ def test_is_strictly_increasing_matches_full_diff():
     broken = increasing.copy()
     broken[2000] = broken[1999]
     assert _is_strictly_increasing(broken, 1000) is False
+
+
+def test_is_non_decreasing_matches_full_diff():
+    # The streaming non-decreasing check (np.digitize's precondition, #47) must
+    # agree with np.all(np.diff(...) >= 0): duplicates pass, only a decrease
+    # fails -- including a decrease landing exactly on a chunk boundary.
+    def reference(a):
+        return bool(np.all(np.diff(a) >= 0)) if len(a) > 1 else True
+
+    cases = [
+        np.arange(50, dtype=float),  # increasing
+        np.array([0.0, 1.0, 1.0, 2.0]),  # duplicates -> non-decreasing
+        np.array([0.0, 1.0, 2.0, 1.5, 3.0]),  # backward jump -> not
+        np.array([5.0]),  # single element
+        np.array([]),  # empty
+    ]
+    for values in cases:
+        for chunk in (3, 1_000_000):
+            assert _is_non_decreasing(values, chunk) == reference(values)
+
+    increasing = np.cumsum(np.abs(np.sin(np.arange(5000))) + 0.01)
+    assert _is_non_decreasing(increasing, 1000) is True
+    # a duplicate at the chunk boundary is still non-decreasing
+    dup = increasing.copy()
+    dup[2000] = dup[1999]
+    assert _is_non_decreasing(dup, 1000) is True
+    # a decrease at the chunk boundary is not
+    dec = increasing.copy()
+    dec[2000] = dec[1999] - 1.0
+    assert _is_non_decreasing(dec, 1000) is False
 
 
 def test_add_raw_ephys_single_rec():

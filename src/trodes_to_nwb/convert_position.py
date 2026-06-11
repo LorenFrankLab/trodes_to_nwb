@@ -99,12 +99,21 @@ def _scalar_digitize(timestamps, value: float) -> int:
       ``np.digitize`` equals ``np.searchsorted(ts, value, side="right")`` (the
       count of timestamps ``<= value``), computed here as an O(log n) binary
       search using only scalar reads, so the full ~14.7 GB-at-17h array is never
-      materialised just to find two boundaries. The binary search assumes the
-      monotonicity precondition above; unlike ``np.digitize`` it does not
-      re-scan to verify it (that would defeat the point of staying lazy).
+      materialised just to find two boundaries. To preserve ``np.digitize``'s
+      fail-loud contract, a lazy object exposing ``is_non_decreasing()`` is first
+      checked for an actual backward jump (a clock reset) and raises if found --
+      duplicates still pass (``np.digitize`` allows them); only decreases raise.
     """
     if isinstance(timestamps, np.ndarray):
         return int(np.digitize(value, timestamps))
+    # The binary search assumes monotonic bins. np.digitize would raise on a
+    # decreasing array; match that here (cheap, streamed, cached) so a clock
+    # reset fails loud instead of returning a plausible-but-wrong index.
+    if hasattr(timestamps, "is_non_decreasing") and not timestamps.is_non_decreasing():
+        raise ValueError(
+            "timestamps decrease somewhere (a clock reset?); cannot compute a "
+            "digitize index -- np.digitize requires monotonic bins"
+        )
     low, high = 0, len(timestamps)
     while low < high:
         mid = (low + high) // 2
@@ -763,18 +772,10 @@ def _get_position_timestamps_no_ptp(
     # Locate the epoch's sample-index bounds. ``rec_dci_timestamps`` is the lazy
     # virtual timestamps (#47); searching it for the two scalar boundaries avoids
     # materialising the whole ~14.7 GB-at-17h array (np.digitize would).
+    # _scalar_digitize raises on a decreasing array (a clock reset), matching
+    # np.digitize's fail-loud, so the bounds here are well-defined and ordered.
     epoch_start_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[0])
     epoch_end_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[1])
-    # epoch_interval[0] <= epoch_interval[1], so for monotonically-increasing
-    # timestamps start <= end. The lazy binary search in _scalar_digitize assumes
-    # that monotonicity (only warned about at iterator build, not enforced); a
-    # start past the end means it was violated, so fail loud rather than slice a
-    # meaningless backwards window.
-    if epoch_start_ind > epoch_end_ind:
-        raise ValueError(
-            f"non-PTP epoch start index {epoch_start_ind} exceeds end index "
-            f"{epoch_end_ind}; rec timestamps are not monotonically increasing"
-        )
     is_valid_camera_time = np.isin(
         video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
     )

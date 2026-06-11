@@ -54,6 +54,27 @@ def _is_strictly_increasing(values, chunk_size: int = 1_000_000) -> bool:
     return True
 
 
+def _is_non_decreasing(values, chunk_size: int = 1_000_000) -> bool:
+    """Return whether ``values`` never decreases, streaming in chunks.
+
+    Like :func:`_is_strictly_increasing` but with ``>= 0`` rather than ``> 0`` --
+    it allows equal neighbours. This is exactly ``np.digitize``'s monotonic-bins
+    precondition, so the lazy digitize path can fail loud on a backward jump (a
+    clock reset) while still accepting duplicate timestamps, matching the old
+    materialised ``np.digitize`` behaviour (#47).
+    """
+    n = len(values)
+    if n < 2:
+        return True
+    previous = values[0]
+    for start in range(1, n, chunk_size):
+        block = np.asarray(values[start : start + chunk_size])
+        if block[0] < previous or not np.all(np.diff(block) >= 0):
+            return False
+        previous = block[-1]
+    return True
+
+
 class _LazyTimestamps:
     """Virtual, read-only 1-D ``float64`` timestamps spanning all rec files.
 
@@ -99,6 +120,7 @@ class _LazyTimestamps:
         lengths = [io._raw_memmap.shape[0] for io in self._neo_io]
         self._starts = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
         self._total = int(self._starts[-1])
+        self._non_decreasing = None  # lazily computed + cached (is_non_decreasing)
 
     # --- numpy-array-like surface -------------------------------------------
     def __len__(self) -> int:
@@ -119,6 +141,18 @@ class _LazyTimestamps:
     @property
     def dtype(self) -> np.dtype:
         return np.dtype("float64")
+
+    def is_non_decreasing(self) -> bool:
+        """Whether the timestamps never decrease (``np.digitize``'s precondition).
+
+        Streamed (never materialises the full array) and cached. Allows
+        duplicates and fails only on an actual backward jump, so the lazy
+        digitize path (non-PTP position) can fail loud on a clock reset exactly
+        where the old materialised ``np.digitize`` would have raised (#47).
+        """
+        if self._non_decreasing is None:
+            self._non_decreasing = _is_non_decreasing(self)
+        return self._non_decreasing
 
     # --- on-demand computation ----------------------------------------------
     def _read_file(self, file_index: int, lo: int, hi: int) -> np.ndarray:

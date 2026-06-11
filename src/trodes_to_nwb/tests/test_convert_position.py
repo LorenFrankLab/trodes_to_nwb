@@ -78,6 +78,35 @@ def test_scalar_digitize_matches_np_digitize():
         assert _scalar_digitize(lazy, float(value)) == int(np.digitize(value, full))
 
 
+def test_scalar_digitize_lazy_fails_loud_on_decreasing_bins():
+    # The lazy path must preserve np.digitize's fail-loud on a decreasing array
+    # (a clock reset) -- the start<=end check alone misses it (e.g. [0,1,2,3,4,2]
+    # with epoch [2.5,3.5] returns ordered (3, 6)). A lazy-like object exposing
+    # is_non_decreasing() is checked; duplicates still pass (#47, review).
+    class _Bins:
+        def __init__(self, values, non_decreasing):
+            self._v = np.asarray(values, dtype=float)
+            self._nd = non_decreasing
+
+        def __len__(self):
+            return len(self._v)
+
+        def __getitem__(self, i):
+            return self._v[i]
+
+        def is_non_decreasing(self):
+            return self._nd
+
+    # a real backward jump -> raise (np.digitize would too)
+    with pytest.raises(ValueError):
+        _scalar_digitize(_Bins([0, 1, 2, 3, 4, 2], non_decreasing=False), 2.5)
+    # duplicates are allowed and give the same answer as np.digitize
+    dup = [0.0, 1.0, 1.0, 2.0, 3.0]
+    assert _scalar_digitize(_Bins(dup, non_decreasing=True), 1.0) == int(
+        np.digitize(1.0, dup)
+    )
+
+
 def test_non_ptp_index_path_lazy_matches_materialized():
     # End-to-end equivalence of the non-PTP index arithmetic on the LIVE lazy
     # timestamps + streamed sample counts vs the materialized arrays. This is the
