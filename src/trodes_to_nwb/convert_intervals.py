@@ -90,8 +90,10 @@ def add_sample_count(
         description="corespondence between sample count and timestamps",
     )
 
-    # get the systime information
-    systime = np.array(rec_dci.timestamps)
+    # Reference the already-resident ephys timestamps directly rather than
+    # copying them -- the copy duplicated the whole array (~15 GB at 17 h). This
+    # matches how add_analog/add_raw_ephys already reuse rec_dci.timestamps (#47).
+    systime = rec_dci.timestamps
     # get the sample count information
     trodes_sample = np.concatenate(
         [neo_io.get_analogsignal_timestamps(0, None) for neo_io in rec_dci.neo_io]
