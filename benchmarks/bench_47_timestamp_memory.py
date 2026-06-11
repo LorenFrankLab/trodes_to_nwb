@@ -31,6 +31,7 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -147,6 +148,106 @@ def probe_sample_count_memory(n_samples: int, n_files: int = 2) -> dict:
         "wall_s": wall,
         "extra_rss_bytes": extra,
         "extra_rss_gib": _gib(extra),
+    }
+
+
+class _RegressionBackedIO:
+    """Stand-in for SpikeGadgetsRawIO that computes regressed timestamps on demand.
+
+    ``get_regressed_systime(i_start, i_stop)`` returns a freshly-computed
+    ``float64`` slice (the way the real reader derives each chunk from cached fit
+    parameters), so the full timestamps array is never held resident -- exactly
+    the behaviour ``_LazyTimestamps`` relies on.
+    """
+
+    sysClock_byte = True
+
+    def __init__(self, lo: int, hi: int):
+        self._lo, self._hi = lo, hi
+        # only shape[0] (the file's sample count) is read by the lazy path
+        self._raw_memmap = np.empty((hi - lo, 0), dtype=np.uint8)
+
+    def get_regressed_systime(self, i_start, i_stop=None):
+        i_start = 0 if i_start is None else i_start
+        i_stop = (self._hi - self._lo) if i_stop is None else i_stop
+        return (
+            np.arange(self._lo + i_start, self._lo + i_stop, dtype=np.float64)
+            / EPHYS_RATE_HZ
+        )
+
+
+def probe_eseries_timestamps_memory(
+    n_samples: int, n_files: int = 2, buffer_mib: float = 32.0
+) -> dict:
+    """Measure that the e-series timestamps are no longer materialised (#47, step 2).
+
+    Pre-#47, ``RecFileDataChunkIterator.timestamps`` was
+    ``np.concatenate([io.get_regressed_systime(0, None) ...])`` -- the whole
+    ``n_samples * 8`` byte ``float64`` array, held resident from the iterator's
+    construction until the NWB file was written (effectively the whole
+    conversion). This probe builds the real ``_LazyTimestamps`` over on-demand
+    files and then writes it through the real chunked-write path
+    (``as_data_chunk_iterator`` -> hdmf iterative writer), reporting:
+
+    - ``build_extra``      resident bytes the lazy representation adds (~0 vs the
+      full array it replaces), and
+    - ``write_peak_extra`` peak extra RSS during the streamed write, bounded by
+      the iterator buffer rather than ``n_samples``.
+    """
+    from datetime import datetime
+
+    from pynwb import NWBHDF5IO, NWBFile, TimeSeries
+
+    from trodes_to_nwb.convert_ephys import _LazyTimestamps
+
+    edges = np.linspace(0, n_samples, n_files + 1, dtype=np.int64)
+    ios = [
+        _RegressionBackedIO(int(edges[i]), int(edges[i + 1])) for i in range(n_files)
+    ]
+
+    # (a) building the lazy representation -- should add ~0 resident bytes
+    with PeakRSS() as rss_build:
+        lazy = _LazyTimestamps(ios, use_sysclock=True)
+    build_extra = rss_build.delta
+
+    # (b) streamed write -- peak bounded by the iterator buffer, not n_samples.
+    #     Write the timestamps as a TimeSeries's data via the same hdmf iterative
+    #     path the real timestamps dataset uses; a small buffer makes the
+    #     streaming visible at a probe-affordable n_samples.
+    buffer_gb = buffer_mib / 1024.0
+    scratch = Path(tempfile.mkdtemp(prefix="bench47_ts_"))
+    nwb_path = scratch / "eseries_timestamps_probe.nwb"
+    nwbfile = NWBFile(
+        session_description="bench",
+        identifier="bench",
+        session_start_time=datetime(2023, 1, 1),
+    )
+    nwbfile.add_acquisition(
+        TimeSeries(
+            name="eseries_timestamps_probe",
+            data=lazy.as_data_chunk_iterator(buffer_gb=buffer_gb),
+            rate=float(EPHYS_RATE_HZ),
+            unit="seconds",
+        )
+    )
+    try:
+        with PeakRSS() as rss_write:
+            start = time.perf_counter()
+            with NWBHDF5IO(str(nwb_path), "w") as io:
+                io.write(nwbfile)
+            wall = time.perf_counter() - start
+        write_peak_extra = rss_write.delta
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+    full = n_samples * 8  # bytes the old np.concatenate held resident
+    return {
+        "n_samples": n_samples,
+        "wall_s": wall,
+        "old_resident_gib": _gib(full),
+        "build_extra_gib": _gib(build_extra),
+        "write_peak_extra_gib": _gib(write_peak_extra),
+        "buffer_mib": buffer_mib,
     }
 
 
@@ -289,7 +390,23 @@ def main() -> int:
         f"({factor:.1f}x): {probe['extra_rss_gib'] * factor:.1f} GiB"
     )
 
-    result: dict = {"scale_probe": {k: v for k, v in probe.items() if k != "_held"}}
+    ts_probe = probe_eseries_timestamps_memory(n)
+    print(f"\n[e-series timestamps memory probe]  N = {n:,} samples")
+    print(
+        f"  old array held resident    : {ts_probe['old_resident_gib']:.3f} GiB"
+        f"  (extrapolates to {ts_probe['old_resident_gib'] * factor:.1f} GiB @ "
+        f"{REFERENCE_HOURS:g} h)"
+    )
+    print(f"  lazy build extra RSS       : {ts_probe['build_extra_gib']:.3f} GiB")
+    print(
+        f"  streamed write peak extra  : {ts_probe['write_peak_extra_gib']:.3f} GiB"
+        f"  ({ts_probe['buffer_mib']:.0f} MiB buffer; bounded, not N)"
+    )
+
+    result: dict = {
+        "scale_probe": {k: v for k, v in probe.items() if k != "_held"},
+        "eseries_timestamps_probe": ts_probe,
+    }
 
     # --- end-to-end conversion: speed, memory, equivalence -------------------
     if not args.skip_full:
