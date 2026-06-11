@@ -86,16 +86,25 @@ def wrapped_digitize(
 def _scalar_digitize(timestamps, value: float) -> int:
     """``int(np.digitize(value, timestamps))`` without materialising ``timestamps``.
 
-    For monotonically increasing ``timestamps`` (the rec timestamps are strictly
-    increasing), ``np.digitize(value, ts)`` equals ``np.searchsorted(ts, value,
-    side="right")`` -- the count of timestamps ``<= value``. Used to locate the
-    two scalar epoch-boundary indices in the non-PTP position path. For a plain
-    array this defers to ``np.searchsorted``; for the lazy virtual timestamps
-    (#47) it is an O(log n) binary search using only scalar reads, so the full
-    ~14.7 GB-at-17h array is never materialised just to find two boundaries.
+    Used to locate the two scalar epoch-boundary indices in the non-PTP position
+    path. ``timestamps`` is required to be monotonically increasing -- the same
+    precondition the surrounding non-PTP code already assumes, and which is
+    checked over the whole array when the iterator is built (a warning; see
+    ``_is_strictly_increasing`` in ``convert_ephys``).
+
+    - **Plain ``np.ndarray``** (e.g. timestamps read back from a file): defers to
+      ``np.digitize`` directly, so behaviour -- including the ``ValueError`` it
+      raises on a non-monotonic array -- is unchanged.
+    - **Lazy virtual timestamps** (#47): for monotonically increasing bins
+      ``np.digitize`` equals ``np.searchsorted(ts, value, side="right")`` (the
+      count of timestamps ``<= value``), computed here as an O(log n) binary
+      search using only scalar reads, so the full ~14.7 GB-at-17h array is never
+      materialised just to find two boundaries. The binary search assumes the
+      monotonicity precondition above; unlike ``np.digitize`` it does not
+      re-scan to verify it (that would defeat the point of staying lazy).
     """
     if isinstance(timestamps, np.ndarray):
-        return int(np.searchsorted(timestamps, value, side="right"))
+        return int(np.digitize(value, timestamps))
     low, high = 0, len(timestamps)
     while low < high:
         mid = (low + high) // 2

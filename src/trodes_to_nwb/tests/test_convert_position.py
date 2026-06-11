@@ -50,6 +50,11 @@ def test_scalar_digitize_matches_np_digitize():
     for value in probes:
         assert _scalar_digitize(ts, value) == int(np.digitize(value, ts))
 
+    # the ndarray path is plain np.digitize, so it keeps the fail-loud behaviour
+    # of raising on a non-monotonic array (rather than returning a bogus index)
+    with pytest.raises(ValueError):
+        _scalar_digitize(np.array([0.0, 5.0, 2.0, 9.0]), 3.0)
+
     # lazy path (binary search via scalar reads) on the real sample timestamps
     recfile = [
         data_path / "20230622_sample_01_a1.rec",

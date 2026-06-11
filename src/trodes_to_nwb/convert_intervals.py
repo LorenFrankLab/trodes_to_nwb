@@ -40,7 +40,7 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
 
     def _get_data(self, selection: tuple) -> np.ndarray:
         start, stop, _ = selection[0].indices(self._total)
-        out = np.empty(stop - start, dtype=np.uint32)
+        out = np.empty(max(0, stop - start), dtype=np.uint32)
         for i, io in enumerate(self._neo_io):
             file_start = int(self._file_starts[i])
             file_stop = int(self._file_starts[i + 1])
@@ -67,6 +67,11 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
 
     def __getitem__(self, key):
         if isinstance(key, slice):
+            if key.step not in (None, 1):
+                raise ValueError(
+                    f"{type(self).__name__} does not support a step in slices; "
+                    f"got step={key.step}"
+                )
             return self._get_data((key,))
         if isinstance(key, (int, np.integer)):
             i = int(key)

@@ -106,6 +106,9 @@ def test_trodes_sample_count_iterator_is_subscriptable():
     ]:
         np.testing.assert_array_equal(iterator[s], expected[s])
 
+    # a backward slice returns empty, like numpy (rather than crashing)
+    np.testing.assert_array_equal(iterator[5:1], expected[5:1])
+
     # scalar access, including negative indexing
     assert iterator[0] == expected[0]
     assert iterator[boundary] == expected[boundary]
@@ -115,6 +118,10 @@ def test_trodes_sample_count_iterator_is_subscriptable():
         iterator[expected.shape[0]]
     with pytest.raises(TypeError):
         iterator[1.5]
+    # a non-unit step would silently drop data, so it is rejected rather than
+    # quietly returning a contiguous (wrong) range
+    with pytest.raises(ValueError):
+        iterator[0:10:2]
 
 
 def test_add_sample_count():
