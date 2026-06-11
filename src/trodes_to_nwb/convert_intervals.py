@@ -57,6 +57,29 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
     def _get_dtype(self) -> np.dtype:
         return np.dtype("uint32")
 
+    # Read-access surface so consumers can slice the streamed counts directly
+    # (e.g. the non-PTP position path takes a single epoch's sample counts,
+    # ``sample_count[epoch_start:epoch_stop]``). Without this a bare
+    # GenericDataChunkIterator is not subscriptable. Values match
+    # ``np.concatenate([io.get_analogsignal_timestamps(0, None) for io in neo_io])``.
+    def __len__(self) -> int:
+        return self._total
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            return self._get_data((key,))
+        if isinstance(key, (int, np.integer)):
+            i = int(key)
+            if i < 0:
+                i += self._total
+            if not 0 <= i < self._total:
+                raise IndexError(f"index {key} out of range for length {self._total}")
+            return self._get_data((slice(i, i + 1),))[0]
+        raise TypeError(
+            f"{type(self).__name__} indices must be int or slice, not "
+            f"{type(key).__name__}"
+        )
+
 
 def add_epochs(
     nwbfile: NWBFile,

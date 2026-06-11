@@ -83,6 +83,29 @@ def wrapped_digitize(
     return ind_first * (1 - section) + ind_second * section
 
 
+def _scalar_digitize(timestamps, value: float) -> int:
+    """``int(np.digitize(value, timestamps))`` without materialising ``timestamps``.
+
+    For monotonically increasing ``timestamps`` (the rec timestamps are strictly
+    increasing), ``np.digitize(value, ts)`` equals ``np.searchsorted(ts, value,
+    side="right")`` -- the count of timestamps ``<= value``. Used to locate the
+    two scalar epoch-boundary indices in the non-PTP position path. For a plain
+    array this defers to ``np.searchsorted``; for the lazy virtual timestamps
+    (#47) it is an O(log n) binary search using only scalar reads, so the full
+    ~14.7 GB-at-17h array is never materialised just to find two boundaries.
+    """
+    if isinstance(timestamps, np.ndarray):
+        return int(np.searchsorted(timestamps, value, side="right"))
+    low, high = 0, len(timestamps)
+    while low < high:
+        mid = (low + high) // 2
+        if timestamps[mid] <= value:
+            low = mid + 1
+        else:
+            high = mid
+    return low
+
+
 def parse_dtype(fieldstr: str) -> np.dtype:
     """
     Parses the last fields parameter (<time uint32><...>) as a single string.
@@ -728,8 +751,11 @@ def _get_position_timestamps_no_ptp(
 
     frame_count = np.asarray(video_timestamps.HWframeCount)
 
-    epoch_start_ind = np.digitize(epoch_interval[0], rec_dci_timestamps)
-    epoch_end_ind = np.digitize(epoch_interval[1], rec_dci_timestamps)
+    # Locate the epoch's sample-index bounds. ``rec_dci_timestamps`` is the lazy
+    # virtual timestamps (#47); searching it for the two scalar boundaries avoids
+    # materialising the whole ~14.7 GB-at-17h array (np.digitize would).
+    epoch_start_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[0])
+    epoch_end_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[1])
     is_valid_camera_time = np.isin(
         video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
     )
