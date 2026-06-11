@@ -163,28 +163,41 @@ def _fingerprint_array(arr) -> dict:
 
 
 def fingerprint_nwb(path: Path) -> dict:
-    """Hash the datasets a #47 timestamp refactor could plausibly perturb."""
+    """Hash the data + timestamps of *every* TimeSeries-like object in the file.
+
+    A generic walk (rather than hard-coded paths) so the golden master can't
+    silently miss a dataset when the NWB layout changes -- e.g. #168 moved analog
+    from ``processing/analog`` into separate ``acquisition`` series. Linking a
+    series' timestamps to another (a #47 optimisation) reads back the same values
+    through the HDF5 link, so a correct link leaves the fingerprint unchanged.
+    """
     import pynwb
 
     fp: dict = {}
+
+    def add(label: str, obj) -> None:
+        if getattr(obj, "data", None) is not None:
+            fp[f"{label}.data"] = _fingerprint_array(obj.data)
+        if getattr(obj, "timestamps", None) is not None:
+            fp[f"{label}.timestamps"] = _fingerprint_array(obj.timestamps)
+
+    def walk(label: str, obj) -> None:
+        if hasattr(obj, "time_series"):  # BehavioralEvents / BehavioralTimeSeries
+            for name, ts in sorted(obj.time_series.items()):
+                walk(f"{label}.{name}", ts)
+        elif hasattr(obj, "spatial_series"):  # Position / CompassDirection
+            for name, ss in sorted(obj.spatial_series.items()):
+                walk(f"{label}.{name}", ss)
+        else:
+            add(label, obj)
+
     with pynwb.NWBHDF5IO(str(path), "r", load_namespaces=True) as io:
         nwb = io.read()
-        es = nwb.acquisition["e-series"]
-        fp["eseries.data"] = _fingerprint_array(es.data)
-        fp["eseries.timestamps"] = _fingerprint_array(es.timestamps)
-        if "sample_count" in nwb.processing:
-            sc = nwb.processing["sample_count"]["sample_count"]
-            fp["sample_count.data"] = _fingerprint_array(sc.data)
-            fp["sample_count.timestamps"] = _fingerprint_array(sc.timestamps)
-        if "analog" in nwb.processing:
-            an = nwb.processing["analog"]["analog"]["analog"]
-            fp["analog.data"] = _fingerprint_array(an.data)
-            fp["analog.timestamps"] = _fingerprint_array(an.timestamps)
-        if "behavior" in nwb.processing:
-            be = nwb.processing["behavior"]["behavioral_events"]
-            for name, ts in sorted(be.time_series.items()):
-                fp[f"dio.{name}.data"] = _fingerprint_array(ts.data)
-                fp[f"dio.{name}.timestamps"] = _fingerprint_array(ts.timestamps)
+        for name, obj in sorted(nwb.acquisition.items()):
+            walk(f"acq.{name}", obj)
+        for mod_name, mod in sorted(nwb.processing.items()):
+            for di_name, di in sorted(mod.data_interfaces.items()):
+                walk(f"{mod_name}.{di_name}", di)
     return fp
 
 
