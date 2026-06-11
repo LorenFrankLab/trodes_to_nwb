@@ -5,6 +5,7 @@ from datetime import datetime
 
 from hdmf.common.table import DynamicTable, VectorData
 from ndx_franklab_novela import CameraDevice, Probe, Shank, ShanksElectrode
+from pynwb import NWBFile
 from pynwb.file import ProcessingModule, Subject
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
@@ -334,9 +335,15 @@ def test_add_associated_files(capsys):
         nwbfile.processing["associated_files"]["associated1.txt"].description
         == "good file"
     )
-    assert (
-        nwbfile.processing["associated_files"]["associated1.txt"].task_epochs == "1, "
-    )
+    # Comma-separated with no spaces / trailing comma (issue #10): Spyglass
+    # reads this via task_epochs.split(",") and matches each token.
+    realistic_task_epochs = nwbfile.processing["associated_files"][
+        "associated1.txt"
+    ].task_epochs
+    assert realistic_task_epochs == "1"
+    assert "1" in realistic_task_epochs.split(
+        ","
+    )  # matches Spyglass's membership check
     assert (
         nwbfile.processing["associated_files"]["associated1.txt"].content
         == "test file 1"
@@ -358,6 +365,53 @@ def test_add_associated_files(capsys):
                         printed_warning = True
                     break
     assert printed_warning
+
+
+def test_add_associated_files_task_epochs_format(tmp_path):
+    # Issue #10: task_epochs must be comma-separated with no spaces or trailing
+    # comma, so Spyglass's `task_epochs.split(",")` yields exact epoch tokens.
+    # Build metadata directly with multiple epochs (load_metadata wraps a scalar,
+    # so the multi-epoch path is only reachable here) -- this is the case the old
+    # '", "'.join format broke (" 2" != "2").
+    associated = tmp_path / "assoc.txt"
+    associated.write_text("contents")
+    metadata = {
+        "associated_files": [
+            {
+                "name": "assoc.txt",
+                "description": "statescript",
+                "path": str(associated),
+                "task_epochs": [1, 2, 10],
+            }
+        ]
+    }
+    nwbfile = NWBFile(
+        session_description="d", identifier="i", session_start_time=datetime.now()
+    )
+    convert_yaml.add_associated_files(nwbfile, metadata)
+
+    task_epochs = nwbfile.processing["associated_files"]["assoc.txt"].task_epochs
+    assert task_epochs == "1,2,10"
+    # round-trips through Spyglass's split(",") to exact, space-free tokens
+    assert task_epochs.split(",") == ["1", "2", "10"]
+    assert "2" in task_epochs.split(",")
+
+    # An empty epoch list yields an empty string (pinned behaviour).
+    empty_metadata = {
+        "associated_files": [
+            {
+                "name": "empty.txt",
+                "description": "d",
+                "path": str(associated),
+                "task_epochs": [],
+            }
+        ]
+    }
+    nwbfile_empty = NWBFile(
+        session_description="d", identifier="i2", session_start_time=datetime.now()
+    )
+    convert_yaml.add_associated_files(nwbfile_empty, empty_metadata)
+    assert nwbfile_empty.processing["associated_files"]["empty.txt"].task_epochs == ""
 
 
 def test_add_associated_video_files():

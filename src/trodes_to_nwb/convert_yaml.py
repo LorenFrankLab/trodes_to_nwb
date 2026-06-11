@@ -441,8 +441,13 @@ def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
         except OSError as err:
             logger.info(f"ERROR: Cannot read file at {file['path']}")
             logger.info(str(err))
-        # convert task epoch values into strings
-        task_epochs = "".join([str(element) + ", " for element in file["task_epochs"]])
+        # Comma-separated 1-based epoch number(s) with no spaces or trailing
+        # comma. Spyglass reads this back via ``task_epochs.split(",")`` and
+        # matches each token against the epoch number, so a leading space (from
+        # ", ") or a trailing comma would break the match -- e.g. "1, 2, " splits
+        # to ["1", " 2", " "] and " 2" != "2" (issue #10; see spyglass
+        # common_behav.py).
+        task_epochs = ",".join(str(element) for element in file["task_epochs"])
         associated_files.append(
             AssociatedFiles(
                 name=file["name"],
