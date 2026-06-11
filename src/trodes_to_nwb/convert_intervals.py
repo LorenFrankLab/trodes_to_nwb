@@ -9,7 +9,10 @@ import pandas as pd
 from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile, TimeSeries
 
-from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.convert_ephys import (
+    RecFileDataChunkIterator,
+    _timestamps_for_write,
+)
 from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 MILLISECONDS_PER_SECOND = 1e3
@@ -130,10 +133,12 @@ def add_sample_count(
         description="corespondence between sample count and timestamps",
     )
 
-    # Reference the already-resident ephys timestamps directly rather than
-    # copying them -- the copy duplicated the whole array (~15 GB at 17 h). This
-    # matches how add_analog/add_raw_ephys already reuse rec_dci.timestamps (#47).
-    systime = rec_dci.timestamps
+    # Reference the already-lazy ephys timestamps directly rather than copying
+    # them -- the copy duplicated the whole array (~15 GB at 17 h). Wrap them in a
+    # DataChunkIterator so the dataset is streamed to disk chunk-by-chunk instead
+    # of re-materialising on write (#47), matching how add_raw_ephys / add_analog
+    # now stream their timestamps too.
+    systime = _timestamps_for_write(rec_dci.timestamps)
     # Stream the sample counts instead of concatenating every file's into one
     # array (~7 GB at 17 h); they are written chunk-by-chunk from the memmaps.
     trodes_sample = _TrodesSampleCountIterator(rec_dci.neo_io)

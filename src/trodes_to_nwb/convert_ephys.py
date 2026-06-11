@@ -54,6 +54,184 @@ def _is_strictly_increasing(values, chunk_size: int = 1_000_000) -> bool:
     return True
 
 
+class _LazyTimestamps:
+    """Virtual, read-only 1-D ``float64`` timestamps spanning all rec files.
+
+    Replaces the eager
+    ``np.concatenate([io.get_regressed_systime(0, None) for io in neo_io])`` that
+    held the whole timestamps array (~14.7 GB at 17 h @30 kHz) resident for the
+    entire conversion (#47). Each requested slice / index is computed on demand
+    from the per-file counter->system-clock regression (or the Trodes-timestamp
+    fallback for non-sysClock files), so the full array is never materialised.
+
+    Values are **byte-identical** to the old concatenation: every timestamp is
+    ``intercept + slope * unwrapped_counter`` (sysClock path) or
+    ``(counter - counter0) / rate + t_creation`` (fallback). Both are elementwise
+    and independent of how the array is chunked, and ``get_regressed_systime`` /
+    ``get_systime_from_trodes_timestamps`` already support arbitrary sub-ranges
+    (including across uint32 wraps) and cache the fit, so a per-file sub-range
+    read returns exactly the same bytes as the whole-file read sliced.
+
+    Supported access -- one per consumer of ``RecFileDataChunkIterator.timestamps``:
+
+    - ``ts[a:b]``        contiguous slice  -> chunked writes; the monotonicity scan
+    - ``ts[int_array]``  integer fancy index -> decimated headstage sensor timestamps
+    - ``ts[i]``          scalar
+    - ``np.asarray(ts)`` full materialise -> ``np.digitize`` / ``np.concatenate``
+      (the non-PTP position path; step 3 removes that last full materialisation)
+
+    For chunk-by-chunk HDF5 writes use :meth:`as_data_chunk_iterator` (a
+    ``GenericDataChunkIterator``); pynwb writes a plain array via ``data[:]`` in
+    one shot (which would call ``__array__`` and re-materialise the whole array),
+    but streams an ``AbstractDataChunkIterator``.
+    """
+
+    def __init__(self, neo_io: list, use_sysclock: bool):
+        self._neo_io = list(neo_io)
+        self._use_sysclock = use_sysclock
+        # Per-file length is the file's packet count -- exactly the length of the
+        # old per-file ``get_regressed_systime(0, None)``. For interpolating
+        # iterators this must be read *after* interpolation is resolved (the
+        # caller triggers it; _get_signal_size raises otherwise).
+        lengths = [io._raw_memmap.shape[0] for io in self._neo_io]
+        self._starts = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+        self._total = int(self._starts[-1])
+
+    # --- numpy-array-like surface -------------------------------------------
+    def __len__(self) -> int:
+        return self._total
+
+    @property
+    def shape(self) -> tuple[int]:
+        return (self._total,)
+
+    @property
+    def size(self) -> int:
+        return self._total
+
+    @property
+    def ndim(self) -> int:
+        return 1
+
+    @property
+    def dtype(self) -> np.dtype:
+        return np.dtype("float64")
+
+    # --- on-demand computation ----------------------------------------------
+    def _read_file(self, file_index: int, lo: int, hi: int) -> np.ndarray:
+        """Timestamps for file ``file_index`` over its local range ``[lo, hi)``."""
+        io = self._neo_io[file_index]
+        if self._use_sysclock:
+            values = io.get_regressed_systime(lo, hi)
+        else:
+            values = io.get_systime_from_trodes_timestamps(lo, hi)
+        return np.asarray(values, dtype=np.float64)
+
+    def _slice(self, start: int, stop: int) -> np.ndarray:
+        """Contiguous values for the global half-open range ``[start, stop)``."""
+        start = max(0, min(start, self._total))
+        stop = max(start, min(stop, self._total))
+        if stop == start:
+            return np.empty(0, dtype=np.float64)
+        first = int(np.searchsorted(self._starts, start, side="right") - 1)
+        parts = []
+        for file_index in range(first, len(self._neo_io)):
+            file_start = int(self._starts[file_index])
+            if file_start >= stop:
+                break
+            file_stop = int(self._starts[file_index + 1])
+            lo = max(start, file_start) - file_start
+            hi = min(stop, file_stop) - file_start
+            parts.append(self._read_file(file_index, lo, hi))
+        return parts[0] if len(parts) == 1 else np.concatenate(parts)
+
+    def _gather(self, indices: np.ndarray) -> np.ndarray:
+        """Fancy index: load only the spanned contiguous range, then index into it.
+
+        Headstage update indices are sparse but confined to a single file, so the
+        spanned range is one file's worth of timestamps (a few MB), never the
+        whole recording.
+        """
+        indices = np.asarray(indices)
+        if indices.dtype == bool:
+            indices = np.flatnonzero(indices)
+        indices = indices.astype(np.int64, copy=False)
+        if indices.size == 0:
+            return np.empty(0, dtype=np.float64)
+        if (indices < 0).any():
+            indices = np.where(indices < 0, indices + self._total, indices)
+        lo = int(indices.min())
+        hi = int(indices.max())
+        block = self._slice(lo, hi + 1)
+        return block[indices - lo]
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            start, stop, step = key.indices(self._total)
+            if step == 1:
+                return self._slice(start, stop)
+            # Non-unit step (never used on the big arrays in practice): load the
+            # spanned range once, then stride, so we still never materialise more
+            # than the covered span.
+            return self._gather(np.arange(start, stop, step))
+        if isinstance(key, (int, np.integer)):
+            i = int(key)
+            if i < 0:
+                i += self._total
+            if not 0 <= i < self._total:
+                raise IndexError(f"index {key} out of range for length {self._total}")
+            return self._slice(i, i + 1)[0]
+        # integer (or boolean) array fancy indexing
+        return self._gather(key)
+
+    def __array__(self, dtype=None, copy=None) -> np.ndarray:
+        out = self._slice(0, self._total)
+        if dtype is not None:
+            out = out.astype(dtype, copy=False)
+        return out
+
+    def as_data_chunk_iterator(self, **kwargs) -> "_LazyTimestampsChunkIterator":
+        """A ``GenericDataChunkIterator`` for streaming these timestamps to HDF5."""
+        return _LazyTimestampsChunkIterator(self, **kwargs)
+
+
+class _LazyTimestampsChunkIterator(GenericDataChunkIterator):
+    """Stream a :class:`_LazyTimestamps` into HDF5 one chunk at a time.
+
+    pynwb writes a plain array-like via ``data[:]`` -- one shot, re-materialising
+    the whole ~14.7 GB-at-17h timestamps array. Only an
+    ``AbstractDataChunkIterator`` is written iteratively, so the big-timestamp
+    datasets (e-series / ECU analog / sample_count) are wrapped here to be
+    written without ever holding the full array resident (#47).
+    """
+
+    def __init__(self, lazy: "_LazyTimestamps", **kwargs):
+        self._lazy = lazy
+        super().__init__(**kwargs)
+
+    def _get_data(self, selection: tuple) -> np.ndarray:
+        return self._lazy[selection[0]]
+
+    def _get_maxshape(self) -> tuple[int]:
+        return (len(self._lazy),)
+
+    def _get_dtype(self) -> np.dtype:
+        return np.dtype("float64")
+
+
+def _timestamps_for_write(timestamps):
+    """Return a chunked iterator for lazy timestamps, else the value unchanged.
+
+    A :class:`_LazyTimestamps` must be written through a ``DataChunkIterator`` so
+    pynwb streams the dataset instead of calling ``__array__`` and re-materialising
+    the whole array (#47). A plain array (e.g. the small decimated sensor
+    timestamps, or timestamps supplied by the caller) is written as-is.
+    """
+    if isinstance(timestamps, _LazyTimestamps):
+        return timestamps.as_data_chunk_iterator()
+    return timestamps
+
+
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
@@ -219,22 +397,29 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators
         logger.info(f"# iterators: {len(self.neo_io)}")
-        # NOTE: this will read all the timestamps from the rec file, which can be slow
+        # Resolve dropped-packet interpolation up front. Before #47 this happened
+        # as a side effect of materialising the timestamps below; now that the
+        # timestamps are lazy we trigger it explicitly so each file's interpolated
+        # length is final before _LazyTimestamps and self.n_time read it
+        # (_get_signal_size raises if interpolation is enabled but unresolved).
+        # This first call scans only the uint32 counter, never the float64
+        # timestamps. Split (partial) iterators already resolve it in __init__.
+        for neo_io in self.neo_io:
+            if getattr(neo_io, "interpolate_dropped_packets", False) and (
+                getattr(neo_io, "interpolate_index", None) is None
+            ):
+                neo_io.get_analogsignal_timestamps(0, 1)
+
+        # Timestamps are built lazily (#47): a virtual array that computes each
+        # requested slice / index on demand from the per-file clock regression,
+        # instead of concatenating every file's full timestamps (~14.7 GB at 17 h)
+        # up front. Values are byte-identical to the old concatenation.
         if timestamps is not None:
             self.timestamps = timestamps
-
         elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = np.concatenate(
-                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
-            )
-
+            self.timestamps = _LazyTimestamps(self.neo_io, use_sysclock=True)
         else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            self.timestamps = np.concatenate(
-                [
-                    neo_io.get_systime_from_trodes_timestamps(0, None)
-                    for neo_io in self.neo_io
-                ]
-            )
+            self.timestamps = _LazyTimestamps(self.neo_io, use_sysclock=False)
 
         logger.info("Reading timestamps COMPLETE")
         # Must be strictly increasing. `np.all(np.diff(...))` only checks that no
@@ -432,7 +617,9 @@ def add_raw_ephys(
     eseries = ElectricalSeries(
         name="e-series",
         data=data_data_io,
-        timestamps=rec_dci.timestamps,
+        # Stream the timestamps dataset chunk-by-chunk (#47); a bare array here
+        # would re-materialise the whole ~14.7 GB-at-17h timestamps on write.
+        timestamps=_timestamps_for_write(rec_dci.timestamps),
         electrodes=electrode_table_region,  # TODO
         conversion=VOLTS_PER_MICROVOLT,
         offset=0.0,  # TODO
