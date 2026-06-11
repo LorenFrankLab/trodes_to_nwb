@@ -221,11 +221,6 @@ class _AnalogChannelSubsetIterator(GenericDataChunkIterator):
         return np.dtype("int16")
 
 
-def _config_for(sensor_type: str) -> SensorConfig:
-    """Return the SensorConfig for a sensor type, or the catch-all for ``other``."""
-    return SENSOR_TYPE_CONFIG.get(sensor_type, _OTHER_CONFIG)
-
-
 def _warn_other_channels(channel_names: list[str], logger: logging.Logger) -> None:
     logger.warning(
         "Analog channels matched no known sensor pattern and are stored raw "
@@ -345,7 +340,7 @@ def add_analog_data(
         for sensor_type, channel_names in _categorize_sensor_channels(
             ecu_analog_ids
         ).items():
-            config = _config_for(sensor_type)
+            config = SENSOR_TYPE_CONFIG.get(sensor_type, _OTHER_CONFIG)
             if sensor_type == "other":
                 _warn_other_channels(channel_names, logger)
             column_indices = [ecu_column[name] for name in channel_names]
@@ -396,7 +391,7 @@ def add_analog_data(
                     channel_names,
                 )
                 continue
-            config = _config_for(sensor_type)
+            config = SENSOR_TYPE_CONFIG.get(sensor_type, _OTHER_CONFIG)
             if sensor_type == "other":
                 _warn_other_channels(channel_names, logger)
             sensor_timestamps = np.concatenate(time_parts)
