@@ -61,6 +61,9 @@ def _make_io(raw, systime_ns, global_offset=0, params=None):
     io = SpikeGadgetsRawIO.__new__(SpikeGadgetsRawIO)
     io.regressed_systime_parameters = {} if params is None else params
     io._global_sample_offset = global_offset
+    # get_regressed_systime drives its streaming fit from _raw_memmap.shape[0]
+    # (#47); for a real IO that equals the counter length, so mirror it here.
+    io._raw_memmap = np.empty((len(raw), 0), dtype=np.uint8)
 
     def _ts(i_start, i_stop):
         stop = len(raw) if i_stop is None else i_stop

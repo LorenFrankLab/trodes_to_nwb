@@ -60,6 +60,10 @@ def test_lazy_timestamps_matches_concatenation():
     mask = np.zeros(len(lazy), dtype=bool)
     mask[[3, boundary - 1, boundary, len(lazy) - 1]] = True
     np.testing.assert_array_equal(lazy[mask], expected[mask])
+    # the capped-span (blocked) _gather path, forced via a small max_span, must
+    # be byte-identical to indexing the eager array (sparse, spanning both files)
+    sparse = np.arange(0, len(lazy), 997)
+    np.testing.assert_array_equal(lazy._gather(sparse, max_span=512), expected[sparse])
     # scalars
     for i in [0, boundary - 1, boundary, -1]:
         assert lazy[i] == expected[i]

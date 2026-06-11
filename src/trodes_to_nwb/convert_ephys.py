@@ -148,12 +148,15 @@ class _LazyTimestamps:
             parts.append(self._read_file(file_index, lo, hi))
         return parts[0] if len(parts) == 1 else np.concatenate(parts)
 
-    def _gather(self, indices: np.ndarray) -> np.ndarray:
-        """Fancy index: load only the spanned contiguous range, then index into it.
+    def _gather(self, indices: np.ndarray, max_span: int = 1 << 22) -> np.ndarray:
+        """Fancy index without materialising more than ``max_span`` at once.
 
-        Headstage update indices are sparse but confined to a single file, so the
-        spanned range is one file's worth of timestamps (a few MB), never the
-        whole recording.
+        Loads the covered index range in capped contiguous blocks (default
+        ~4M elements = 32 MiB), then selects. Headstage update indices are sparse
+        but can span a whole 30-min split file (~432 MB of timestamps at 30 kHz);
+        blocking keeps the transient bounded while staying byte-identical to the
+        eager array indexed. The common small-span case takes the single-read
+        fast path below.
         """
         indices = np.asarray(indices)
         if indices.dtype == bool:
@@ -169,8 +172,17 @@ class _LazyTimestamps:
             raise IndexError(
                 f"fancy index out of bounds [{lo}, {hi}] for length {self._total}"
             )
-        block = self._slice(lo, hi + 1)
-        return block[indices - lo]
+        if hi - lo + 1 <= max_span:
+            block = self._slice(lo, hi + 1)
+            return block[indices - lo]
+        out = np.empty(indices.shape, dtype=np.float64)
+        for block_lo in range(lo, hi + 1, max_span):
+            block_hi = min(block_lo + max_span, hi + 1)
+            in_block = (indices >= block_lo) & (indices < block_hi)
+            if in_block.any():
+                block = self._slice(block_lo, block_hi)
+                out[in_block] = block[indices[in_block] - block_lo]
+        return out
 
     def __getitem__(self, key):
         if isinstance(key, slice):

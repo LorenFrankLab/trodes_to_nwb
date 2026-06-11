@@ -1155,6 +1155,16 @@ class SpikeGadgetsRawIO(BaseRawIO):
         # arrays (#47). Partial (split) iterators inherit these parameters and so
         # skip the fit (see SpikeGadgetsRawIOPartial).
         if not self.regressed_systime_parameters:
+            # Resolve dropped-packet interpolation first so n_total reflects the
+            # final (post-interpolation) length. Otherwise the first counter read
+            # inside the fit expands _raw_memmap mid-fit and the streaming loop
+            # stops short of the inserted tail (a wrap there would be missed). On
+            # the non-split path the iterator already resolves this; this guards
+            # the split path, which fits here before that happens (#47).
+            if getattr(self, "interpolate_dropped_packets", False) and (
+                getattr(self, "interpolate_index", None) is None
+            ):
+                self.get_analogsignal_timestamps(0, 1)
             slope, intercept, wrap_sample_indices = _fit_systime_regression_streaming(
                 self.get_analogsignal_timestamps,
                 self.get_sys_clock,
