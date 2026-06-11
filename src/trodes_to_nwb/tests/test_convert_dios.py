@@ -54,8 +54,11 @@ def test_add_dios_single_rec():
                     rtol=0,
                     atol=1.0 / 30000,
                 )
-                assert current_dio.unit == old_dio.unit
-                assert current_dio.description == old_dio.description
+                # unit is now "N/A" and the description records the header channel
+                # id + input flag (#116, #117), so neither still matches the old
+                # rec_to_nwb reference file.
+                assert current_dio.unit == "N/A"
+                assert ", input=" in current_dio.description
 
     os.remove(filename)
 
@@ -108,7 +111,30 @@ def test_add_dios_two_epoch():
                     rtol=0,
                     atol=1.0 / 30000,
                 )
-                assert current_dio.unit == old_dio.unit
-                assert current_dio.description == old_dio.description
+                # unit is now "N/A" and the description records the header channel
+                # id + input flag (#116, #117), so neither still matches the old
+                # rec_to_nwb reference file.
+                assert current_dio.unit == "N/A"
+                assert ", input=" in current_dio.description
 
     os.remove(filename)
+
+
+def test_add_dios_description_and_unit():
+    # #116/#117: each DIO description carries the specific header channel id and
+    # the input flag with its meaning, and the unit is "N/A".
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+
+    add_dios(nwbfile, [data_path / "20230622_sample_01_a1.rec"], metadata)
+
+    events = nwbfile.processing["behavior"]["behavioral_events"]
+    assert events["Light_1"].description == "ECU_Din1, input=1 (digital input)"
+    assert events["Light_2"].description == "ECU_Din2, input=1 (digital input)"
+    assert events["Poke_1"].description == "ECU_Dout2, input=0 (digital output)"
+    assert all(ts.unit == "N/A" for ts in events.time_series.values())
+    # the human-readable comments from the YAML are preserved, defaulting to
+    # "no comments" when the field is absent (the common case in real metadata)
+    assert events["Light_1"].comments == "Indicator for reward delivery"
+    assert events["Light_2"].comments == "no comments"
