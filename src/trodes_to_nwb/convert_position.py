@@ -765,6 +765,16 @@ def _get_position_timestamps_no_ptp(
     # materialising the whole ~14.7 GB-at-17h array (np.digitize would).
     epoch_start_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[0])
     epoch_end_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[1])
+    # epoch_interval[0] <= epoch_interval[1], so for monotonically-increasing
+    # timestamps start <= end. The lazy binary search in _scalar_digitize assumes
+    # that monotonicity (only warned about at iterator build, not enforced); a
+    # start past the end means it was violated, so fail loud rather than slice a
+    # meaningless backwards window.
+    if epoch_start_ind > epoch_end_ind:
+        raise ValueError(
+            f"non-PTP epoch start index {epoch_start_ind} exceeds end index "
+            f"{epoch_end_ind}; rec timestamps are not monotonically increasing"
+        )
     is_valid_camera_time = np.isin(
         video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
     )

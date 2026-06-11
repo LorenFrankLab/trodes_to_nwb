@@ -66,24 +66,27 @@ class _LazyTimestamps:
 
     Values are **byte-identical** to the old concatenation: every timestamp is
     ``intercept + slope * unwrapped_counter`` (sysClock path) or
-    ``(counter - counter0) / rate + t_creation`` (fallback). Both are elementwise
-    and independent of how the array is chunked, and ``get_regressed_systime`` /
-    ``get_systime_from_trodes_timestamps`` already support arbitrary sub-ranges
-    (including across uint32 wraps) and cache the fit, so a per-file sub-range
-    read returns exactly the same bytes as the whole-file read sliced.
+    ``(counter - counter0) / rate + t_creation`` (fallback). The computation is
+    **chunk-independent** -- any sub-range read equals the whole-file read sliced,
+    including across uint32 wraps (``get_regressed_systime`` restores the wrap
+    offset per slice via ``prior_wraps``). Both readers reuse the cached
+    regression *parameters* (``regressed_systime_parameters``), so a per-file
+    sub-range read is cheap. (Note: those readers are also ``lru_cache(maxsize=1)``
+    on the full returned array, so a one-off ``(0, None)`` call would retain a
+    whole-file array -- the lazy path here never makes that call.)
 
     Supported access -- one per consumer of ``RecFileDataChunkIterator.timestamps``:
 
     - ``ts[a:b]``        contiguous slice  -> chunked writes; the monotonicity scan
     - ``ts[int_array]``  integer fancy index -> decimated headstage sensor timestamps
     - ``ts[i]``          scalar
-    - ``np.asarray(ts)`` full materialise -> ``np.digitize`` / ``np.concatenate``
-      (the non-PTP position path; step 3 removes that last full materialisation)
+    - ``np.asarray(ts)`` full materialise -> generic NumPy fallback only; after
+      step 3 no hot path uses it (the non-PTP position path now indexes lazily)
 
     For chunk-by-chunk HDF5 writes use :meth:`as_data_chunk_iterator` (a
-    ``GenericDataChunkIterator``); pynwb writes a plain array via ``data[:]`` in
-    one shot (which would call ``__array__`` and re-materialise the whole array),
-    but streams an ``AbstractDataChunkIterator``.
+    ``GenericDataChunkIterator``). pynwb materialises a plain array-like in one
+    shot via ``data[:]`` (calling ``__array__``); it writes only an
+    ``AbstractDataChunkIterator`` iteratively -- hence that wrapper.
     """
 
     def __init__(self, neo_io: list, use_sysclock: bool):
@@ -162,6 +165,10 @@ class _LazyTimestamps:
             indices = np.where(indices < 0, indices + self._total, indices)
         lo = int(indices.min())
         hi = int(indices.max())
+        if lo < 0 or hi >= self._total:
+            raise IndexError(
+                f"fancy index out of bounds [{lo}, {hi}] for length {self._total}"
+            )
         block = self._slice(lo, hi + 1)
         return block[indices - lo]
 
@@ -184,7 +191,21 @@ class _LazyTimestamps:
         # integer (or boolean) array fancy indexing
         return self._gather(key)
 
+    def __iter__(self):
+        # Without this, Python's sequence-protocol fallback (via __getitem__)
+        # would iterate element-by-element, each a separate on-disk read -- a
+        # silent O(n) trap. Force callers to materialise explicitly instead.
+        raise TypeError(
+            "refusing to iterate _LazyTimestamps lazily (each step is a separate "
+            "disk read); use np.asarray(ts) or ts.as_data_chunk_iterator()"
+        )
+
     def __array__(self, dtype=None, copy=None) -> np.ndarray:
+        # A virtual array can only ever produce a freshly-built array, so an
+        # explicit copy=False ("give me a no-copy view") is unsatisfiable; match
+        # NumPy 2's contract and refuse loudly rather than silently copying.
+        if copy is False:
+            raise ValueError("cannot return a no-copy view of a lazy virtual array")
         out = self._slice(0, self._total)
         if dtype is not None:
             out = out.astype(dtype, copy=False)
@@ -441,6 +462,18 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
             for neo_io in self.neo_io
         ]
+
+        # The lazy timestamps and the data must describe the same number of
+        # samples. Both ultimately read each file's post-interpolation packet
+        # count (_LazyTimestamps via _raw_memmap.shape[0], n_time via
+        # get_signal_size), so this holds by construction -- assert it so a
+        # future change that desynchronises them fails loud here rather than
+        # silently writing mismatched-length timestamps.
+        if isinstance(self.timestamps, _LazyTimestamps):
+            assert self.timestamps._total == sum(self.n_time), (
+                f"lazy timestamps length {self.timestamps._total} != data length "
+                f"{sum(self.n_time)}"
+            )
 
         super().__init__(**kwargs)
 
