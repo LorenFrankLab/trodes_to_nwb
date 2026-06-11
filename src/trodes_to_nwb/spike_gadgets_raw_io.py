@@ -19,7 +19,6 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
-from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
 BITS_PER_BYTE = 8
@@ -56,6 +55,126 @@ def _unwrap_uint32(values: np.ndarray) -> np.ndarray:
     offsets = np.zeros(unwrapped.size, dtype=np.int64)
     offsets[1:] = np.cumsum(wraps) * UINT32_WRAP
     return unwrapped + offsets
+
+
+def _fit_systime_regression_streaming(
+    read_counter,
+    read_sysclock,
+    n_total: int,
+    global_offset: int = 0,
+    chunk_size: int = 1 << 20,
+) -> tuple[float, float, np.ndarray]:
+    """Fit the Trodes-counter -> system-clock regression in one streaming pass.
+
+    Computes the same result as
+    ``linregress(_unwrap_uint32(counter).astype(float64), sysclock)`` together
+    with the list of global sample indices at which the uint32 counter wraps
+    (#169), but reads the data in ``chunk_size`` pieces via the
+    ``read_counter(i_start, i_stop)`` / ``read_sysclock(i_start, i_stop)``
+    callbacks instead of materialising the full ~15 GB arrays (#47).
+
+    The slope/intercept are accumulated with West's online covariance algorithm.
+    Both axes are shifted by their first sample (in int64, exactly) before
+    accumulating, because the raw system clock is ~1.7e18 ns -- float64 there has
+    only ~256 ns resolution, and West's incremental mean would accrue that error
+    across chunks. Shifting keeps the accumulated values small, then the
+    references are added back once at the end. The uint32 unwrap state -- the
+    cumulative number of wraps and the counter value carried across each chunk
+    boundary -- is threaded between chunks so the unwrapped axis and wrap-index
+    list match the whole-array computation exactly. Because floating-point
+    summation is not associative, the fitted slope/intercept differ from the
+    whole-array ``linregress`` only at the ~1e-16 relative level (sub-nanosecond
+    in the resulting timestamps).
+
+    Parameters
+    ----------
+    read_counter, read_sysclock : callable
+        ``f(i_start, i_stop) -> np.ndarray`` returning the raw uint32 counter and
+        the int64 system clock for ``[i_start, i_stop)``.
+    n_total : int
+        Total number of samples to fit over.
+    global_offset : int, optional
+        Sample index of ``i_start=0`` within the full recording, added to every
+        reported wrap index. By default 0.
+    chunk_size : int, optional
+        Number of samples read per step. By default ``2**20`` (~28 MB/chunk).
+
+    Returns
+    -------
+    tuple[float, float, np.ndarray]
+        ``(slope, intercept, wrap_sample_indices)``.
+    """
+    if n_total < 2:
+        raise ValueError("need at least 2 samples to fit the systime regression")
+
+    n_acc = 0
+    mean_x = mean_y = 0.0
+    sum_sq_dev_x = co_moment = 0.0  # West's M2 for x and the x-y co-moment
+    wrap_offset = 0  # cumulative number of 2**32 wraps seen so far
+    previous_last_counter = None  # final raw counter of the previous chunk
+    counter_reference = sysclock_reference = None  # x0, y0 (shift origin, exact)
+    wrap_sample_indices: list[int] = []
+
+    for start in range(0, n_total, chunk_size):
+        stop = min(start + chunk_size, n_total)
+        counter = np.asarray(read_counter(start, stop)).astype(np.int64)
+        sysclock = np.asarray(read_sysclock(start, stop)).astype(np.int64)
+
+        # An element is "after a wrap" when it drops by more than half the uint32
+        # range relative to its predecessor -- within the chunk, or across the
+        # boundary from the previous chunk's last sample.
+        is_after_wrap = np.zeros(counter.shape[0], dtype=np.int64)
+        if counter.shape[0] >= 2:
+            is_after_wrap[1:] = (np.diff(counter) < -(UINT32_WRAP // 2)).astype(
+                np.int64
+            )
+        if previous_last_counter is not None and (
+            counter[0] - previous_last_counter
+        ) < -(UINT32_WRAP // 2):
+            is_after_wrap[0] = 1
+
+        cumulative_wraps = np.cumsum(is_after_wrap)
+        counter_index = counter + (wrap_offset + cumulative_wraps) * UINT32_WRAP
+        wrap_sample_indices.extend(
+            (np.flatnonzero(is_after_wrap) + start + global_offset).tolist()
+        )
+        wrap_offset += int(cumulative_wraps[-1]) if cumulative_wraps.size else 0
+        previous_last_counter = int(counter[-1])
+
+        # Shift both axes by their first sample, in int64 (exact), before casting
+        # to float64 -- the raw sysclock (~1.7e18 ns) only has ~256 ns float64
+        # resolution, so accumulating it directly loses precision.
+        if counter_reference is None:
+            counter_reference = int(counter_index[0])
+            sysclock_reference = int(sysclock[0])
+        x = (counter_index - counter_reference).astype(np.float64)
+        y = (sysclock - sysclock_reference).astype(np.float64)
+
+        # West's online merge of this chunk's covariance statistics.
+        n_chunk = x.shape[0]
+        mean_x_chunk = float(x.mean())
+        mean_y_chunk = float(y.mean())
+        sum_sq_dev_x_chunk = float(((x - mean_x_chunk) ** 2).sum())
+        co_moment_chunk = float(((x - mean_x_chunk) * (y - mean_y_chunk)).sum())
+        if n_acc == 0:
+            n_acc = n_chunk
+            mean_x, mean_y = mean_x_chunk, mean_y_chunk
+            sum_sq_dev_x, co_moment = sum_sq_dev_x_chunk, co_moment_chunk
+        else:
+            n_new = n_acc + n_chunk
+            delta_x = mean_x_chunk - mean_x
+            delta_y = mean_y_chunk - mean_y
+            scale = n_acc * n_chunk / n_new
+            sum_sq_dev_x += sum_sq_dev_x_chunk + delta_x * delta_x * scale
+            co_moment += co_moment_chunk + delta_x * delta_y * scale
+            mean_x += delta_x * n_chunk / n_new
+            mean_y += delta_y * n_chunk / n_new
+            n_acc = n_new
+
+    slope = co_moment / sum_sq_dev_x
+    # Undo the shift: real means are the shifted means plus the references.
+    intercept = (mean_y + sysclock_reference) - slope * (mean_x + counter_reference)
+    return slope, intercept, np.asarray(wrap_sample_indices, dtype=np.int64)
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -1031,52 +1150,46 @@ class SpikeGadgetsRawIO(BaseRawIO):
             A NumPy array containing the adjusted system timestamps.
         """
         NANOSECONDS_PER_SECOND = 1e9
-        # Get the raw uint32 Trodes timestamps for this slice. The counter wraps
-        # every 2**32 samples (~39.77 h at 30 kHz); unwrap to a globally
-        # monotonic axis anchored at the full recording's sample 0 so that split
-        # (partial) iterators -- which inherit the fitted slope/intercept and may
-        # read a post-wrap sub-range -- land on the same axis (see #169).
-        trodestime = np.asarray(self.get_analogsignal_timestamps(i_start, i_stop))
-        global_start = int(getattr(self, "_global_sample_offset", 0)) + int(
-            i_start or 0
-        )
+        # Fit the counter -> system-clock regression once, streaming over the
+        # whole recording so the fit never materialises the full counter/sysclock
+        # arrays (#47). Partial (split) iterators inherit these parameters and so
+        # skip the fit (see SpikeGadgetsRawIOPartial).
         if not self.regressed_systime_parameters:
-            # Fitting call (the full recording, in the normal pipeline). Unwrap
-            # this slice and record the global sample index of every wrap so
-            # partial iterators can reconstruct the identical axis.
-            trodestime_index = _unwrap_uint32(trodestime).astype(np.float64)
-            wrap_sample_indices = (
-                np.flatnonzero(
-                    np.diff(trodestime.astype(np.int64)) < -(UINT32_WRAP // 2)
-                )
-                + 1
-                + global_start
+            slope, intercept, wrap_sample_indices = _fit_systime_regression_streaming(
+                self.get_analogsignal_timestamps,
+                self.get_sys_clock,
+                n_total=self._raw_memmap.shape[0],
+                global_offset=int(getattr(self, "_global_sample_offset", 0)),
             )
-            # get raw systime values
-            systime_seconds = self.get_sys_clock(i_start, i_stop)
-            # regress
-            slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
             self.regressed_systime_parameters = {
                 "slope": slope,
                 "intercept": intercept,
                 "wrap_sample_indices": wrap_sample_indices,
             }
-        else:
-            slope = self.regressed_systime_parameters["slope"]
-            intercept = self.regressed_systime_parameters["intercept"]
-            wrap_sample_indices = self.regressed_systime_parameters.get(
-                "wrap_sample_indices", np.empty(0, dtype=np.int64)
-            )
-            # number of wraps before this slice's first global sample, plus any
-            # wrap occurring within the slice, recovers the global axis.
-            prior_wraps = int(
-                np.searchsorted(wrap_sample_indices, global_start, side="right")
-            )
-            trodestime_index = (
-                _unwrap_uint32(trodestime) + prior_wraps * UINT32_WRAP
-            ).astype(np.float64)
+        slope = self.regressed_systime_parameters["slope"]
+        intercept = self.regressed_systime_parameters["intercept"]
+        wrap_sample_indices = self.regressed_systime_parameters.get(
+            "wrap_sample_indices", np.empty(0, dtype=np.int64)
+        )
+
+        # Get the raw uint32 Trodes timestamps for this slice. The counter wraps
+        # every 2**32 samples (~39.77 h at 30 kHz); unwrap to the globally
+        # monotonic axis anchored at the full recording's sample 0. The number of
+        # wraps before this slice's first global sample, plus any wrap within the
+        # slice, recovers that axis so split (partial) iterators -- which may read
+        # a post-wrap sub-range -- land on the same axis (see #169).
+        trodestime = np.asarray(self.get_analogsignal_timestamps(i_start, i_stop))
+        global_start = int(getattr(self, "_global_sample_offset", 0)) + int(
+            i_start or 0
+        )
+        prior_wraps = int(
+            np.searchsorted(wrap_sample_indices, global_start, side="right")
+        )
+        trodestime_index = (
+            _unwrap_uint32(trodestime) + prior_wraps * UINT32_WRAP
+        ).astype(np.float64)
         adjusted_timestamps = intercept + slope * trodestime_index
-        return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
+        return adjusted_timestamps / NANOSECONDS_PER_SECOND
 
     @functools.lru_cache(maxsize=1)
     def get_systime_from_trodes_timestamps(
