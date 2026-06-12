@@ -9,6 +9,7 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
+from warnings import warn
 from xml.etree import ElementTree
 
 import numpy as np
@@ -74,8 +75,18 @@ def _find_single_dropped_packet_indices(
     timestamp_byte: int,
     start_index: int = 0,
     stop_index: int | None = None,
+    source: str | None = None,
 ) -> np.ndarray:
-    """Return pre-interpolation indices whose next packet skips one sample."""
+    """Return pre-interpolation indices whose next packet skips one sample.
+
+    A single dropped packet leaves a counter diff of 2, which the caller
+    interpolates. If ``source`` is given, also warn about **multi-packet** gaps
+    in ``[start_index, stop_index)`` -- a forward counter jump > 2 (the
+    ``< UINT32_WRAP // 2`` bound excludes the wrap, which is a large *backward*
+    jump, and a clean wrap is a diff of 1). Multi-packet gaps are NOT
+    interpolated: the timestamps stay correct (the regression maps the actual
+    counter to time) but the ephys data is discontinuous there.
+    """
     if stop_index is None:
         stop_index = raw_memmap.shape[0]
     if stop_index - start_index < 2:
@@ -85,9 +96,19 @@ def _find_single_dropped_packet_indices(
         timestamp_byte : timestamp_byte + TIMESTAMP_SIZE_BYTES,
     ]
     raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
-    return (
-        np.where(np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP)[0] + start_index
-    )
+    diffs = np.diff(raw_uint32)
+    if source is not None:
+        multi = diffs[
+            (diffs > EXPECTED_TIMESTAMP_DIFF_DROP) & (diffs < UINT32_WRAP // 2)
+        ]
+        if multi.size:
+            warn(
+                f"{multi.size} multi-packet gap(s) in the timestamp counter of "
+                f"{source} (largest {int(multi.max()) - 1} samples) are not "
+                "interpolated; the ephys data is discontinuous at those times.",
+                stacklevel=2,
+            )
+    return np.where(diffs == EXPECTED_TIMESTAMP_DIFF_DROP)[0] + start_index
 
 
 def _fit_systime_regression_streaming(
@@ -839,9 +860,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             # first call in a interpolation iterator, needs to find the dropped packets
-            # has to run through the entire file to find missing packets
+            # has to run through the entire file to find missing packets. Pass
+            # ``source`` so multi-packet gaps (not interpolated) are warned once
+            # per file here, rather than per partial.
             self.interpolate_index = _find_single_dropped_packet_indices(
-                self._raw_memmap, self._timestamp_byte
+                self._raw_memmap, self._timestamp_byte, source=self.filename
             )
             self._interpolate_raw_memmap()  # interpolates in the memmap
 

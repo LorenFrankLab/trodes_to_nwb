@@ -144,11 +144,17 @@ def test_partial_after_wrap_lands_on_same_axis_as_full():
     np.testing.assert_allclose(out, expected[start:stop], rtol=0, atol=1e-6)
 
 
-def _synthetic_drop_before_wrap_io(n=500, drops=(50, 60, 70, 80, 90), wrap_at=300):
-    """A real SpikeGadgetsRawIO whose memmap is replaced with synthetic packets:
-    a uint32 counter with single dropped packets (diff==2) *before* a wrap, plus a
-    matching int64 sysclock. Built off a real .rec so the partial constructor (which
-    reads the file header and copies parsed attributes) works unchanged."""
+def _io_from_unwrapped_counter(unwrapped_global):
+    """Build a real SpikeGadgetsRawIO whose memmap encodes a given monotonic int64
+    counter (wrapped to uint32) plus a matching linear int64 sysclock. Built off a
+    real .rec so SpikeGadgetsRawIOPartial's constructor (which reads the file
+    header and copies parsed attributes) works unchanged.
+
+    Gaps in ``unwrapped_global`` become gaps in the uint32 counter (dropped
+    packets); a value that crosses a multiple of 2**32 becomes a wrap.
+    """
+    unwrapped_global = np.asarray(unwrapped_global, dtype=np.int64)
+    n = unwrapped_global.size
     io = SpikeGadgetsRawIO(filename=str(data_path / "20230622_sample_01_a1.rec"))
     io.parse_header()
     ts_byte, sys_byte, pkt = (
@@ -156,12 +162,6 @@ def _synthetic_drop_before_wrap_io(n=500, drops=(50, 60, 70, 80, 90), wrap_at=30
         io.sysClock_byte,
         io._raw_memmap.shape[1],
     )
-    drops = np.asarray(drops)
-    extra = np.zeros(n, dtype=np.int64)
-    for d in drops:
-        extra[d + 1 :] += 1  # a single dropped packet -> a +1 gap (counter diff 2)
-    unwrapped = np.arange(n, dtype=np.int64) + extra
-    unwrapped_global = (UINT32_WRAP - int(unwrapped[wrap_at])) + unwrapped
     raw_counter = (unwrapped_global % UINT32_WRAP).astype("<u4")
     sysclock = (1.7e18 + (1e9 / FS) * unwrapped_global).astype("<i8")
 
@@ -175,6 +175,59 @@ def _synthetic_drop_before_wrap_io(n=500, drops=(50, 60, 70, 80, 90), wrap_at=30
     io.regressed_systime_parameters = {}
     io._global_sample_offset = 0
     return io
+
+
+def _synthetic_drop_before_wrap_io(n=500, drops=(50, 60, 70, 80, 90), wrap_at=300):
+    """A uint32 counter with single dropped packets (diff==2) *before* a wrap."""
+    extra = np.zeros(n, dtype=np.int64)
+    for d in np.asarray(drops):
+        extra[d + 1 :] += 1  # a single dropped packet -> a +1 gap (counter diff 2)
+    unwrapped = np.arange(n, dtype=np.int64) + extra
+    return _io_from_unwrapped_counter(
+        (UINT32_WRAP - int(unwrapped[wrap_at])) + unwrapped
+    )
+
+
+def test_multi_packet_drop_warns_and_is_not_interpolated():
+    # A 2-packet drop is a counter diff of 3 -- not a single drop. It is left as a
+    # gap (the regression maps the actual counter to time, so timestamps stay
+    # correct, but the ephys data is discontinuous) and warns once. Confirmed
+    # against Trodes: dropped = diff - 1, and multi-packet drops are real.
+    n = 400
+    unwrapped = np.arange(n, dtype=np.int64)
+    unwrapped[150:] += 2  # drop 2 packets after index 149 -> counter diff 3 there
+    io = _io_from_unwrapped_counter(unwrapped)  # small counter -> no wrap
+
+    with pytest.warns(UserWarning, match="multi-packet gap"):
+        ts = io.get_regressed_systime(0, None)  # triggers the interpolation resolve
+
+    assert list(io.interpolate_index) == []  # no single drops -> nothing inserted
+    assert list(io.regressed_systime_parameters["wrap_sample_indices"]) == []
+    assert len(ts) == n  # the gap is NOT padded
+    assert np.all(np.diff(ts) > 0)  # still strictly increasing
+    # timestamps track the actual (gappy) counter, so the gap shows as a jump
+    expected = (1.7e18 + (1e9 / FS) * unwrapped) / 1e9
+    np.testing.assert_allclose(ts, expected, rtol=0, atol=1e-6)
+    assert (ts[150] - ts[149]) > 2 * (ts[1] - ts[0])  # multi-sample time jump
+
+
+def test_wrap_with_surrounding_gap_unwraps_to_monotonic_time():
+    # The record thread can drop packets right at a wrap (it resets its write
+    # buffer at the backward jump, recordThread.cpp). Such a wrap-with-gap must
+    # still unwrap to monotonic time and record exactly one wrap.
+    n = 400
+    unwrapped = np.arange(n, dtype=np.int64)
+    unwrapped[200:] += 5000  # a 5000-sample gap coinciding with the wrap
+    unwrapped_global = (UINT32_WRAP - int(unwrapped[200])) + unwrapped
+    io = _io_from_unwrapped_counter(unwrapped_global)
+
+    with pytest.warns(UserWarning, match="multi-packet gap"):  # the 5000 gap
+        ts = io.get_regressed_systime(0, None)
+
+    assert np.all(np.diff(ts) > 0)  # monotonic across the wrap-with-gap
+    assert len(io.regressed_systime_parameters["wrap_sample_indices"]) == 1
+    expected = (1.7e18 + (1e9 / FS) * unwrapped_global) / 1e9
+    np.testing.assert_allclose(ts, expected, rtol=0, atol=1e-6)
 
 
 def test_partial_offset_translates_to_post_interpolation_axis():
