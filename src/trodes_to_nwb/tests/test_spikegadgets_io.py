@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 
-from trodes_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
+from trodes_to_nwb.spike_gadgets_raw_io import (
+    InsertedMemmap,
+    SpikeGadgetsRawIO,
+    SpikeGadgetsRawIOPartial,
+)
 from trodes_to_nwb.tests.utils import data_path
 
 # --- Fixture for SpikeGadgetsRawIO instance ---
@@ -230,6 +234,48 @@ def test_get_analog_chunk(raw_io):
     assert isinstance(data_chunk, np.ndarray)
     assert data_chunk.dtype == np.int16
     assert data_chunk.shape == (n_samples_to_read, expected_num_channels)
+
+
+def test_partial_multiplex_boundary_preserves_first_packet_update():
+    """A split starting on a multiplex update must keep that fresh first value.
+
+    Partial iterators seed held multiplexed channels from the previous segment's
+    last state. The seed should apply only to channels that did not update in
+    packet 0 of the partial; updated channels must match the full-file reader.
+    """
+    rec_file = data_path / "20230622_sample_01_a1.rec"
+    if not rec_file.exists():
+        pytest.skip(f"Test data file not found: {rec_file}")
+
+    full_io = SpikeGadgetsRawIO(filename=str(rec_file))
+    full_io._parse_header()
+    full_multiplexed = full_io.get_analogsignal_multiplexed()
+
+    for ch_xml in full_io.multiplexed_channel_xml.values():
+        id_byte = full_io._multiplexed_byte_start + int(
+            ch_xml.attrib["interleavedDataIDByte"]
+        )
+        bit = int(ch_xml.attrib["interleavedDataIDBit"])
+        update_indices = np.flatnonzero(((full_io._raw_memmap[:, id_byte] >> bit) & 1))
+        update_indices = update_indices[update_indices > 0]
+        if update_indices.size:
+            start = int(update_indices[0])
+            break
+    else:
+        pytest.skip("No multiplexed update packet found after the first sample.")
+
+    stop = min(start + 5, full_io._raw_memmap.shape[0])
+    partial_io = SpikeGadgetsRawIOPartial(
+        full_io,
+        start_index=start,
+        stop_index=stop,
+        previous_multiplex_state=full_multiplexed[start - 1],
+    )
+
+    np.testing.assert_array_equal(
+        partial_io.get_analogsignal_multiplexed(),
+        full_multiplexed[start:stop],
+    )
 
 
 # --- DIO Test ---
