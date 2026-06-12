@@ -14,13 +14,18 @@ from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 DEFAULT_CHUNK_TIME_DIM = 16384
 DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
 def _get_ecu_analog_channel_ids(rec_file_path: str) -> list[str]:
-    """Returns the ordered list of ECU analog channel IDs from the rec file header."""
+    """Returns the ordered list of ECU analog channel IDs from the rec file header.
+
+    Returns an empty list when the recording has no ECU device (e.g. a
+    headstage-only file), rather than raising.
+    """
     root = convert_rec_header.read_header(rec_file_path)
     hconf = root.find("HardwareConfiguration")
     ecu_conf = None
@@ -28,6 +33,8 @@ def _get_ecu_analog_channel_ids(rec_file_path: str) -> list[str]:
         if conf.attrib["name"] == "ECU":
             ecu_conf = conf
             break
+    if ecu_conf is None:
+        return []
     return [
         channel.attrib["id"]
         for channel in ecu_conf
@@ -72,30 +79,38 @@ GYRO_DPS_PER_LSB = 0.061
 
 # Sensor type registry. Patterns are anchored with ``$`` so the axis / Ain-number
 # group is the whole channel-name suffix (``Headstage_AccelXfoo`` does not match).
+# The IMU patterns accept both the modern ``Headstage_AccelX`` channel ids and the
+# bare ``AccelX`` ids that Trodes uses internally (the ``headstageSensor`` device).
 SENSOR_TYPE_CONFIG: dict[str, SensorConfig] = {
     "accelerometer": SensorConfig(
         conversion=ACCEL_G_PER_LSB * STANDARD_GRAVITY_M_S2,
         unit="m/s^2",
         description="Headstage accelerometer, +/-2 g full scale (0.000061 g/LSB)",
-        pattern=r"Headstage_Accel[XYZ]$",
+        pattern=r"(?:Headstage_)?Accel[XYZ]$",
     ),
     "gyroscope": SensorConfig(
         conversion=GYRO_DPS_PER_LSB * DEG_TO_RAD,
         unit="rad/s",
         description="Headstage gyroscope, +/-2000 deg/s full scale (0.061 deg/s/LSB)",
-        pattern=r"Headstage_Gyro[XYZ]$",
+        pattern=r"(?:Headstage_)?Gyro[XYZ]$",
     ),
     "magnetometer": SensorConfig(
         conversion=1.0,  # no calibrated magnetometer scaling is defined
         unit="unspecified",
         description="Headstage magnetometer",
-        pattern=r"Headstage_Mag[XYZ]$",
+        pattern=r"(?:Headstage_)?Mag[XYZ]$",
     ),
     "analog_input": SensorConfig(
         conversion=1.0,  # raw counts; no counts->volts factor is defined
         unit="unspecified",
         description="ECU analog input",
         pattern=r"ECU_Ain\d+$",
+    ),
+    "analog_output": SensorConfig(
+        conversion=1.0,  # raw counts; no counts->volts factor is defined
+        unit="unspecified",
+        description="ECU analog output",
+        pattern=r"ECU_Aout\d+$",
     ),
     # Controller analog inputs ride the multiplexed/aux stream (not the continuous
     # ECU stream), so they are categorized separately to keep acquisition names
@@ -265,6 +280,39 @@ def _unique_acquisition_name(
     return name
 
 
+def _derive_analog_timestamps(neo_ios: list) -> np.ndarray:
+    """Per-packet timestamps (concatenated across files) without an ECU stream.
+
+    Mirrors :class:`RecFileDataChunkIterator`'s timestamp derivation so
+    headstage-only files (which have no ``ECU_analog`` stream to build an
+    iterator from) still get timestamps for their decimated sensor streams.
+    """
+    if neo_ios[0].sysClock_byte:
+        return np.concatenate([io.get_regressed_systime(0, None) for io in neo_ios])
+    return np.concatenate(
+        [io.get_systime_from_trodes_timestamps(0, None) for io in neo_ios]
+    )
+
+
+def _open_headstage_only_sources(
+    rec_file_path: list[str], timestamps: np.ndarray | None
+) -> tuple[list, list[int], np.ndarray]:
+    """Open rec readers directly for files with multiplexed sensors but no ECU.
+
+    Returns ``(neo_ios, n_time, timestamps)`` providing the same handful of
+    attributes ``add_analog_data`` would otherwise read off a
+    ``RecFileDataChunkIterator`` (the readers, per-file packet counts, and the
+    shared timestamps vector), without requiring an ``ECU_analog`` stream.
+    """
+    neo_ios = [SpikeGadgetsRawIO(filename=path) for path in rec_file_path]
+    for io in neo_ios:
+        io.parse_header()
+    n_time = [io._raw_memmap.shape[0] for io in neo_ios]
+    if timestamps is None:
+        timestamps = _derive_analog_timestamps(neo_ios)
+    return neo_ios, n_time, timestamps
+
+
 def add_analog_data(
     nwbfile: NWBFile,
     rec_file_path: list[str],
@@ -286,14 +334,17 @@ def add_analog_data(
       acquisition rate by sample-and-hold in the ``.rec`` stream. These are
       *decimated* back to their true rate using the per-packet update flags and
       stored with explicit ``timestamps`` taken from the genuinely-sampled
-      packets. Accelerometer and gyroscope are sampled on interleaved schedules,
-      so each sensor gets its own timestamps. A sensor that never updates (a
-      disabled sensor) is omitted with a WARNING.
+      packets. Each sensor's channels are partitioned by their update schedule
+      (``interleavedDataIDByte``/``Bit``) so co-sampled channels share one
+      timestamp vector; if a sensor's channels update on different schedules they
+      are written as separate streams. A sensor that never updates (a disabled
+      sensor) is omitted with a WARNING.
 
     Every sensor type is written as its own ``TimeSeries`` in
     ``nwbfile.acquisition`` with the physical unit and scaling carried by
     ``TimeSeries.conversion``. Channels matching no known pattern go to an
-    ``"other"`` stream and are logged at WARNING.
+    ``"other"`` stream and are logged at WARNING. Files with no ECU device
+    (headstage-only recordings) write only the multiplexed sensor streams.
 
     Parameters
     ----------
@@ -314,15 +365,33 @@ def add_analog_data(
     logger = logging.getLogger("convert")
 
     ecu_analog_ids = _get_ecu_analog_channel_ids(rec_file_path[0])
-    rec_dci = RecFileDataChunkIterator(
-        rec_file_path,
-        nwb_hw_channel_order=ecu_analog_ids,
-        stream_id="ECU_analog",
-        is_analog=True,
-        timestamps=timestamps,
-        behavior_only=behavior_only,
-    )
-    multiplexed_ids = list(rec_dci.neo_io[0].multiplexed_channel_xml.keys())
+
+    # ECU analog inputs and multiplexed headstage sensors are read through
+    # different paths. Build the continuous-rate ECU iterator only when ECU analog
+    # channels exist (headstage-only files have none); the multiplexed sensors are
+    # read straight off the rec readers either way. The ECU iterator is built with
+    # include_multiplexed=False so reading the physical ECU columns never
+    # materializes the whole-file sample-and-held multiplexed array.
+    rec_dci = None
+    if ecu_analog_ids:
+        rec_dci = RecFileDataChunkIterator(
+            rec_file_path,
+            nwb_hw_channel_order=ecu_analog_ids,
+            stream_id="ECU_analog",
+            is_analog=True,
+            timestamps=timestamps,
+            behavior_only=behavior_only,
+            include_multiplexed=False,
+        )
+        neo_ios = rec_dci.neo_io
+        n_time = rec_dci.n_time
+        shared_timestamps = rec_dci.timestamps
+    else:
+        neo_ios, n_time, shared_timestamps = _open_headstage_only_sources(
+            rec_file_path, timestamps
+        )
+
+    multiplexed_ids = list(neo_ios[0].multiplexed_channel_xml.keys())
     if not ecu_analog_ids and not multiplexed_ids:
         logger.info(
             "No analog channels found in %s; skipping analog data.", rec_file_path[0]
@@ -369,50 +438,59 @@ def add_analog_data(
     if multiplexed_ids:
         # global packet offset of each rec file, to map per-file update indices
         # onto the shared (concatenated) timestamps vector
-        file_start = np.append(0, np.cumsum(rec_dci.n_time)).astype(int)
+        file_start = np.append(0, np.cumsum(n_time)).astype(int)
         for sensor_type, channel_names in _categorize_sensor_channels(
             multiplexed_ids
         ).items():
-            data_parts, time_parts = [], []
-            for file_index, neo_io in enumerate(rec_dci.neo_io):
-                file_data, update_indices = (
-                    neo_io.get_analogsignal_multiplexed_decimated(channel_names)
-                )
-                if update_indices.size:
-                    data_parts.append(file_data)
-                    time_parts.append(
-                        rec_dci.timestamps[file_start[file_index] + update_indices]
-                    )
-            if not data_parts:
-                logger.warning(
-                    "Headstage sensor '%s' (%s) has no sampled data (disabled); "
-                    "skipping.",
-                    sensor_type,
-                    channel_names,
-                )
-                continue
             config = SENSOR_TYPE_CONFIG.get(sensor_type, _OTHER_CONFIG)
-            if sensor_type == "other":
-                _warn_other_channels(channel_names, logger)
-            sensor_timestamps = np.concatenate(time_parts)
-            # The continuous (ECU) path inherits the iterator's monotonicity check;
-            # the decimated path builds its own timestamps, so check them here.
-            if np.any(np.diff(sensor_timestamps) <= 0):
-                logger.warning(
-                    "Decimated timestamps for headstage sensor '%s' are not "
-                    "strictly increasing (clock regression at a file boundary?).",
-                    sensor_type,
-                )
-            nwbfile.add_acquisition(
-                pynwb.TimeSeries(
-                    name=_unique_acquisition_name(nwbfile, sensor_type, logger),
-                    description=f"{config.description}: {', '.join(channel_names)}",
-                    data=np.concatenate(data_parts),
-                    unit=_resolve_sensor_unit(sensor_type, config.unit, metadata),
-                    conversion=config.conversion,
-                    timestamps=sensor_timestamps,
-                )
+            # A sensor's channels are not guaranteed to share an update schedule, so
+            # split by (interleavedDataIDByte, interleavedDataIDBit): each group is a
+            # genuinely co-sampled stream rather than assuming one sensor == one
+            # timestamp vector. Co-scheduled axes (the common case) stay one stream;
+            # divergent schedules become separate streams (disambiguated by name).
+            schedule_groups = neo_ios[0].group_multiplexed_channels_by_schedule(
+                channel_names
             )
+            for group in schedule_groups:
+                data_parts, time_parts = [], []
+                for file_index, neo_io in enumerate(neo_ios):
+                    file_data, update_indices = (
+                        neo_io.get_analogsignal_multiplexed_decimated(group)
+                    )
+                    if update_indices.size:
+                        data_parts.append(file_data)
+                        time_parts.append(
+                            shared_timestamps[file_start[file_index] + update_indices]
+                        )
+                if not data_parts:
+                    logger.warning(
+                        "Headstage sensor '%s' (%s) has no sampled data (disabled); "
+                        "skipping.",
+                        sensor_type,
+                        group,
+                    )
+                    continue
+                if sensor_type == "other":
+                    _warn_other_channels(group, logger)
+                sensor_timestamps = np.concatenate(time_parts)
+                # The continuous (ECU) path inherits the iterator's monotonicity
+                # check; the decimated path builds its own timestamps, check here.
+                if np.any(np.diff(sensor_timestamps) <= 0):
+                    logger.warning(
+                        "Decimated timestamps for headstage sensor '%s' are not "
+                        "strictly increasing (clock regression at a file boundary?).",
+                        sensor_type,
+                    )
+                nwbfile.add_acquisition(
+                    pynwb.TimeSeries(
+                        name=_unique_acquisition_name(nwbfile, sensor_type, logger),
+                        description=f"{config.description}: {', '.join(group)}",
+                        data=np.concatenate(data_parts),
+                        unit=_resolve_sensor_unit(sensor_type, config.unit, metadata),
+                        conversion=config.conversion,
+                        timestamps=sensor_timestamps,
+                    )
+                )
 
 
 _NWB_ANALOG_DATA_PATH = "processing/analog/analog/analog/data"
@@ -513,7 +591,8 @@ def get_analog_channel_names(header: ElementTree) -> list[str]:
     Returns
     -------
     list[str]
-        List of the names of the analog channels in the rec file
+        List of the names of the analog channels in the rec file. Empty if the
+        recording has no ECU device (e.g. a headstage-only file).
     """
     hconf = header.find("HardwareConfiguration")
     ecu_conf = None
@@ -522,6 +601,8 @@ def get_analog_channel_names(header: ElementTree) -> list[str]:
         if conf.attrib["name"] == "ECU":
             ecu_conf = conf
             break
+    if ecu_conf is None:
+        return []
     # get the names of the analog channels
     analog_channel_names = []
     for channel in ecu_conf:

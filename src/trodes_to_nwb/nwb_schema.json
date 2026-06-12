@@ -688,6 +688,12 @@
                     "examples": [
                         "unspecified"
                     ]
+                },
+                "analog_output": {
+                    "type": "string",
+                    "examples": [
+                        "unspecified"
+                    ]
                 }
             }
         },

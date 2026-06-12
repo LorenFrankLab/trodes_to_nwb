@@ -33,11 +33,17 @@ class _FakeNeoIO:
     ``decimated`` maps a tuple of channel names (one sensor group) to the
     ``(data, update_indices)`` that ``get_analogsignal_multiplexed_decimated``
     should return. Groups not present are treated as disabled (no samples).
+
+    ``schedule`` optionally maps each channel name to its
+    ``(interleavedDataIDByte, interleavedDataIDBit)`` pair, used by
+    ``group_multiplexed_channels_by_schedule``. When omitted, all channels are
+    treated as sharing one schedule (a single group), matching the common case.
     """
 
-    def __init__(self, multiplexed_ids, decimated):
+    def __init__(self, multiplexed_ids, decimated, schedule=None):
         self.multiplexed_channel_xml = dict.fromkeys(multiplexed_ids)
         self._decimated = decimated
+        self._schedule = schedule
 
     def get_analogsignal_multiplexed_decimated(self, channel_names):
         key = tuple(channel_names)
@@ -46,6 +52,18 @@ class _FakeNeoIO:
         return np.empty((0, len(channel_names)), dtype=np.int16), np.array(
             [], dtype=int
         )
+
+    def group_multiplexed_channels_by_schedule(self, channel_names):
+        if self._schedule is None:
+            return [list(channel_names)]
+        groups, order = {}, []
+        for name in channel_names:
+            key = self._schedule[name]
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(name)
+        return [groups[key] for key in order]
 
 
 class _FakeRecDCI:
@@ -58,11 +76,13 @@ class _FakeRecDCI:
     plus ``timestamps``, ``n_time``, ``neo_io``, ``maxshape`` and ``_get_data``.
     """
 
-    def __init__(self, combined_data, multiplexed_ids, timestamps, decimated=None):
+    def __init__(
+        self, combined_data, multiplexed_ids, timestamps, decimated=None, schedule=None
+    ):
         self._data = combined_data
         self.timestamps = timestamps
         self.n_time = [combined_data.shape[0]]
-        self.neo_io = [_FakeNeoIO(multiplexed_ids, decimated or {})]
+        self.neo_io = [_FakeNeoIO(multiplexed_ids, decimated or {}, schedule=schedule)]
 
     @property
     def maxshape(self):
@@ -84,15 +104,34 @@ def _make_minimal_nwbfile():
 
 
 def _patch_analog_source(
-    monkeypatch, ecu_ids, multiplexed_ids, combined_data, timestamps, decimated=None
+    monkeypatch,
+    ecu_ids,
+    multiplexed_ids,
+    combined_data,
+    timestamps,
+    decimated=None,
+    schedule=None,
 ):
-    """Patch add_analog_data's rec-file reads to serve synthetic data."""
+    """Patch add_analog_data's rec-file reads to serve synthetic data.
+
+    Patches both seams so the same harness works whether or not ECU analog
+    channels are present: ``RecFileDataChunkIterator`` (ECU path) and
+    ``_open_headstage_only_sources`` (no-ECU path) both resolve to the same
+    synthetic ``_FakeRecDCI``.
+    """
     monkeypatch.setattr(
         convert_analog, "_get_ecu_analog_channel_ids", lambda path: list(ecu_ids)
     )
-    fake = _FakeRecDCI(combined_data, multiplexed_ids, timestamps, decimated)
+    fake = _FakeRecDCI(
+        combined_data, multiplexed_ids, timestamps, decimated, schedule=schedule
+    )
     monkeypatch.setattr(
         convert_analog, "RecFileDataChunkIterator", lambda *a, **k: fake
+    )
+    monkeypatch.setattr(
+        convert_analog,
+        "_open_headstage_only_sources",
+        lambda paths, ts: (fake.neo_io, fake.n_time, fake.timestamps),
     )
     return fake
 
@@ -304,8 +343,11 @@ def test_add_analog_data_multifile_decimation_synthetic(monkeypatch):
     fake = _MultiFileRecDCI()
     fake.timestamps = timestamps
     monkeypatch.setattr(convert_analog, "_get_ecu_analog_channel_ids", lambda path: [])
+    # no ECU channels -> headstage-only path; serve the synthetic readers directly
     monkeypatch.setattr(
-        convert_analog, "RecFileDataChunkIterator", lambda *a, **k: fake
+        convert_analog,
+        "_open_headstage_only_sources",
+        lambda paths, ts: (fake.neo_io, fake.n_time, fake.timestamps),
     )
 
     nwbfile = _make_minimal_nwbfile()
@@ -479,6 +521,170 @@ def test_get_decimated_multiplexed_real_data():
         io.get_analogsignal_multiplexed_decimated(
             ["Headstage_AccelX", "Headstage_GyroX"]
         )
+
+
+def test_group_multiplexed_channels_by_schedule_real_data():
+    """Co-scheduled axes group together; different sensors split into groups."""
+    io = SpikeGadgetsRawIO(filename=str(data_path / "20230622_sample_01_a1.rec"))
+    io.parse_header()
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    # all accel axes share (interleavedDataIDByte, Bit) -> a single group
+    assert io.group_multiplexed_channels_by_schedule(accel) == [accel]
+    # accel and gyro update on different bits -> two groups, input order preserved
+    assert io.group_multiplexed_channels_by_schedule(
+        ["Headstage_AccelX", "Headstage_GyroX"]
+    ) == [["Headstage_AccelX"], ["Headstage_GyroX"]]
+
+
+def test_get_ecu_analog_channel_ids_no_ecu_returns_empty(monkeypatch):
+    """A recording with no ECU device yields [] instead of raising on None."""
+    from xml.etree import ElementTree as ET
+
+    root = ET.fromstring(
+        "<Configuration><HardwareConfiguration>"
+        '<Device name="headstageSensor">'
+        '<Channel id="AccelX" dataType="analog" startByte="2"'
+        ' interleavedDataIDByte="0" interleavedDataIDBit="3"/>'
+        "</Device>"
+        "</HardwareConfiguration></Configuration>"
+    )
+    monkeypatch.setattr(
+        convert_analog.convert_rec_header, "read_header", lambda path: root
+    )
+    assert convert_analog._get_ecu_analog_channel_ids("nonexistent.rec") == []
+
+
+def test_get_analog_channel_names_no_ecu_returns_empty():
+    """The public helper is consistent with _get_ecu_analog_channel_ids on no-ECU."""
+    from xml.etree import ElementTree as ET
+
+    header = ET.fromstring(
+        "<Configuration><HardwareConfiguration>"
+        '<Device name="headstageSensor">'
+        '<Channel id="AccelX" dataType="analog" startByte="2"'
+        ' interleavedDataIDByte="0" interleavedDataIDBit="3"/>'
+        "</Device>"
+        "</HardwareConfiguration></Configuration>"
+    )
+    assert convert_analog.get_analog_channel_names(header) == []
+
+
+def test_ecu_read_does_not_materialize_multiplexed():
+    """Reading the physical ECU columns must never build the multiplexed array.
+
+    This is the memory regression guard: with include_multiplexed=False the whole
+    -file sample-and-held multiplexed array (get_analogsignal_multiplexed) must not
+    be touched when materializing the ECU acquisition streams.
+    """
+    rec = str(data_path / "20230622_sample_01_a1.rec")
+    ecu_ids = convert_analog._get_ecu_analog_channel_ids(rec)
+    rec_dci = RecFileDataChunkIterator(
+        [rec],
+        nwb_hw_channel_order=ecu_ids,
+        stream_id="ECU_analog",
+        is_analog=True,
+        include_multiplexed=False,
+    )
+    # the iterator exposes only the physical ECU columns (no appended multiplexed)
+    assert rec_dci.maxshape[1] == len(ecu_ids)
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("get_analogsignal_multiplexed was materialized")
+
+    for io in rec_dci.neo_io:
+        io.get_analogsignal_multiplexed = _boom
+    subset = convert_analog._AnalogChannelSubsetIterator(
+        rec_dci, list(range(len(ecu_ids)))
+    )
+    materialized = _materialize(subset)  # full read of all ECU columns
+    assert materialized.shape == (rec_dci.maxshape[0], len(ecu_ids))
+
+
+def test_include_multiplexed_true_appends_mux_columns():
+    """The legacy default still appends the multiplexed channels (combined layout)."""
+    rec = str(data_path / "20230622_sample_01_a1.rec")
+    ecu_ids = convert_analog._get_ecu_analog_channel_ids(rec)
+    rec_dci = RecFileDataChunkIterator(
+        [rec],
+        nwb_hw_channel_order=ecu_ids,
+        stream_id="ECU_analog",
+        is_analog=True,
+    )
+    n_mux = len(rec_dci.neo_io[0].multiplexed_channel_xml)
+    assert n_mux > 0
+    assert rec_dci.maxshape[1] == len(ecu_ids) + n_mux
+
+
+def test_no_ecu_headstage_only_writes_streams(monkeypatch):
+    """Headstage-only recordings (no ECU) still write the decimated sensor streams."""
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    gyro = ["Headstage_GyroX", "Headstage_GyroY", "Headstage_GyroZ"]
+    mux_ids = accel + gyro
+    n_time = 60
+    combined = np.zeros((n_time, 0), dtype=np.int16)  # no ECU columns
+    timestamps = np.arange(n_time, dtype=float)
+    accel_data = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int16)
+    gyro_data = np.array([[7, 8, 9]], dtype=np.int16)
+    decimated = {
+        tuple(accel): (accel_data, np.array([10, 30])),
+        tuple(gyro): (gyro_data, np.array([20])),
+    }
+    _patch_analog_source(monkeypatch, [], mux_ids, combined, timestamps, decimated)
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["headstage_only.rec"])
+
+    # no ECU streams, but both IMU sensors are written with their own timebases
+    assert "analog_input" not in nwbfile.acquisition
+    assert (nwbfile.acquisition["accelerometer"].data[:] == accel_data).all()
+    assert (
+        nwbfile.acquisition["accelerometer"].timestamps[:] == timestamps[[10, 30]]
+    ).all()
+    assert (nwbfile.acquisition["gyroscope"].data[:] == gyro_data).all()
+    assert (nwbfile.acquisition["gyroscope"].timestamps[:] == timestamps[[20]]).all()
+
+
+def test_mixed_update_schedule_splits_into_streams(monkeypatch):
+    """A sensor whose axes update on different schedules splits into separate streams.
+
+    Rather than raising (the reader requires one shared schedule per call), the
+    channels are partitioned by (interleavedDataIDByte, interleavedDataIDBit) and
+    each co-sampled group is written as its own acquisition TimeSeries.
+    """
+    accel = ["Headstage_AccelX", "Headstage_AccelY", "Headstage_AccelZ"]
+    n_time = 40
+    combined = np.zeros((n_time, 0), dtype=np.int16)
+    timestamps = np.arange(n_time, dtype=float)
+    # AccelX/Y share one schedule; AccelZ updates on a different bit
+    schedule = {
+        "Headstage_AccelX": (0, 3),
+        "Headstage_AccelY": (0, 3),
+        "Headstage_AccelZ": (0, 4),
+    }
+    xy_data = np.array([[1, 2], [3, 4]], dtype=np.int16)
+    z_data = np.array([[5], [6], [7]], dtype=np.int16)
+    decimated = {
+        ("Headstage_AccelX", "Headstage_AccelY"): (xy_data, np.array([5, 25])),
+        ("Headstage_AccelZ",): (z_data, np.array([8, 18, 28])),
+    }
+    _patch_analog_source(
+        monkeypatch, [], accel, combined, timestamps, decimated, schedule=schedule
+    )
+    nwbfile = _make_minimal_nwbfile()
+    add_analog_data(nwbfile, ["headstage_only.rec"])
+
+    # two streams written (not one, and no ValueError), disambiguated by name
+    assert "accelerometer" in nwbfile.acquisition
+    assert "accelerometer_2" in nwbfile.acquisition
+    xy = nwbfile.acquisition["accelerometer"]
+    z = nwbfile.acquisition["accelerometer_2"]
+    assert (xy.data[:] == xy_data).all()
+    assert (z.data[:] == z_data).all()
+    # each group rides its own (distinct) decimated timebase
+    assert (xy.timestamps[:] == timestamps[[5, 25]]).all()
+    assert (z.timestamps[:] == timestamps[[8, 18, 28]]).all()
+    # the two groups list their own channels in the descriptions
+    assert "Headstage_AccelX, Headstage_AccelY" in xy.description
+    assert "Headstage_AccelZ" in z.description
 
 
 def test_accelerometer_conversion_recovers_gravity():
@@ -708,6 +914,7 @@ def test_categorize_all_sensor_types():
         "Headstage_MagY",
         "Headstage_MagZ",
         "ECU_Ain1",
+        "ECU_Aout1",
         "Controller_Ain2",
         "Foo_Bar",
     ]
@@ -730,8 +937,36 @@ def test_categorize_all_sensor_types():
     # ECU and controller analog inputs are distinct sensor types (different
     # sources/sampling), so "analog_input" is unambiguously the ECU stream.
     assert groups["analog_input"] == ["ECU_Ain1"]
+    assert groups["analog_output"] == ["ECU_Aout1"]
     assert groups["controller_analog_input"] == ["Controller_Ain2"]
     assert groups["other"] == ["Foo_Bar"]
+
+
+def test_categorize_accepts_bare_imu_names():
+    """Trodes' bare headstageSensor channel ids categorize like the prefixed ones."""
+    channels = [
+        "AccelX",
+        "AccelY",
+        "AccelZ",
+        "GyroX",
+        "GyroY",
+        "GyroZ",
+        "MagX",
+        "MagY",
+        "MagZ",
+    ]
+    groups = _categorize_sensor_channels(channels)
+    assert groups["accelerometer"] == ["AccelX", "AccelY", "AccelZ"]
+    assert groups["gyroscope"] == ["GyroX", "GyroY", "GyroZ"]
+    assert groups["magnetometer"] == ["MagX", "MagY", "MagZ"]
+    assert "other" not in groups
+
+
+def test_categorize_ecu_analog_output_not_other():
+    """ECU analog outputs are a known category, not warned-on 'other' channels."""
+    groups = _categorize_sensor_channels(["ECU_Aout1", "ECU_Aout2"])
+    assert groups["analog_output"] == ["ECU_Aout1", "ECU_Aout2"]
+    assert "other" not in groups
 
 
 def test_categorize_preserves_input_order():

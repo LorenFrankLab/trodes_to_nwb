@@ -33,6 +33,13 @@ class SpikeGadgetsRawIO(BaseRawIO):
     extensions = ["rec"]
     rawmode = "one-file"
 
+    # When True, ``_get_analogsignal_chunk`` appends the sample-and-held
+    # multiplexed headstage channels to every ``ECU_analog`` read (the legacy
+    # combined-stream layout). Reading any ECU chunk then materializes the whole
+    # multiplexed array (see ``get_analogsignal_multiplexed``). Callers that only
+    # want the physical ECU channels set this False to avoid that allocation.
+    _include_analog_multiplexed = True
+
     def __init__(
         self,
         filename: str = "",
@@ -617,7 +624,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if re_order is not None:
             raw_unit16 = raw_unit16[:, re_order]
 
-        if stream_id == "ECU_analog":
+        if stream_id == "ECU_analog" and self._include_analog_multiplexed:
             # automatically include the interleaved analog signals:
             analog_multiplexed_data = self.get_analogsignal_multiplexed()[
                 i_start:i_stop, :
@@ -735,7 +742,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             If any specified `channel_names` are not found in the file.
         """
-        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -785,6 +791,52 @@ class SpikeGadgetsRawIO(BaseRawIO):
                 initialize_stream_mask[i], data[i], analog_multiplexed_data[i - 1]
             )
         return analog_multiplexed_data
+
+    def group_multiplexed_channels_by_schedule(
+        self, channel_names: list[str]
+    ) -> list[list[str]]:
+        """Partition channels by their per-channel multiplexed update schedule.
+
+        Each multiplexed channel refreshes on the packets where its own
+        ``(interleavedDataIDByte, interleavedDataIDBit)`` flag is set; channels
+        that share that pair are sampled together and form one true-rate stream.
+        Channels of one sensor (e.g. accelerometer X/Y/Z) usually share a pair,
+        but the format does not guarantee it, so callers must group before calling
+        :meth:`get_analogsignal_multiplexed_decimated` (which requires a single
+        shared schedule) rather than assume one sensor equals one schedule.
+
+        Parameters
+        ----------
+        channel_names : list of str
+            Multiplexed channel names to partition.
+
+        Returns
+        -------
+        list of list of str
+            Groups of channel names sharing an update schedule, each preserving
+            the order channels appear in ``channel_names``. The groups themselves
+            are ordered by first appearance.
+
+        Raises
+        ------
+        ValueError
+            If a channel is not present in this file's multiplexed channels.
+        """
+        groups: dict[tuple[int, int], list[str]] = {}
+        order: list[tuple[int, int]] = []
+        for name in channel_names:
+            if name not in self.multiplexed_channel_xml:
+                raise ValueError(f"Channel name '{name}' not found in file.")
+            attrib = self.multiplexed_channel_xml[name].attrib
+            key = (
+                int(attrib["interleavedDataIDByte"]),
+                int(attrib["interleavedDataIDBit"]),
+            )
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(name)
+        return [groups[key] for key in order]
 
     def get_analogsignal_multiplexed_decimated(
         self, channel_names: list[str]
@@ -908,7 +960,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             _description_
         """
-        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -1356,7 +1407,6 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
         """
-        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
