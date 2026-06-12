@@ -25,8 +25,20 @@ BITS_PER_BYTE = 8
 TIMESTAMP_SIZE_BYTES = 4  # uint32
 SYSCLOCK_SIZE_BYTES = 8  # int64
 EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
-EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
-UINT32_WRAP = 2**32  # Trodes timestamp is a uint32 sample counter; it wraps here
+# A single dropped packet leaves a one-sample gap in the uint32 sample counter,
+# i.e. a diff of 2. (Confirmed against Trodes acquisition: it reports
+# `dropped = currentTimeStamp - lastTimeStamp - 1`, so one drop == diff 2.)
+# NOTE: only single drops are interpolated. Multi-packet drops (diff > 2, which
+# Trodes tracks as `largestPacketDrop`) are left as gaps -- timestamps stay
+# correct (the regression maps the actual counter to time), but the ephys data
+# is not padded across the gap.
+EXPECTED_TIMESTAMP_DIFF_DROP = 2
+# The Trodes per-packet timestamp is a uint32 hardware sample counter
+# (abstractTrodesSource.h: "hardware timestamps (sample number)") that wraps here
+# (~39.77 h at 30 kHz). A wrap is a large backward jump in the .rec; _unwrap_uint32
+# only unwraps jumps < -2**31, distinguishing a clean wrap (~-2**32) from minor
+# corruption (which Trodes discards at acquisition).
+UINT32_WRAP = 2**32
 
 
 def _unwrap_uint32(values: np.ndarray) -> np.ndarray:
