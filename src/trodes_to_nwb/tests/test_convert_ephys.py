@@ -4,7 +4,7 @@ import numpy as np
 import pynwb
 
 from trodes_to_nwb import convert_rec_header, convert_yaml
-from trodes_to_nwb.convert_ephys import add_raw_ephys
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, add_raw_ephys
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
 from trodes_to_nwb.tests.utils import data_path
 
@@ -250,3 +250,26 @@ def test_add_raw_ephys_two_epoch():
             )
 
     os.remove(filename)
+
+
+def test_rec_file_data_chunk_iterator_single_sample_boundaries():
+    rec_dci = RecFileDataChunkIterator(
+        [
+            str(data_path / "20230622_sample_01_a1.rec"),
+            str(data_path / "20230622_sample_02_a1.rec"),
+        ],
+        stream_id="trodes",
+    )
+    boundary = rec_dci.n_time[0]
+    last = len(rec_dci.timestamps) - 1
+
+    for start in [0, boundary, last]:
+        out = rec_dci._get_data((slice(start, start + 1), slice(0, 1)))
+        assert out.shape == (1, 1)
+
+    first = rec_dci._get_data((slice(0, 1), slice(0, 1)))
+    first_two = rec_dci._get_data((slice(0, 2), slice(0, 1)))
+    np.testing.assert_array_equal(first, first_two[:1])
+
+    empty = rec_dci._get_data((slice(boundary, boundary), slice(0, 1)))
+    assert empty.shape == (0, 1)
