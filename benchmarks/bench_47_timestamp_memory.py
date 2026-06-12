@@ -90,20 +90,30 @@ def _gib(n_bytes: float) -> float:
 # --------------------------------------------------------------------------- #
 # 1. Synthetic at-scale probe of the sample_count materialisation
 # --------------------------------------------------------------------------- #
-class _DiskBackedIO:
-    """Stand-in for SpikeGadgetsRawIO that yields Trodes sample counts on demand
-    (``np.arange``), the way the real reader streams them from the memmap rather
-    than holding them resident."""
+class _FakeStreamIO:
+    """Stand-in for SpikeGadgetsRawIO that yields values on demand (``np.arange``),
+    the way the real reader streams them from the memmap rather than holding them
+    resident. Exposes both reader methods so it serves the sample_count probe
+    (``get_analogsignal_timestamps``, uint32) and the e-series probe
+    (``get_regressed_systime``, float64)."""
+
+    sysClock_byte = True
 
     def __init__(self, lo: int, hi: int):
         self._lo, self._hi = lo, hi
         # only shape[0] (the file's sample count) is read by the lazy path
         self._raw_memmap = np.empty((hi - lo, 0), dtype=np.uint8)
 
-    def get_analogsignal_timestamps(self, i_start, i_stop):
+    def _range(self, i_start, i_stop):
         i_start = 0 if i_start is None else i_start
         i_stop = (self._hi - self._lo) if i_stop is None else i_stop
-        return np.arange(self._lo + i_start, self._lo + i_stop, dtype=np.uint32)
+        return np.arange(self._lo + i_start, self._lo + i_stop)
+
+    def get_analogsignal_timestamps(self, i_start, i_stop):
+        return self._range(i_start, i_stop).astype(np.uint32)
+
+    def get_regressed_systime(self, i_start, i_stop=None):
+        return self._range(i_start, i_stop).astype(np.float64) / EPHYS_RATE_HZ
 
 
 def probe_sample_count_memory(n_samples: int, n_files: int = 2) -> dict:
@@ -129,7 +139,7 @@ def probe_sample_count_memory(n_samples: int, n_files: int = 2) -> dict:
     class _RecDci:
         timestamps = shared_timestamps
         neo_io = [
-            _DiskBackedIO(int(edges[i]), int(edges[i + 1])) for i in range(n_files)
+            _FakeStreamIO(int(edges[i]), int(edges[i + 1])) for i in range(n_files)
         ]
 
     nwbfile = NWBFile(
@@ -149,31 +159,6 @@ def probe_sample_count_memory(n_samples: int, n_files: int = 2) -> dict:
         "extra_rss_bytes": extra,
         "extra_rss_gib": _gib(extra),
     }
-
-
-class _RegressionBackedIO:
-    """Stand-in for SpikeGadgetsRawIO that computes regressed timestamps on demand.
-
-    ``get_regressed_systime(i_start, i_stop)`` returns a freshly-computed
-    ``float64`` slice (the way the real reader derives each chunk from cached fit
-    parameters), so the full timestamps array is never held resident -- exactly
-    the behaviour ``_LazyTimestamps`` relies on.
-    """
-
-    sysClock_byte = True
-
-    def __init__(self, lo: int, hi: int):
-        self._lo, self._hi = lo, hi
-        # only shape[0] (the file's sample count) is read by the lazy path
-        self._raw_memmap = np.empty((hi - lo, 0), dtype=np.uint8)
-
-    def get_regressed_systime(self, i_start, i_stop=None):
-        i_start = 0 if i_start is None else i_start
-        i_stop = (self._hi - self._lo) if i_stop is None else i_stop
-        return (
-            np.arange(self._lo + i_start, self._lo + i_stop, dtype=np.float64)
-            / EPHYS_RATE_HZ
-        )
 
 
 def probe_eseries_timestamps_memory(
@@ -201,9 +186,7 @@ def probe_eseries_timestamps_memory(
     from trodes_to_nwb.convert_ephys import _LazyTimestamps
 
     edges = np.linspace(0, n_samples, n_files + 1, dtype=np.int64)
-    ios = [
-        _RegressionBackedIO(int(edges[i]), int(edges[i + 1])) for i in range(n_files)
-    ]
+    ios = [_FakeStreamIO(int(edges[i]), int(edges[i + 1])) for i in range(n_files)]
 
     # (a) building the lazy representation -- should add ~0 resident bytes
     with PeakRSS() as rss_build:

@@ -135,10 +135,6 @@ class _LazyTimestamps:
         return self._total
 
     @property
-    def ndim(self) -> int:
-        return 1
-
-    @property
     def dtype(self) -> np.dtype:
         return np.dtype("float64")
 
@@ -499,6 +495,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 "Timestamps are not strictly increasing. This may cause problems with some software or data analysis.",
                 stacklevel=2,
             )
+        elif isinstance(self.timestamps, _LazyTimestamps):
+            # Strictly increasing implies non-decreasing, so cache it -- this spares
+            # the non-PTP digitize path a second full streamed pass (#47).
+            self.timestamps._non_decreasing = True
 
         self.n_time = [
             neo_io.get_signal_size(
@@ -516,8 +516,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # future change that desynchronises them fails loud here rather than
         # silently writing mismatched-length timestamps.
         if isinstance(self.timestamps, _LazyTimestamps):
-            assert self.timestamps._total == sum(self.n_time), (
-                f"lazy timestamps length {self.timestamps._total} != data length "
+            assert len(self.timestamps) == sum(self.n_time), (
+                f"lazy timestamps length {len(self.timestamps)} != data length "
                 f"{sum(self.n_time)}"
             )
 

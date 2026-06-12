@@ -776,14 +776,15 @@ def _get_position_timestamps_no_ptp(
     # np.digitize's fail-loud, so the bounds here are well-defined and ordered.
     epoch_start_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[0])
     epoch_end_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[1])
-    is_valid_camera_time = np.isin(
-        video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
-    )
+    # Read this epoch's sample counts once -- sample_count may be a streamed
+    # iterator where each slice is a fresh memmap read (#47).
+    epoch_sample_count = sample_count[epoch_start_ind:epoch_end_ind]
+    is_valid_camera_time = np.isin(video_timestamps.index, epoch_sample_count)
 
     camera_systime = rec_dci_timestamps[
         wrapped_digitize(
             video_timestamps.index[is_valid_camera_time],
-            sample_count[epoch_start_ind:epoch_end_ind],
+            epoch_sample_count,
         )
         + epoch_start_ind
     ]
