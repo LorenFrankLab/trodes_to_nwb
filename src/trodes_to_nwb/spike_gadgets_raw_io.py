@@ -1326,42 +1326,23 @@ class InsertedMemmap:
             return self.mapped_index[index]
         # if slice object
         elif isinstance(index, slice):
+            if index.step not in (None, 1):
+                return self.mapped_index[index]
+            start, stop, step = index.indices(self.shape[0])
             # see if slice contains inserted values
-            if (
-                (
-                    (index.start is not None)
-                    and (index.stop is not None)
-                    and np.any(
-                        (self.inserted_locations >= index.start)
-                        & (self.inserted_locations < index.stop)
-                    )
-                )
-                | (
-                    (index.start is None)
-                    and (index.stop is not None)
-                    and np.any(self.inserted_locations < index.stop)
-                )
-                | (
-                    index.stop is None
-                    and (index.start is not None)
-                    and np.any(self.inserted_locations > index.start)
-                )
-                | (
-                    index.start is None
-                    and index.stop is None
-                    and len(self.inserted_locations) > 0
-                )
+            if np.any(
+                (self.inserted_locations >= start) & (self.inserted_locations < stop)
             ):
                 # if so, need to use advanced indexing. return list of indeces
                 return self.mapped_index[index]
             # if not, return slice object with coordinates adjusted
             else:
+                # ``stop`` is exclusive, so an insertion exactly at ``stop`` is
+                # not part of the requested slice and must not shorten it.
                 return slice(
-                    index.start
-                    - np.searchsorted(self.inserted_locations, index.start, "right"),
-                    index.stop
-                    - np.searchsorted(self.inserted_locations, index.stop, "right"),
-                    index.step,
+                    start - np.searchsorted(self.inserted_locations, start, "left"),
+                    stop - np.searchsorted(self.inserted_locations, stop, "left"),
+                    step,
                 )
         # if list of indeces
         else:

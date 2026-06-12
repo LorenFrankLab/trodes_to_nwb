@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from trodes_to_nwb.spike_gadgets_raw_io import (
+    InsertedMemmap,
     UINT32_WRAP,
     SpikeGadgetsRawIO,
     SpikeGadgetsRawIOPartial,
@@ -53,6 +54,28 @@ def test_unwrap_multiple_wraps_is_monotonic():
 )
 def test_unwrap_short_arrays(v):
     np.testing.assert_array_equal(_unwrap_uint32(v), v.astype(np.int64))
+
+
+@pytest.mark.parametrize("inserted", [(), (0,), (3,), (9,)])
+def test_inserted_memmap_open_ended_and_exact_boundary_slices(inserted):
+    raw = np.arange(10)[:, None]
+    inserted = np.asarray(inserted, dtype=int)
+    memmap = InsertedMemmap(raw, inserted)
+    expected = np.insert(np.arange(10), inserted, np.arange(10)[inserted])
+
+    for index in [
+        slice(None, 2),
+        slice(5, None),
+        slice(None, None),
+        slice(1, 3),
+        slice(3, 5),
+        slice(3, None),
+        slice(None, 3),
+        slice(2, 3),
+        slice(3, 3),
+        slice(None, None, 2),
+    ]:
+        np.testing.assert_array_equal(memmap[index].reshape(-1), expected[index])
 
 
 # --------------------------------------------------------------------------- #
