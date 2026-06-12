@@ -123,6 +123,29 @@ def test_lazy_timestamps_chunk_iterator_roundtrip(tmp_path):
     np.testing.assert_array_equal(written, expected)
 
 
+def test_rec_file_data_chunk_iterator_single_sample_boundaries():
+    rec_dci = RecFileDataChunkIterator(
+        [
+            str(data_path / "20230622_sample_01_a1.rec"),
+            str(data_path / "20230622_sample_02_a1.rec"),
+        ],
+        stream_id="trodes",
+    )
+    boundary = rec_dci.n_time[0]
+    last = len(rec_dci.timestamps) - 1
+
+    for start in [0, boundary, last]:
+        out = rec_dci._get_data((slice(start, start + 1), slice(0, 1)))
+        assert out.shape == (1, 1)
+
+    first = rec_dci._get_data((slice(0, 1), slice(0, 1)))
+    first_two = rec_dci._get_data((slice(0, 2), slice(0, 1)))
+    np.testing.assert_array_equal(first, first_two[:1])
+
+    empty = rec_dci._get_data((slice(boundary, boundary), slice(0, 1)))
+    assert empty.shape == (0, 1)
+
+
 def test_lazy_timestamps_guards_fail_loud():
     # Array-like-but-not-an-array surfaces that should raise rather than silently
     # do the wrong/slow thing (#47 review hardening).

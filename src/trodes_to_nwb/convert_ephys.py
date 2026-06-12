@@ -552,38 +552,34 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
         channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection_list[1]]]
         # what global index each file starts at
-        file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
-        # the time indexes we want
-        time_index = np.arange(selection_list[0].start, selection_list[0].stop)[
-            :: selection_list[0].step
-        ]
+        file_start_ind = np.append(np.zeros(1, dtype=np.int64), np.cumsum(self.n_time))
+        max_time, max_channel = self._get_maxshape()
+        time_start, time_stop, _ = selection_list[0].indices(max_time)
+        if time_stop <= time_start:
+            selected_channels = np.arange(max_channel)[selection[1]]
+            return np.empty((0, len(selected_channels)), dtype=np.int16)
         data = []
-        i = time_index[0]
-        while i < min(time_index[-1], self._get_maxshape()[0]):
+        i = time_start
+        while i < time_stop:
             # find the stream where this piece of slice begins
-            io_stream = np.argmin(i >= file_start_ind) - 1
+            io_stream = np.searchsorted(file_start_ind, i, side="right") - 1
+            local_start = i - file_start_ind[io_stream]
+            local_stop = min(
+                time_stop - file_start_ind[io_stream],
+                self.n_time[io_stream],
+            )
             # get the data from that stream
             data.append(
                 self.neo_io[io_stream].get_analogsignal_chunk(
                     block_index=self.block_index,
                     seg_index=self.seg_index,
-                    i_start=int(i - file_start_ind[io_stream]),
-                    i_stop=int(
-                        min(
-                            time_index[-1] - file_start_ind[io_stream],
-                            self.n_time[io_stream],
-                        )
-                    )
-                    + 1,
+                    i_start=int(local_start),
+                    i_stop=int(local_stop),
                     stream_index=self.stream_index,
                     channel_ids=channel_ids,
                 )
             )
-            i += min(
-                self.n_time[io_stream]
-                - (i - file_start_ind[io_stream]),  # if added up to the end of stream
-                time_index[-1] - i,  # if finished in this stream
-            )
+            i = file_start_ind[io_stream] + local_stop
 
         data = (np.concatenate(data) * self.conversion).astype("int16")
         # Handle the appended multiplex data
