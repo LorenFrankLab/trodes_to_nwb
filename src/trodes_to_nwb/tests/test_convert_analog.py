@@ -27,6 +27,20 @@ from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 from trodes_to_nwb.tests.utils import data_path
 
 
+class _FakeMuxChannel:
+    """Minimal stand-in for a multiplexed channel's parsed XML element.
+
+    Exposes just the ``attrib`` mapping the real
+    ``group_multiplexed_channels_by_schedule`` reads.
+    """
+
+    def __init__(self, byte, bit):
+        self.attrib = {
+            "interleavedDataIDByte": str(byte),
+            "interleavedDataIDBit": str(bit),
+        }
+
+
 class _FakeNeoIO:
     """Stand-in for a SpikeGadgetsRawIO, serving synthetic multiplexed data.
 
@@ -35,15 +49,24 @@ class _FakeNeoIO:
     should return. Groups not present are treated as disabled (no samples).
 
     ``schedule`` optionally maps each channel name to its
-    ``(interleavedDataIDByte, interleavedDataIDBit)`` pair, used by
-    ``group_multiplexed_channels_by_schedule``. When omitted, all channels are
-    treated as sharing one schedule (a single group), matching the common case.
+    ``(interleavedDataIDByte, interleavedDataIDBit)`` pair. When omitted, all
+    channels share one schedule (a single group), matching the common case. The
+    pairs populate ``multiplexed_channel_xml`` so this fake reuses the *real*
+    ``group_multiplexed_channels_by_schedule`` rather than re-implementing it.
     """
 
+    # reuse the production partition logic (it only reads multiplexed_channel_xml)
+    group_multiplexed_channels_by_schedule = (
+        SpikeGadgetsRawIO.group_multiplexed_channels_by_schedule
+    )
+
     def __init__(self, multiplexed_ids, decimated, schedule=None):
-        self.multiplexed_channel_xml = dict.fromkeys(multiplexed_ids)
+        schedule = schedule or {}
+        self.multiplexed_channel_xml = {
+            name: _FakeMuxChannel(*schedule.get(name, (0, 0)))
+            for name in multiplexed_ids
+        }
         self._decimated = decimated
-        self._schedule = schedule
 
     def get_analogsignal_multiplexed_decimated(self, channel_names):
         key = tuple(channel_names)
@@ -52,18 +75,6 @@ class _FakeNeoIO:
         return np.empty((0, len(channel_names)), dtype=np.int16), np.array(
             [], dtype=int
         )
-
-    def group_multiplexed_channels_by_schedule(self, channel_names):
-        if self._schedule is None:
-            return [list(channel_names)]
-        groups, order = {}, []
-        for name in channel_names:
-            key = self._schedule[name]
-            if key not in groups:
-                groups[key] = []
-                order.append(key)
-            groups[key].append(name)
-        return [groups[key] for key in order]
 
 
 class _FakeRecDCI:
@@ -613,6 +624,24 @@ def test_include_multiplexed_true_appends_mux_columns():
     n_mux = len(rec_dci.neo_io[0].multiplexed_channel_xml)
     assert n_mux > 0
     assert rec_dci.maxshape[1] == len(ecu_ids) + n_mux
+
+
+def test_include_multiplexed_flag_propagates_to_split_partials(monkeypatch):
+    """Every (split) reader inherits include_multiplexed, so the memory guard holds
+    on the large-file partial path, not just the single-reader case."""
+    monkeypatch.setattr("trodes_to_nwb.convert_ephys.MAXIMUM_ITERATOR_SIZE", 5000)
+    rec = str(data_path / "20230622_sample_01_a1.rec")
+    ecu_ids = convert_analog._get_ecu_analog_channel_ids(rec)
+    rec_dci = RecFileDataChunkIterator(
+        [rec],
+        nwb_hw_channel_order=ecu_ids,
+        stream_id="ECU_analog",
+        is_analog=True,
+        include_multiplexed=False,
+    )
+    assert len(rec_dci.neo_io) > 1  # the file was actually split into partials
+    assert all(not io._include_analog_multiplexed for io in rec_dci.neo_io)
+    assert rec_dci.maxshape[1] == len(ecu_ids)
 
 
 def test_no_ecu_headstage_only_writes_streams(monkeypatch):

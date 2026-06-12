@@ -33,6 +33,22 @@ DEFAULT_CHUNK_TIME_DIM = 16384
 DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
+def concatenate_systime(neo_ios: list) -> np.ndarray:
+    """Concatenated per-packet system-clock timestamps across rec readers.
+
+    Uses the regressed sysClock when the device records one, otherwise derives
+    systime from the Trodes sample counter and sampling rate. Centralizes the
+    clock-source choice so callers that need timestamps without building a full
+    :class:`RecFileDataChunkIterator` (e.g. the analog headstage-only path) stay
+    consistent with the iterator's own derivation.
+    """
+    if neo_ios[0].sysClock_byte:
+        return np.concatenate([io.get_regressed_systime(0, None) for io in neo_ios])
+    return np.concatenate(
+        [io.get_systime_from_trodes_timestamps(0, None) for io in neo_ios]
+    )
+
+
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
@@ -93,6 +109,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
             for file in rec_file_path
         ]  # get all streams for all files
+        # Set the multiplexed-append policy before the large-file split below, so
+        # each SpikeGadgetsRawIOPartial copies the correct value from its full_io.
+        for neo_io in self.neo_io:
+            neo_io._include_analog_multiplexed = include_multiplexed
         logger.info("Parsing headers")
         [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
@@ -206,25 +226,11 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 self.neo_io.pop(iterator_loc)
                 self.neo_io[iterator_loc:iterator_loc] = sub_iterators
         logger.info(f"# iterators: {len(self.neo_io)}")
-        # propagate the multiplexed-append policy to every (possibly split) reader
-        for neo_io in self.neo_io:
-            neo_io._include_analog_multiplexed = self.include_multiplexed
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         if timestamps is not None:
             self.timestamps = timestamps
-
-        elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = np.concatenate(
-                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
-            )
-
-        else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            self.timestamps = np.concatenate(
-                [
-                    neo_io.get_systime_from_trodes_timestamps(0, None)
-                    for neo_io in self.neo_io
-                ]
-            )
+        else:
+            self.timestamps = concatenate_systime(self.neo_io)
 
         logger.info("Reading timestamps COMPLETE")
         is_timestamps_sequential = np.all(np.diff(self.timestamps))

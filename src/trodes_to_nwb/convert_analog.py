@@ -13,7 +13,7 @@ import pynwb
 from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header
-from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, concatenate_systime
 from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 DEFAULT_CHUNK_TIME_DIM = 16384
@@ -199,13 +199,18 @@ class _AnalogChannelSubsetIterator(GenericDataChunkIterator):
     owning ``TimeSeries.conversion`` field, so nothing is upcast or materialized
     here.
 
+    The source must be built with ``include_multiplexed=False`` so its
+    ``maxshape`` covers only the physical ECU columns; otherwise every read would
+    materialize the whole-file sample-and-held multiplexed array (the regression
+    this path exists to avoid).
+
     Parameters
     ----------
     source : RecFileDataChunkIterator
-        Shared iterator over the combined analog stream (ECU analog channels
-        followed by multiplexed headstage channels).
+        Shared iterator over the physical ECU analog channels (built with
+        ``include_multiplexed=False``).
     column_indices : list[int]
-        Column positions, into the combined stream, for this sensor's channels,
+        Column positions, into the source stream, for this sensor's channels,
         in output order.
     """
 
@@ -280,20 +285,6 @@ def _unique_acquisition_name(
     return name
 
 
-def _derive_analog_timestamps(neo_ios: list) -> np.ndarray:
-    """Per-packet timestamps (concatenated across files) without an ECU stream.
-
-    Mirrors :class:`RecFileDataChunkIterator`'s timestamp derivation so
-    headstage-only files (which have no ``ECU_analog`` stream to build an
-    iterator from) still get timestamps for their decimated sensor streams.
-    """
-    if neo_ios[0].sysClock_byte:
-        return np.concatenate([io.get_regressed_systime(0, None) for io in neo_ios])
-    return np.concatenate(
-        [io.get_systime_from_trodes_timestamps(0, None) for io in neo_ios]
-    )
-
-
 def _open_headstage_only_sources(
     rec_file_path: list[str], timestamps: np.ndarray | None
 ) -> tuple[list, list[int], np.ndarray]:
@@ -303,13 +294,15 @@ def _open_headstage_only_sources(
     attributes ``add_analog_data`` would otherwise read off a
     ``RecFileDataChunkIterator`` (the readers, per-file packet counts, and the
     shared timestamps vector), without requiring an ``ECU_analog`` stream.
+    Timestamps are derived (when not supplied) with the same clock-source rule
+    the iterator uses, via :func:`concatenate_systime`.
     """
     neo_ios = [SpikeGadgetsRawIO(filename=path) for path in rec_file_path]
     for io in neo_ios:
         io.parse_header()
     n_time = [io._raw_memmap.shape[0] for io in neo_ios]
     if timestamps is None:
-        timestamps = _derive_analog_timestamps(neo_ios)
+        timestamps = concatenate_systime(neo_ios)
     return neo_ios, n_time, timestamps
 
 
@@ -403,7 +396,7 @@ def add_analog_data(
     # --- ECU analog inputs: continuous, lazy, full acquisition rate ---
     if ecu_analog_ids:
         chunk_time_dim = min(DEFAULT_CHUNK_TIME_DIM, rec_dci.maxshape[0])
-        ecu_timestamps = rec_dci.timestamps  # shared by all ECU streams (linked once)
+        # shared_timestamps is rec_dci.timestamps here; all ECU streams link to it
         ecu_column = {name: index for index, name in enumerate(ecu_analog_ids)}
         first_ecu_ts = None
         for sensor_type, channel_names in _categorize_sensor_channels(
@@ -427,7 +420,7 @@ def add_analog_data(
                 unit=_resolve_sensor_unit(sensor_type, config.unit, metadata),
                 conversion=config.conversion,
                 timestamps=(
-                    first_ecu_ts if first_ecu_ts is not None else ecu_timestamps
+                    first_ecu_ts if first_ecu_ts is not None else shared_timestamps
                 ),
             )
             nwbfile.add_acquisition(ts)

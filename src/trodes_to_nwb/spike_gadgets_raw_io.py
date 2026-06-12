@@ -1360,6 +1360,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         self._mask_channels_bits = full_io._mask_channels_bits
         self.multiplexed_channel_xml = full_io.multiplexed_channel_xml
         self._multiplexed_byte_start = full_io._multiplexed_byte_start
+        self._include_analog_multiplexed = full_io._include_analog_multiplexed
         self._mask_streams = full_io._mask_streams
         self.selected_streams = full_io.selected_streams
         self._generate_minimal_annotations()
