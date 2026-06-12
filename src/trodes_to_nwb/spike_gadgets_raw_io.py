@@ -57,6 +57,27 @@ def _unwrap_uint32(values: np.ndarray) -> np.ndarray:
     return unwrapped + offsets
 
 
+def _find_single_dropped_packet_indices(
+    raw_memmap: np.ndarray,
+    timestamp_byte: int,
+    start_index: int = 0,
+    stop_index: int | None = None,
+) -> np.ndarray:
+    """Return pre-interpolation indices whose next packet skips one sample."""
+    if stop_index is None:
+        stop_index = raw_memmap.shape[0]
+    if stop_index - start_index < 2:
+        return np.empty(0, dtype=np.int64)
+    raw_uint8 = raw_memmap[
+        start_index:stop_index,
+        timestamp_byte : timestamp_byte + TIMESTAMP_SIZE_BYTES,
+    ]
+    raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+    return (
+        np.where(np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP)[0] + start_index
+    )
+
+
 def _fit_systime_regression_streaming(
     read_counter,
     read_sysclock,
@@ -807,17 +828,9 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             # first call in a interpolation iterator, needs to find the dropped packets
             # has to run through the entire file to find missing packets
-            raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
-            ]
-            raw_uint32 = (
-                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            self.interpolate_index = _find_single_dropped_packet_indices(
+                self._raw_memmap, self._timestamp_byte
             )
-            self.interpolate_index = np.where(
-                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
 
         # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
@@ -1440,23 +1453,32 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                 )
         # Inherit the original memmap object from the full_io object to conserve virtual memory
         if isinstance(full_io._raw_memmap, InsertedMemmap):
-            self._raw_memmap = full_io._raw_memmap._raw_memmap
+            full_raw_memmap = full_io._raw_memmap._raw_memmap
         else:
-            self._raw_memmap = full_io._raw_memmap
-        self._raw_memmap = self._raw_memmap[start_index:stop_index]
+            full_raw_memmap = full_io._raw_memmap
+        self._raw_memmap = full_raw_memmap[start_index:stop_index]
         # ensure interpolation
         if self.interpolate_dropped_packets and self.interpolate_index is None:
-            raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
-            ]
-            raw_uint32 = (
-                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            if isinstance(full_io._raw_memmap, InsertedMemmap) and (
+                full_io.interpolate_index is not None
+            ):
+                inserted_index = np.asarray(full_io.interpolate_index, dtype=np.int64)
+            else:
+                # Scan one packet past the partial stop so a dropped packet whose
+                # diff straddles the split is still inserted into this partial.
+                scan_stop = min(stop_index + 1, full_raw_memmap.shape[0])
+                inserted_index = _find_single_dropped_packet_indices(
+                    full_raw_memmap,
+                    self._timestamp_byte,
+                    start_index=start_index,
+                    stop_index=scan_stop,
+                )
+            self.interpolate_index = (
+                inserted_index[
+                    (inserted_index >= start_index) & (inserted_index < stop_index)
+                ]
+                - start_index
             )
-            self.interpolate_index = np.where(
-                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)

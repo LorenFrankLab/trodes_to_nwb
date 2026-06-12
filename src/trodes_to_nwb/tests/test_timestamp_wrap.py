@@ -178,6 +178,47 @@ def test_partial_offset_translates_to_post_interpolation_axis():
     )
 
 
+def test_partial_interpolates_drop_at_split_boundary():
+    # If a single dropped packet is represented by raw[stop - 1] -> raw[stop]
+    # with diff==2, a partial-local np.diff over raw[start:stop] cannot see it.
+    # The virtual packet belongs to the previous partial because full-file
+    # interpolation inserts it beside raw[stop - 1].
+    io = _synthetic_drop_before_wrap_io(n=400, drops=(179,), wrap_at=300)
+    full_ts = io.get_regressed_systime(0, None)
+
+    first = SpikeGadgetsRawIOPartial(io, start_index=0, stop_index=180)
+    second = SpikeGadgetsRawIOPartial(io, start_index=180, stop_index=360)
+
+    assert list(first.interpolate_index) == [179]
+    assert list(second.interpolate_index) == []
+    assert first._raw_memmap.shape[0] == 181
+    assert second._raw_memmap.shape[0] == 180
+
+    partial_ts = np.concatenate(
+        [
+            first.get_regressed_systime(0, None),
+            second.get_regressed_systime(0, None),
+        ]
+    )
+    expected_stop = int(np.searchsorted(io._raw_memmap.mapped_index, 360, side="left"))
+    np.testing.assert_allclose(partial_ts, full_ts[:expected_stop], rtol=0, atol=1e-6)
+
+
+def test_partial_detects_boundary_drop_without_full_interpolation_map():
+    # Non-sysclock split construction may create partials before the full file
+    # has resolved interpolation. The partial still needs one packet of lookahead
+    # to see a dropped packet at its final raw sample.
+    io = _synthetic_drop_before_wrap_io(n=400, drops=(179,), wrap_at=300)
+
+    first = SpikeGadgetsRawIOPartial(io, start_index=0, stop_index=180)
+    second = SpikeGadgetsRawIOPartial(io, start_index=180, stop_index=360)
+
+    assert list(first.interpolate_index) == [179]
+    assert list(second.interpolate_index) == []
+    assert first._raw_memmap.shape[0] == 181
+    assert second._raw_memmap.shape[0] == 180
+
+
 def test_non_wrapping_session_is_unchanged():
     # sanity: without a wrap, behaviour matches a plain float regression
     n = 500
