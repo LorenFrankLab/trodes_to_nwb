@@ -134,14 +134,20 @@ def test_generate_reconfig_header_reproduces_handmade_reconfig():
     assert [nt.attrib["id"] for nt in new_ntrodes] == ["1", "2", "3", "4"]
     assert all(len(nt) == 32 for nt in new_ntrodes)
 
-    # Channel order must match the real hand-made reconfig file.
+    # Must match the real hand-made reconfig file exactly: every SpikeNTrode
+    # attribute and every SpikeChannel attribute, in order -- not just hwChan.
     reference = list(
         convert_rec_header.read_header(
             data_path / "reconfig_probeDevice.trodesconf"
         ).find("SpikeConfiguration")
     )
     for produced, expected in zip(new_ntrodes, reference):
-        assert _hwchans(produced) == _hwchans(expected)
+        assert produced.attrib == expected.attrib
+        produced_channels = list(produced)
+        expected_channels = list(expected)
+        assert len(produced_channels) == len(expected_channels)
+        for produced_ch, expected_ch in zip(produced_channels, expected_channels):
+            assert produced_ch.attrib == expected_ch.attrib
 
     # The input header must not be mutated.
     assert len(list(raw.find("SpikeConfiguration"))) == 32
@@ -326,6 +332,53 @@ def test_generate_reconfig_header_rejects_reference_into_dropped_ntrode():
 
     with pytest.raises(ValueError, match="cannot be retargeted"):
         convert_rec_header.generate_reconfig_header(raw, [[1, 2]], allow_partial=True)
+
+
+def test_generate_reconfig_header_rejects_out_of_range_refNTrode():
+    """Issue #113 review #189: a legacy refNTrode index past the source ntrode
+    count cannot be resolved to a merged ntrode, so it must raise rather than
+    silently mis-resolve."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    first = list(raw.find("SpikeConfiguration"))[0]
+    first.attrib["refOn"] = "1"
+    first.attrib["refNTrode"] = "99"  # only 32 source ntrodes exist
+    del first.attrib["refNTrodeID"]
+
+    with pytest.raises(ValueError, match="out of range"):
+        convert_rec_header.generate_reconfig_header(
+            raw, convert_rec_header.group_ntrodes_uniformly(32, 8)
+        )
+
+
+def test_generate_reconfig_header_preserves_no_reference_sentinel():
+    """Issue #113 review #189: an ntrode carrying Trodes' no-reference sentinel
+    (refNTrodeID <= 0) has nothing to retarget and must be left untouched, not
+    turned into a spurious reference."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    for nt in raw.find("SpikeConfiguration"):
+        nt.attrib["refNTrodeID"] = "-1"
+        nt.attrib.pop("refNTrode", None)
+
+    new_ntrodes = list(
+        convert_rec_header.generate_reconfig_header(
+            raw, convert_rec_header.group_ntrodes_uniformly(32, 8)
+        ).find("SpikeConfiguration")
+    )
+    assert all(nt.attrib["refNTrodeID"] == "-1" for nt in new_ntrodes)
+
+
+def test_generate_reconfig_header_validates_inputs():
+    """Issue #113: empty groupings and headers without a SpikeConfiguration are
+    caller errors and must fail loudly with actionable messages."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    with pytest.raises(ValueError, match="at least one group"):
+        convert_rec_header.generate_reconfig_header(raw, [])
+    with pytest.raises(ValueError, match="non-empty"):
+        convert_rec_header.generate_reconfig_header(raw, [[1], []])
+    with pytest.raises(ValueError, match="no SpikeConfiguration"):
+        convert_rec_header.generate_reconfig_header(
+            ElementTree.Element("Configuration"), [[1]]
+        )
 
 
 def test_generate_reconfig_header_rejects_duplicate_or_dropped_channels():
