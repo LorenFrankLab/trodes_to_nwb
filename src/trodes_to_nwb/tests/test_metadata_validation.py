@@ -74,18 +74,21 @@ def test_validate_metadata_references_scalar_camera_id_is_checked():
     assert any("camera_id 7" in e for e in validate_metadata_references(metadata))
 
 
-def test_validate_metadata_references_tolerates_malformed_metadata():
-    # Must return a list (never raise) even on malformed shapes the schema would
-    # reject -- a clear message, not a stack trace (#147).
-    malformed = {
+def test_validate_metadata_references_tolerates_partial_sections():
+    # Absent/partial sections (a None section, a non-dict list element, a
+    # string-where-list, a scalar camera_id) must degrade to "nothing to
+    # cross-check" rather than crashing -- the checker reports broken references
+    # as messages, it does not re-validate field *types* (the schema does that,
+    # and runs first). So this returns a list, never a stack trace (#147).
+    partial = {
         "electrode_groups": ["not-a-dict"],
         "ntrode_electrode_group_channel_map": "oops",
         "cameras": [5],
         "tasks": [{"task_name": "t", "camera_id": 0}],
         "associated_video_files": None,
     }
-    result = validate_metadata_references(malformed)
-    assert isinstance(result, list)  # did not raise on non-dict / scalar shapes
+    result = validate_metadata_references(partial)
+    assert isinstance(result, list)  # did not raise on partial / non-dict shapes
 
 
 @pytest.mark.parametrize(

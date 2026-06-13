@@ -130,17 +130,24 @@ def validate_metadata_references(metadata: dict) -> list[str]:
     - camera ids are unique, and every ``camera_id`` referenced by ``tasks`` or
       ``associated_video_files`` is defined in ``cameras``.
 
-    The function is defensive: it returns a list of messages and never raises,
-    even on malformed/partial metadata (a non-dict list element, a scalar
-    ``camera_id``, a missing key), so it degrades to clear text rather than a
-    stack trace. ``device_type``-vs-probe coverage is intentionally not checked
-    here -- probes are only required at ``add_electrode_groups``, which validates
-    that itself.
+    Intended to run *after* JSON-schema validation (see ``load_metadata``),
+    which already guarantees ``metadata`` is a dict with correctly-typed fields.
+    The caller raises on any returned message, so a broken reference fails fast
+    -- before the long conversion -- rather than crashing cryptically partway
+    through. Broken references are returned as messages (not raised here) so the
+    caller can report them all at once. Absent or partial sections (a missing
+    key, a ``None`` section, a non-dict list element, or a scalar ``camera_id``
+    where a list is expected) are treated as "nothing to cross-check" rather
+    than crashing; field *types* themselves are the schema's responsibility, not
+    re-validated here, so this is not a substitute for schema validation.
+    ``device_type``-vs-probe coverage is intentionally not checked here --
+    probes are only required at ``add_electrode_groups``, which validates that
+    itself.
 
     Parameters
     ----------
     metadata : dict
-        Parsed session metadata.
+        Parsed, schema-valid session metadata.
 
     Returns
     -------
