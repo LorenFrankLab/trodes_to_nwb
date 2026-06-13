@@ -111,6 +111,17 @@ def generate_reconfig_header(
     function automates it by concatenating, in order, the channels of the source
     ntrodes in each group into a single new ntrode.
 
+    Each merged ntrode inherits the reference of its first source ntrode. Because
+    the merged ntrodes are renumbered, ntrode-level references are retargeted to
+    the merged numbering. The reference may be stored as ``refNTrodeID`` (the
+    referenced ntrode's id) or the legacy ``refNTrode`` (its 1-based position,
+    used by default Trodes configs); both are repointed at the merged ntrode that
+    now holds the referenced channel, and ``refChan`` is shifted by that channel's
+    offset within the merged ntrode. ``refNTrodeID`` is always written on the
+    output -- it is the canonical reference Trodes emits on save and the only form
+    the converter reads, so a legacy ``refNTrode``-only source gains it rather
+    than losing the reference downstream.
+
     Parameters
     ----------
     rec_header : xml.etree.ElementTree.Element
@@ -154,6 +165,11 @@ def generate_reconfig_header(
         raise ValueError("rec_header has no SpikeConfiguration element")
 
     source_by_id = {ntrode.attrib["id"]: ntrode for ntrode in spike_config}
+    # Document order of source ntrodes; the legacy refNTrode reference is a 1-based
+    # index into this list (Trodes stores the reference both as refNTrodeID -- the
+    # referenced ntrode's id -- and refNTrode -- its position), so resolving it
+    # needs position->id.
+    source_ids_in_order = [ntrode.attrib["id"] for ntrode in spike_config]
 
     # Validate that ntrode_groups is a clean partition of the source ntrodes.
     # Assigning a source ntrode to two groups (or twice within a group) would
@@ -185,6 +201,11 @@ def generate_reconfig_header(
             "intentionally."
         )
 
+    # Map each source ntrode id -> (merged ntrode id, channel offset within the
+    # merged ntrode). An ntrode reference (refNTrodeID/refChan) points at a source
+    # ntrode and a 1-based channel within it; after merging+renumbering it must be
+    # retargeted to the merged ntrode/channel that now holds that channel.
+    source_to_merged = {}
     merged_ntrodes = []
     for new_id, group in enumerate(ntrode_groups, start=1):
         # Base the merged ntrode on the first source ntrode so it keeps the
@@ -193,10 +214,62 @@ def generate_reconfig_header(
         merged.attrib["id"] = str(new_id)
         for channel in list(merged):
             merged.remove(channel)
+        offset = 0
         for src_id in group:
-            for channel in source_by_id[str(src_id)]:
+            source = source_by_id[str(src_id)]
+            source_to_merged[str(src_id)] = (new_id, offset)
+            for channel in source:
                 merged.append(copy.deepcopy(channel))
+            offset += len(source)
         merged_ntrodes.append(merged)
+
+    # Retarget each merged ntrode's reference (inherited from its first source
+    # ntrode) to the merged numbering. Leaving the source values would dangle --
+    # make_ref_electrode_map raises KeyError on a refNTrodeID absent from the
+    # reconfig metadata, or silently resolves to the wrong merged group when a
+    # stale source id happens to collide with a merged id; a stale refNTrode index
+    # likewise points outside the merged ntrode list when the header is reopened
+    # in Trodes (default Trodes configs use refNTrode without refNTrodeID).
+    for merged in merged_ntrodes:
+        attrib = merged.attrib
+        ref_id = attrib.get("refNTrodeID")
+        ref_index = attrib.get("refNTrode")
+        # Resolve the referenced source ntrode id. refNTrodeID (the id) is
+        # authoritative when present and positive; otherwise fall back to the
+        # legacy refNTrode (a 1-based position in the source ntrode list).
+        if ref_id is not None and int(ref_id) > 0:
+            src_ref_id = ref_id
+        elif ref_index is not None and int(ref_index) > 0:
+            idx = int(ref_index) - 1
+            if not 0 <= idx < len(source_ids_in_order):
+                raise ValueError(
+                    f"ntrode reference refNTrode={ref_index} is out of range for "
+                    f"the {len(source_ids_in_order)} source ntrodes."
+                )
+            src_ref_id = source_ids_in_order[idx]
+        else:
+            continue  # Trodes "no reference" sentinel; nothing to retarget.
+        target = source_to_merged.get(src_ref_id)
+        if target is None:
+            raise ValueError(
+                f"ntrode reference points to source ntrode {src_ref_id}, which is "
+                "not part of any reconfig group, so the reference cannot be "
+                "retargeted to the merged header. Include that source ntrode in a "
+                "group, or clear the reference before reconfiguring."
+            )
+        new_ref_id, ref_offset = target
+        # Merged ntrodes are numbered 1..N in document order, so a merged ntrode's
+        # id equals its 1-based position; refNTrodeID and refNTrode both become it.
+        # Always emit refNTrodeID -- it is the canonical reference Trodes writes on
+        # save, and the only one make_ref_electrode_map reads, so a legacy
+        # refNTrode-only source must gain it or the reference is dropped from NWB.
+        attrib["refNTrodeID"] = str(new_ref_id)
+        if ref_index is not None:
+            attrib["refNTrode"] = str(new_ref_id)
+        if "refChan" in attrib:
+            # refChan is 1-based within the referenced source ntrode; shift it by
+            # that ntrode's channel offset within its merged ntrode.
+            attrib["refChan"] = str(int(attrib["refChan"]) + ref_offset)
 
     for ntrode in list(spike_config):
         spike_config.remove(ntrode)

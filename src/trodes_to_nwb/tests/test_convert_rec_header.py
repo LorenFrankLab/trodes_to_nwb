@@ -226,6 +226,108 @@ def test_group_ntrodes_uniformly():
         convert_rec_header.group_ntrodes_uniformly(0, 8)
 
 
+def _refs(ntrode):
+    return ntrode.attrib.get("refNTrodeID"), ntrode.attrib.get("refChan")
+
+
+def test_generate_reconfig_header_preserves_trivial_references():
+    """Issue #113 review #189: the common header has every ntrode referencing
+    ntrode 1 / channel 1. Source ntrode 1 stays merged ntrode 1 and its channel 1
+    stays channel 1, so the trivial reference must survive the merge unchanged."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    new_header = convert_rec_header.generate_reconfig_header(
+        raw, convert_rec_header.group_ntrodes_uniformly(32, 8)
+    )
+    for nt in new_header.find("SpikeConfiguration"):
+        assert _refs(nt) == ("1", "1")
+
+
+def test_generate_reconfig_header_retargets_references_to_merged_numbering():
+    """Issue #113 review #189: refNTrodeID names a *source* ntrode and refChan is
+    a 1-based channel within it. After merging+renumbering, both must be rewritten
+    to the merged ntrode/channel that now holds the referenced channel, otherwise
+    the reference dangles (KeyError) or silently resolves to the wrong merged
+    group in make_ref_electrode_map."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    # Point every source ntrode's reference at source ntrode 5, channel 3 (1-based).
+    for nt in raw.find("SpikeConfiguration"):
+        nt.attrib["refOn"] = "1"
+        nt.attrib["refNTrodeID"] = "5"
+        nt.attrib["refChan"] = "3"
+
+    new_header = convert_rec_header.generate_reconfig_header(
+        raw, convert_rec_header.group_ntrodes_uniformly(32, 8)
+    )
+    # Source ntrode 5 lives in merged ntrode 1 (group [1..8]); the 4 source
+    # tetrodes before it contribute 16 channels, so its channel 3 becomes channel
+    # 16 + 3 = 19 of merged ntrode 1.
+    for nt in new_header.find("SpikeConfiguration"):
+        assert _refs(nt) == ("1", "19")
+
+    # Downstream resolution must now succeed instead of KeyError-ing, and every
+    # group must reference merged ntrode 1's nwb electrode group.
+    metadata, _ = convert_yaml.load_metadata(
+        data_path / "20230622_sample_metadataProbeReconfig.yml", []
+    )
+    ref_map = convert_rec_header.make_ref_electrode_map(
+        metadata, new_header.find("SpikeConfiguration")
+    )
+    assert {ref_group for ref_group, _ in ref_map.values()} == {"0"}
+
+
+def test_generate_reconfig_header_retargets_legacy_refNTrode_index():
+    """Issue #113 review #189: default Trodes configs express the reference as the
+    legacy ``refNTrode`` (a 1-based position in the ntrode list) with no
+    ``refNTrodeID``. It must be retargeted (otherwise the merged header keeps
+    out-of-range indices like 9/17/25 with only 4 merged ntrodes, which Trodes
+    resolves by an unchecked array index on reopen), and the canonical
+    ``refNTrodeID`` must be emitted -- it is what Trodes writes on save and the
+    only form make_ref_electrode_map reads, so without it the reference is
+    silently dropped from the NWB output."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    sc = raw.find("SpikeConfiguration")
+    # Emulate a default-config header: refNTrode self-index, no refNTrodeID.
+    for nt in sc:
+        nt.attrib["refOn"] = "1"
+        nt.attrib["refNTrode"] = nt.attrib["id"]  # ntrode at position i -> i
+        del nt.attrib["refNTrodeID"]
+
+    new_header = convert_rec_header.generate_reconfig_header(
+        raw, convert_rec_header.group_ntrodes_uniformly(32, 8)
+    )
+    new_ntrodes = list(new_header.find("SpikeConfiguration"))
+
+    # Each merged ntrode (whose first source ntrode self-references) now points at
+    # itself by the merged numbering, in both the legacy and canonical forms.
+    assert [nt.attrib["refNTrode"] for nt in new_ntrodes] == ["1", "2", "3", "4"]
+    assert [nt.attrib["refNTrodeID"] for nt in new_ntrodes] == ["1", "2", "3", "4"]
+
+    # The reference now survives into the NWB reference map instead of being
+    # dropped to (-1, -1).
+    metadata, _ = convert_yaml.load_metadata(
+        data_path / "20230622_sample_metadataProbeReconfig.yml", []
+    )
+    ref_map = convert_rec_header.make_ref_electrode_map(
+        metadata, new_header.find("SpikeConfiguration")
+    )
+    assert (-1, -1) not in ref_map.values()
+    assert {ref_group for ref_group, _ in ref_map.values()} == {"0"}
+
+
+def test_generate_reconfig_header_rejects_reference_into_dropped_ntrode():
+    """Issue #113 review #189: if a kept ntrode references a source ntrode that
+    was dropped (allow_partial), the reference cannot be retargeted, so fail
+    loudly rather than emit a dangling reference."""
+    raw = convert_rec_header.read_header(data_path / "20230622_sample_01_a1.rec")
+    first = list(raw.find("SpikeConfiguration"))[0]
+    first.attrib["refOn"] = "1"
+    first.attrib["refNTrodeID"] = "30"  # dropped by the partial grouping below
+    first.attrib["refChan"] = "1"
+
+    with pytest.raises(ValueError, match="cannot be retargeted"):
+        convert_rec_header.generate_reconfig_header(raw, [[1, 2]], allow_partial=True)
+
+
 def test_generate_reconfig_header_rejects_duplicate_or_dropped_channels():
     """Issue #113 review: a non-partition ntrode_groups would silently duplicate
     or drop channels in the probe map, so it must fail loudly."""
