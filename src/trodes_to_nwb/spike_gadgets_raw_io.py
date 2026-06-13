@@ -249,6 +249,11 @@ class SpikeGadgetsRawIO(BaseRawIO):
         self._mask_channels_bits = {}  # for digital data
 
         self.multiplexed_channel_xml = {}  # dictionary from id to channel xml
+        # Always define this so SpikeGadgetsRawIOPartial can copy it
+        # unconditionally; it stays None when there is no available multiplexed
+        # device (and is never dereferenced, since multiplexed_channel_xml is
+        # then empty).
+        self._multiplexed_byte_start = None
         if "Multiplexed" in device_bytes:
             self._multiplexed_byte_start = device_bytes["Multiplexed"]
         elif "headstageSensor" in device_bytes:
@@ -1262,12 +1267,17 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                     raise ValueError(f"Channel name '{ch_name}' not found in file.")
 
         initial_state = self.previous_multiplex_state
-        if initial_state is not None and len(initial_state) != len(channel_names):
+        if initial_state is not None:
+            # previous_multiplex_state is ordered like the full channel list, so
+            # reorder/subset it to match the requested channels whenever they
+            # differ in order or count -- otherwise a channel that does not
+            # update in the first packet inherits another channel's held value.
             all_channel_names = list(self.multiplexed_channel_xml.keys())
-            channel_indices = [
-                all_channel_names.index(ch_name) for ch_name in channel_names
-            ]
-            initial_state = np.asarray(initial_state)[channel_indices]
+            if list(channel_names) != all_channel_names:
+                channel_indices = [
+                    all_channel_names.index(ch_name) for ch_name in channel_names
+                ]
+                initial_state = np.asarray(initial_state)[channel_indices]
 
         return self._get_analogsignal_multiplexed_from_raw(
             self._raw_memmap,

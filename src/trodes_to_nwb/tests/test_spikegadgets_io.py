@@ -365,6 +365,38 @@ def test_partial_multiplex_boundary_preserves_first_packet_update():
     )
 
 
+def test_partial_multiplex_seed_remapped_when_channel_order_differs():
+    """The boundary seed must follow channel identity, not position.
+
+    ``previous_multiplex_state`` is ordered like the full channel list. When a
+    caller requests all channels in a different order (same length as the seed),
+    the seed must be reordered to match the requested channels -- otherwise a
+    channel that does not update in the first packet inherits another channel's
+    held value.
+    """
+    raw_memmap = np.zeros((3, 5), dtype=np.uint8)
+    raw_memmap[:, 4] = [0b00, 0b11, 0b11]  # packet 0 has no updates -> row 0 = seed
+    for row in range(raw_memmap.shape[0]):
+        _write_uint16(raw_memmap, row, 0, 100 + row)  # mux_a value
+        _write_uint16(raw_memmap, row, 2, 200 + row)  # mux_b value
+
+    partial_io = object.__new__(SpikeGadgetsRawIOPartial)
+    partial_io.filename = "synthetic_partial.rec"
+    partial_io._raw_memmap = raw_memmap
+    partial_io._multiplexed_byte_start = 0
+    partial_io.multiplexed_channel_xml = _make_synthetic_multiplex_io(
+        raw_memmap
+    ).multiplexed_channel_xml
+    # seed is in default channel order: mux_a=500, mux_b=600
+    partial_io.previous_multiplex_state = np.array([500, 600], dtype=np.int16)
+
+    # request all channels in reversed order (same length as the seed)
+    data = partial_io.get_analogsignal_multiplexed(channel_names=("mux_b", "mux_a"))
+
+    # packet 0 has no updates, so each channel must show ITS OWN seed
+    np.testing.assert_array_equal(data[0], np.array([600, 500], dtype=np.int16))
+
+
 # --- DIO Test ---
 
 
@@ -659,3 +691,24 @@ def test_parse_header_skips_unavailable_devices(tmp_path):
     assert unavail._timestamp_byte == 3
     # an unavailable device is equivalent to the device being absent entirely
     assert unavail._timestamp_byte == absent._timestamp_byte
+
+
+def test_partial_iterator_handles_missing_multiplex_device(tmp_path):
+    """Splitting an oversized recording with no available multiplexed device.
+
+    ``_parse_header`` only sets ``_multiplexed_byte_start`` when a multiplexed /
+    headstageSensor device is present and available, but
+    ``SpikeGadgetsRawIOPartial.__init__`` copies it unconditionally. The
+    attribute must therefore always be defined (``None`` when absent) so the
+    partial iterator can be constructed without raising ``AttributeError`` --
+    partials are built for any recording over the size limit regardless of
+    whether it has multiplexed data.
+    """
+    full_io = _write_minimal_rec(tmp_path / "no_mux.rec", None)
+    assert full_io._multiplexed_byte_start is None
+    assert full_io.multiplexed_channel_xml == {}
+
+    partial_io = SpikeGadgetsRawIOPartial(
+        full_io, start_index=0, stop_index=5, previous_multiplex_state=None
+    )
+    assert partial_io._multiplexed_byte_start is None
