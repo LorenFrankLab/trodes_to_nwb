@@ -378,6 +378,11 @@ def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
     nwbfile.add_processing_module(
         ProcessingModule(name="tasks", description="Contains all tasks information")
     )
+    # tasks is optional metadata (schema default []). With no tasks there are no
+    # rows to write, and an empty DynamicTable cannot be serialized (HDMF cannot
+    # infer column dtypes), so leave the processing module empty.
+    if not metadata["tasks"]:
+        return
     # Store every task as a row in a single DynamicTable (one table, not one per
     # task) with an explicit id column. camera_id and task_epochs vary in length
     # between tasks, so they are ragged (indexed) columns.

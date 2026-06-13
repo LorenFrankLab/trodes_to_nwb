@@ -338,6 +338,32 @@ def test_add_tasks_persists_to_nwb(tmp_path):
             ]
 
 
+def test_add_tasks_empty_writes(tmp_path):
+    """``tasks`` is optional metadata (schema default ``[]``, no ``minItems``).
+    With zero tasks there are no rows to write, and an empty DynamicTable cannot
+    be serialized (HDMF cannot infer column dtypes), so ``add_tasks`` must leave
+    the processing module empty and still write/read successfully."""
+    from pynwb import NWBHDF5IO
+
+    metadata_path = data_path / "20230622_sample_metadata.yml"
+    metadata, _ = convert_yaml.load_metadata(metadata_path, [])
+    metadata["tasks"] = []
+    nwbfile = convert_yaml.initialize_nwb(metadata, default_test_xml_tree())
+
+    convert_yaml.add_tasks(nwbfile, metadata)
+
+    # Module is created but holds no table when there are no tasks.
+    assert "tasks" in nwbfile.processing
+    assert len(nwbfile.processing["tasks"].data_interfaces) == 0
+
+    nwb_path = tmp_path / "empty_tasks_roundtrip.nwb"
+    with NWBHDF5IO(nwb_path, mode="w") as io:
+        io.write(nwbfile)
+    with NWBHDF5IO(nwb_path, mode="r") as io:
+        read_nwb = io.read()
+        assert len(read_nwb.processing["tasks"].data_interfaces) == 0
+
+
 def test_add_associated_files(capsys):
     # Create a logger
     logger = convert.setup_logger("convert", "testing.log")
