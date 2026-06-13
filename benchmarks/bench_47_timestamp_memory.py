@@ -289,10 +289,14 @@ def main() -> int:
         result["fingerprint"] = fp
         output.unlink(missing_ok=True)
 
-        # equivalence check vs saved baseline
-        if BASELINE_PATH.exists() and not args.reseed:
-            base = json.loads(BASELINE_PATH.read_text())
-            diffs = compare_fingerprints(base.get("fingerprint", {}), fp)
+        # Equivalence check vs saved baseline -- only when the baseline actually
+        # carries a fingerprint. A fingerprint-less baseline (e.g. one seeded
+        # under --skip-full) would otherwise compare against {} and flag every
+        # dataset as "present now, absent in baseline", a false ANSWER CHANGED.
+        base = json.loads(BASELINE_PATH.read_text()) if BASELINE_PATH.exists() else {}
+        base_fp = base.get("fingerprint", {})
+        if base_fp and not args.reseed:
+            diffs = compare_fingerprints(base_fp, fp)
             print(f"\n[equivalence vs baseline]  ({len(fp)} datasets)")
             if diffs:
                 print("  ANSWER CHANGED:")
@@ -308,13 +312,17 @@ def main() -> int:
                     f"  memory Δ {dm:+.3f} GiB (baseline {bm['peak_rss_gib']:.3f} GiB)"
                 )
             return 0
+        if base and not base_fp:
+            print("\n[equivalence] baseline has no fingerprint; skipping (re-seed it).")
 
-    if not BASELINE_PATH.exists() or args.reseed:
+    # Seed the baseline only when a fingerprint was computed (i.e. the full
+    # conversion ran). Seeding under --skip-full would write a fingerprint-less
+    # baseline that poisons later equivalence checks (issue #47).
+    if "fingerprint" in result and (not BASELINE_PATH.exists() or args.reseed):
         BASELINE_PATH.write_text(json.dumps(result, indent=2))
-        print(
-            f"\nSeeded baseline -> {BASELINE_PATH.name}"
-            + (" (fingerprint included)" if "fingerprint" in result else "")
-        )
+        print(f"\nSeeded baseline -> {BASELINE_PATH.name} (fingerprint included)")
+    elif args.reseed:
+        print("\n--reseed ignored: re-run without --skip-full to seed a baseline.")
     return 0
 
 

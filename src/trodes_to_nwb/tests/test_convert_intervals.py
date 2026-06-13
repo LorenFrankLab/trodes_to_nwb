@@ -75,6 +75,36 @@ def test_trodes_sample_count_iterator_matches_concatenation():
     np.testing.assert_array_equal(materialized, expected)
 
 
+def test_trodes_sample_count_iterator_is_subscriptable():
+    # The non-PTP position path indexes the stored sample counts by epoch range
+    # (convert_position._get_position_timestamps_no_ptp slices `sample_count`).
+    # The streaming iterator must therefore support slice/int access and return
+    # exactly what the old np.concatenate array would (issue #47).
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator(recfile, stream_id="trodes")
+    expected = np.concatenate(
+        [io.get_analogsignal_timestamps(0, None) for io in rec_dci.neo_io]
+    )
+
+    iterator = _TrodesSampleCountIterator(rec_dci.neo_io)
+
+    # leading slice (the exact access the reviewer reproduced: `.data[:5]`)
+    np.testing.assert_array_equal(iterator[:5], expected[:5])
+    # a slice straddling the file boundary
+    boundary = rec_dci.neo_io[0]._raw_memmap.shape[0]
+    np.testing.assert_array_equal(
+        iterator[boundary - 5 : boundary + 5], expected[boundary - 5 : boundary + 5]
+    )
+    # full slice equals the concatenation
+    np.testing.assert_array_equal(iterator[:], expected)
+    # integer access (including negative) returns the scalar value
+    assert iterator[0] == expected[0]
+    assert iterator[-1] == expected[-1]
+
+
 def test_add_sample_count():
     metadata_path = data_path / "20230622_sample_metadata.yml"
     metadata, _ = load_metadata(metadata_path, [])

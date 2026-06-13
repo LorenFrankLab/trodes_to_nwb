@@ -54,6 +54,31 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
     def _get_dtype(self) -> np.dtype:
         return np.dtype("uint32")
 
+    def __getitem__(self, key) -> np.ndarray:
+        """Read a slice of the sample counts as a materialised ``uint32`` array.
+
+        A ``GenericDataChunkIterator`` is write-only and not subscriptable, but
+        the non-PTP position path indexes the stored sample counts by epoch
+        range (``convert_position._get_position_timestamps_no_ptp``). Delegating
+        random access to ``_get_data`` keeps that path working while still
+        materialising only the requested slice rather than the whole session
+        (issue #47); ``np.concatenate(...)[key]`` and ``iterator[key]`` return
+        the same values.
+        """
+        if isinstance(key, (int, np.integer)):
+            idx = int(key) + (self._total if key < 0 else 0)
+            if not 0 <= idx < self._total:
+                raise IndexError(
+                    f"index {key} is out of bounds for length {self._total}"
+                )
+            return self._get_data((slice(idx, idx + 1),))[0]
+        if isinstance(key, slice):
+            return self._get_data((key,))
+        raise TypeError(
+            f"{type(self).__name__} indices must be integers or slices, "
+            f"not {type(key).__name__}"
+        )
+
 
 def add_epochs(
     nwbfile: NWBFile,
