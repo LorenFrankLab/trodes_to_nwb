@@ -1,3 +1,5 @@
+from xml.etree import ElementTree
+
 import numpy as np
 import pytest
 
@@ -234,6 +236,91 @@ def test_get_analog_chunk(raw_io):
     assert isinstance(data_chunk, np.ndarray)
     assert data_chunk.dtype == np.int16
     assert data_chunk.shape == (n_samples_to_read, expected_num_channels)
+
+
+def _write_uint16(raw_memmap, row, start_byte, value):
+    raw_memmap[row, start_byte] = value & 0xFF
+    raw_memmap[row, start_byte + 1] = (value >> 8) & 0xFF
+
+
+def _make_synthetic_multiplex_io(raw_memmap):
+    io = object.__new__(SpikeGadgetsRawIO)
+    io.filename = "synthetic.rec"
+    io._raw_memmap = raw_memmap
+    io._multiplexed_byte_start = 0
+    io.multiplexed_channel_xml = {
+        "mux_a": ElementTree.Element(
+            "Channel",
+            id="mux_a",
+            startByte="0",
+            interleavedDataIDByte="4",
+            interleavedDataIDBit="0",
+        ),
+        "mux_b": ElementTree.Element(
+            "Channel",
+            id="mux_b",
+            startByte="2",
+            interleavedDataIDByte="4",
+            interleavedDataIDBit="1",
+        ),
+    }
+    return io
+
+
+def _make_synthetic_multiplex_raw_memmap():
+    raw_memmap = np.zeros((5, 5), dtype=np.uint8)
+    raw_memmap[:, 4] = [0b10, 0b01, 0b00, 0b10, 0b11]
+    for row in range(raw_memmap.shape[0]):
+        _write_uint16(raw_memmap, row, 0, 100 + row)
+        _write_uint16(raw_memmap, row, 2, 200 + row)
+    return raw_memmap
+
+
+def test_multiplexed_reader_initializes_held_values_to_zero():
+    raw_memmap = _make_synthetic_multiplex_raw_memmap()
+    io = _make_synthetic_multiplex_io(raw_memmap)
+
+    data = io.get_analogsignal_multiplexed()
+
+    np.testing.assert_array_equal(
+        data,
+        np.array(
+            [
+                [0, 200],
+                [101, 200],
+                [101, 200],
+                [101, 203],
+                [104, 204],
+            ],
+            dtype=np.int16,
+        ),
+    )
+
+
+def test_partial_multiplexed_reader_uses_previous_state_until_update():
+    raw_memmap = _make_synthetic_multiplex_raw_memmap()[:3]
+    partial_io = object.__new__(SpikeGadgetsRawIOPartial)
+    partial_io.filename = "synthetic_partial.rec"
+    partial_io._raw_memmap = raw_memmap
+    partial_io._multiplexed_byte_start = 0
+    partial_io.multiplexed_channel_xml = _make_synthetic_multiplex_io(
+        raw_memmap
+    ).multiplexed_channel_xml
+    partial_io.previous_multiplex_state = np.array([500, 600], dtype=np.int16)
+
+    data = partial_io.get_analogsignal_multiplexed()
+
+    np.testing.assert_array_equal(
+        data,
+        np.array(
+            [
+                [500, 200],
+                [101, 200],
+                [101, 200],
+            ],
+            dtype=np.int16,
+        ),
+    )
 
 
 def test_partial_multiplex_boundary_preserves_first_packet_update():
