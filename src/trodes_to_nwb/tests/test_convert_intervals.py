@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import pytest
 from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
@@ -100,9 +101,52 @@ def test_trodes_sample_count_iterator_is_subscriptable():
     )
     # full slice equals the concatenation
     np.testing.assert_array_equal(iterator[:], expected)
-    # integer access (including negative) returns the scalar value
+    # integer access (including negative, and numpy ints from np.digitize)
     assert iterator[0] == expected[0]
     assert iterator[-1] == expected[-1]
+    assert iterator[np.int64(0)] == expected[0]
+
+    # unsupported access fails loudly rather than returning a wrong answer:
+    # a non-unit step would silently yield a contiguous (wrong) array, an
+    # out-of-bounds int has no value, and a non-int/slice key is undefined.
+    with pytest.raises(ValueError):
+        iterator[0:20:2]
+    with pytest.raises(IndexError):
+        iterator[iterator.maxshape[0]]
+    with pytest.raises(TypeError):
+        iterator[[0, 1]]
+
+
+def test_trodes_sample_count_iterator_streams_in_chunks():
+    # Force a small buffer so the iterator yields many chunks: this exercises the
+    # actual streaming path (issue #47) and the cross-chunk reconstruction, which
+    # the default buffer (one chunk for the bundled data) would not.
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator(recfile, stream_id="trodes")
+    expected = np.concatenate(
+        [io.get_analogsignal_timestamps(0, None) for io in rec_dci.neo_io]
+    )
+
+    iterator = _TrodesSampleCountIterator(
+        rec_dci.neo_io, chunk_shape=(10_000,), buffer_shape=(10_000,)
+    )
+    chunks = list(iterator)
+    assert len(chunks) > 1  # genuinely streamed, not one resident array
+
+    materialized = np.empty(expected.shape, dtype=np.uint32)
+    for chunk in chunks:
+        materialized[chunk.selection] = chunk.data
+    np.testing.assert_array_equal(materialized, expected)
+
+
+def test_trodes_sample_count_iterator_rejects_empty():
+    # An empty session must fail loudly at construction with an actionable
+    # message rather than dying later with an opaque ZeroDivisionError from hdmf.
+    with pytest.raises(ValueError):
+        _TrodesSampleCountIterator([])
 
 
 def test_add_sample_count():

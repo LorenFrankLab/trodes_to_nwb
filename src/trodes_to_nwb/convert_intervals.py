@@ -25,14 +25,30 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
     memmaps, so the counts are never all resident at once (issue #47). The values
     and their order are identical to
     ``np.concatenate([io.get_analogsignal_timestamps(0, None) for io in neo_io])``.
+
+    Construct only from ``neo_io`` whose memmaps are already in their final
+    (post-interpolation) state -- e.g. the ``neo_io`` of a
+    ``RecFileDataChunkIterator`` after its timestamps have been built. Per-file
+    lengths are read once from ``io._raw_memmap.shape[0]``; if dropped-packet
+    interpolation is resolved *after* construction those lengths (and every
+    subsequent read) would silently misalign with the written timestamps.
     """
 
     def __init__(self, neo_io: list[SpikeGadgetsRawIO], **kwargs):
         self._neo_io = list(neo_io)
+        if not self._neo_io:
+            raise ValueError(
+                "_TrodesSampleCountIterator requires at least one rec file"
+            )
         lengths = [io._raw_memmap.shape[0] for io in self._neo_io]
         # global index of the first sample of each file (plus a final total)
         self._file_starts = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
         self._total = int(self._file_starts[-1])
+        if self._total == 0:
+            raise ValueError(
+                "_TrodesSampleCountIterator: all rec files are empty; "
+                "there is no sample-count data to write"
+            )
         super().__init__(**kwargs)
 
     def _get_data(self, selection: tuple) -> np.ndarray:
@@ -62,8 +78,11 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
         range (``convert_position._get_position_timestamps_no_ptp``). Delegating
         random access to ``_get_data`` keeps that path working while still
         materialising only the requested slice rather than the whole session
-        (issue #47); ``np.concatenate(...)[key]`` and ``iterator[key]`` return
-        the same values.
+        (issue #47). For integer keys and contiguous (step-1) slices -- the only
+        forms the non-PTP position path uses -- ``iterator[key]`` equals
+        ``np.concatenate(...)[key]``. A slice with a non-unit step is not
+        supported (``_get_data`` reads contiguously) and raises ``ValueError``
+        rather than silently returning a wrong-length array.
         """
         if isinstance(key, (int, np.integer)):
             idx = int(key) + (self._total if key < 0 else 0)
@@ -73,6 +92,11 @@ class _TrodesSampleCountIterator(GenericDataChunkIterator):
                 )
             return self._get_data((slice(idx, idx + 1),))[0]
         if isinstance(key, slice):
+            if key.step not in (None, 1):
+                raise ValueError(
+                    f"{type(self).__name__} supports only contiguous (step-1) "
+                    f"slices, got step={key.step}"
+                )
             return self._get_data((key,))
         raise TypeError(
             f"{type(self).__name__} indices must be integers or slices, "
