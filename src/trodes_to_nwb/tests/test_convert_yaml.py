@@ -98,6 +98,23 @@ def test_warn_on_inconsistent_num_shanks(caplog):
     messages = [r.getMessage() for r in caplog.records]
     assert any("num_shanks='four'" in m for m in messages), messages
 
+    # A non-integral count must warn even when it truncates to the shank count:
+    # 3.5 is not a valid whole-number num_shanks, so int()-truncation to 3 must
+    # not silence the mismatch.
+    caplog.clear()
+    probe_meta["num_shanks"] = 3.5
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("num_shanks=3.5" in m for m in messages), messages
+
+    # A whole-number value expressed as a float still matches (no spurious warn).
+    caplog.clear()
+    probe_meta["num_shanks"] = 3.0
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        convert_yaml.warn_on_inconsistent_num_shanks(probe_meta)
+    assert not caplog.records
+
 
 def test_subject_creation():
     metadata_path = data_path / "20230622_sample_metadata.yml"

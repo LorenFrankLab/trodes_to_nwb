@@ -196,11 +196,15 @@ def warn_on_inconsistent_num_shanks(probe_meta: dict) -> None:
     defined = len(probe_meta.get("shanks", []))
     # Coerce for the comparison so a yaml-quoted count (num_shanks: "3") does not
     # warn spuriously, and format `declared` with %r so a non-numeric value is
-    # reported safely rather than blowing up the %d formatting.
+    # reported safely rather than blowing up the %d formatting. A non-integral
+    # value (e.g. 3.5) leaves declared_count as None so it never matches `defined`
+    # and is surfaced as a mismatch, rather than being silently truncated by int().
     try:
-        declared_count = int(declared)
+        declared_float = float(declared)
     except (TypeError, ValueError):
         declared_count = None
+    else:
+        declared_count = int(declared_float) if declared_float.is_integer() else None
     if declared_count != defined:
         logging.getLogger("convert").warning(
             "Probe '%s': metadata declares num_shanks=%r but defines %d shank(s). "
