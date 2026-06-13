@@ -25,6 +25,7 @@ def _reference_metadata() -> dict:
         "cameras": [{"id": 0}, {"id": 1}],
         "tasks": [{"task_name": "run", "camera_id": [0, 1]}],
         "associated_video_files": [{"name": "v.h264", "camera_id": 0}],
+        "fs_gui_yamls": [{"name": "opto.yaml", "camera_id": 1}],
     }
 
 
@@ -49,6 +50,16 @@ def test_validate_metadata_references_bad_camera_id():
     errors = validate_metadata_references(metadata)
     assert any("camera_id 7" in e for e in errors)
     assert any("camera_id 8" in e for e in errors)
+
+
+def test_validate_metadata_references_bad_fs_gui_camera_id():
+    # fs_gui_yamls camera_id is resolved as a camera device in
+    # add_optogenetic_epochs; a dangling id otherwise fails only late in
+    # conversion (#147). The schema requires it but cannot check the reference.
+    metadata = _reference_metadata()
+    metadata["fs_gui_yamls"][0]["camera_id"] = 9  # no such camera
+    errors = validate_metadata_references(metadata)
+    assert any("fs_gui_yamls" in e and "camera_id 9" in e for e in errors)
 
 
 def test_validate_metadata_references_duplicate_ids():

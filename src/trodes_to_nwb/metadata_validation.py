@@ -127,8 +127,8 @@ def validate_metadata_references(metadata: dict) -> list[str]:
       crashes ``add_electrode_groups`` with a ``NoneType`` error), and every
       ntrode map entry references an electrode group that exists;
     - ``ntrode_id`` values are unique;
-    - camera ids are unique, and every ``camera_id`` referenced by ``tasks`` or
-      ``associated_video_files`` is defined in ``cameras``.
+    - camera ids are unique, and every ``camera_id`` referenced by ``tasks``,
+      ``associated_video_files``, or ``fs_gui_yamls`` is defined in ``cameras``.
 
     Intended to run *after* JSON-schema validation (see ``load_metadata``),
     which already guarantees ``metadata`` is a dict with correctly-typed fields.
@@ -207,6 +207,16 @@ def validate_metadata_references(metadata: dict) -> list[str]:
         if camera_id is not None and camera_id not in camera_id_set:
             errors.append(
                 f"associated_video_files entry '{video.get('name')}' references "
+                f"camera_id {camera_id} not defined in cameras."
+            )
+    for fs_gui in _dict_items(metadata.get("fs_gui_yamls")):
+        # fs_gui camera_id is resolved as a "camera_device {camera_id}" device in
+        # add_optogenetic_epochs; a dangling id otherwise raises only there, late
+        # in conversion. (Scalar integer per schema, like associated_video_files.)
+        camera_id = fs_gui.get("camera_id")
+        if camera_id is not None and camera_id not in camera_id_set:
+            errors.append(
+                f"fs_gui_yamls entry '{fs_gui.get('name')}' references "
                 f"camera_id {camera_id} not defined in cameras."
             )
 
