@@ -21,3 +21,28 @@ def test_verify_validation_called(jsonValidator, getSchema):
     validate(basic_test_data)
     assert getSchema.call_count == 1
     assert jsonValidator.call_count == 1
+
+
+def test_validate_does_not_raise_when_subject_missing():
+    # Metadata with no ``subject`` key must be reported through the normal
+    # (is_valid, errors) channel, not crash validate() with a KeyError from the
+    # date_of_birth pre-processing. With strict=True conversion now raising on
+    # invalid metadata, a KeyError here would bypass the schema report entirely.
+    data = copy.deepcopy(test_metadata_dict_samples.basic_data)
+    del data["subject"]
+    is_valid, errors = validate(data)
+    # subject is not in the schema's required list, so the rest being valid
+    # leaves the metadata valid -- the point is that validate() does not raise.
+    assert is_valid is True
+    assert errors == []
+
+
+def test_validate_does_not_raise_when_date_of_birth_missing():
+    # A subject dict without date_of_birth must not crash the date_of_birth
+    # pre-processing; date_of_birth is required by the subject sub-schema, so it
+    # is reported as a normal validation error instead.
+    data = copy.deepcopy(test_metadata_dict_samples.basic_data)
+    data["subject"].pop("date_of_birth")
+    is_valid, errors = validate(data)
+    assert is_valid is False
+    assert any("date_of_birth" in error for error in errors)
