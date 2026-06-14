@@ -479,11 +479,18 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger, strict: bool = True
         f"NWB Inspector report saved to {str(Path(report_file_path).absolute())}!"
     )
 
+    # PYNWB_VALIDATION was added in newer nwbinspector; include it if present so
+    # the console summary below and the DANDI-blocking gate further down agree on
+    # what counts as a blocking issue.
+    pynwb_validation = getattr(nwbinspector.Importance, "PYNWB_VALIDATION", None)
+
     flagged_error_levels = [
         nwbinspector.Importance.ERROR,
         nwbinspector.Importance.BEST_PRACTICE_VIOLATION,
         nwbinspector.Importance.CRITICAL,
     ]
+    if pynwb_validation is not None:
+        flagged_error_levels.append(pynwb_validation)
     critical_errors = list(
         filter(lambda x: x.importance in flagged_error_levels, messages)
     )
@@ -532,8 +539,6 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger, strict: bool = True
         nwbinspector.Importance.ERROR,
         nwbinspector.Importance.CRITICAL,
     ]
-    # PYNWB_VALIDATION was added in newer nwbinspector; include it if present.
-    pynwb_validation = getattr(nwbinspector.Importance, "PYNWB_VALIDATION", None)
     if pynwb_validation is not None:
         gating_levels.append(pynwb_validation)
     gating_messages = [m for m in messages if m.importance in gating_levels]
