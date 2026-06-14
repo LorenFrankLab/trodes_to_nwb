@@ -6,6 +6,7 @@ and final NWB file writing and validation.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 
 import nwbinspector
@@ -229,9 +230,17 @@ def create_nwbs(
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
     overwrite : bool, optional
-        If False (default), refuse to overwrite an existing output ``.nwb`` file
-        and raise ``FileExistsError`` (checked up front, before conversion). If
-        True, replace any existing output file.
+        If False (default), an existing output ``.nwb`` file is not silently
+        overwritten: the conflicting session raises ``FileExistsError`` before
+        any of its conversion work runs. If True, replace any existing output
+        file.
+
+    Raises
+    ------
+    PermissionError
+        If ``output_dir`` exists but is not writable. This is checked once up
+        front (before any conversion) with a create/delete probe, because
+        ``mkdir(exist_ok=True)`` succeeds on an existing read-only directory.
 
     """
 
@@ -247,11 +256,18 @@ def create_nwbs(
     if query_expression is not None:
         file_info = file_info.query(query_expression)
 
-    # Create/validate the output directory up front so a missing or non-writable
-    # path fails immediately instead of after a full (possibly hours-long)
-    # conversion.
+    # Create the output directory up front and confirm it is writable, so a
+    # missing or non-writable path fails immediately instead of after a full
+    # (possibly hours-long) conversion. mkdir(exist_ok=True) alone is not
+    # enough: it succeeds on an existing read-only directory, so probe with a
+    # real create/delete.
     output_dir = str(output_dir)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.NamedTemporaryFile(dir=output_dir, prefix=".write_probe_"):
+            pass
+    except OSError as e:
+        raise PermissionError(f"Output directory is not writable: {output_dir}") from e
 
     if n_workers > 1:
 
