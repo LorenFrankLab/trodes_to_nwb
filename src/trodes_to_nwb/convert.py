@@ -230,10 +230,10 @@ def create_nwbs(
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
     overwrite : bool, optional
-        If False (default), an existing output ``.nwb`` file is not silently
-        overwritten: the conflicting session raises ``FileExistsError`` before
-        any of its conversion work runs. If True, replace any existing output
-        file.
+        If False (default), an existing output ``.nwb`` file is not
+        overwritten: ``create_nwbs`` raises ``FileExistsError`` (checked before
+        that session's conversion work runs, in both serial and parallel
+        modes). If True, replace any existing output file.
 
     Raises
     ------
@@ -241,6 +241,10 @@ def create_nwbs(
         If ``output_dir`` exists but is not writable. This is checked once up
         front (before any conversion) with a create/delete probe, because
         ``mkdir(exist_ok=True)`` succeeds on an existing read-only directory.
+    FileExistsError
+        If an output ``.nwb`` file already exists and ``overwrite`` is False.
+        In parallel mode (``n_workers > 1``) the other sessions still run; the
+        first failure is re-raised after they finish.
 
     """
 
@@ -297,11 +301,19 @@ def create_nwbs(
         # run conversion for each animal and date
         argument_list = list(file_info.groupby(["date", "animal"]))
         futures = client.map(pass_func, argument_list)
-        # print out error results
+        # collect per-session results; a session that errored (e.g. refused an
+        # existing output) returns its exception instead of True
+        failures = []
         for args, future in zip(argument_list, futures, strict=True):
             result = future.result()
             if result is not True:
                 print(args, result)
+                failures.append(result)
+        # do not report success when a session failed: re-raise so the caller
+        # (and CI) sees the failure, matching the serial path which propagates
+        # it. Aggregated reporting across all failed sessions is added in #141.
+        if failures:
+            raise failures[0]
 
     else:
         for session, session_df in file_info.groupby(["date", "animal"]):
