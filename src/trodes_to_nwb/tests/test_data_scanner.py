@@ -1,9 +1,10 @@
 """Filename-parsing robustness tests for ``data_scanner`` (#170, #179).
 
-A stray/misnamed file used to crash the scan of the whole directory, and animal
-names containing ``_`` were silently dropped. Per @samuelbray32's review, a file
-that *looks like* a botched session recording (a session-data extension and a
-leading YYYYMMDD date) now aborts the scan loudly rather than being silently
+A stray/misnamed file used to crash the scan of the whole directory. Per
+@samuelbray32's review, parsing is now a strict token split: animal names may
+not contain ``_`` (verified against the lab's real metadata filenames), and a
+file that *looks like* a botched session recording (a session-data extension and
+a leading YYYYMMDD date) aborts the scan loudly rather than being silently
 skipped, while genuine non-session files (auxiliary configs, un-dated fixtures)
 are ignored with a warning. These tests pin those behaviours. The scanner only
 reads file *names*, so empty placeholder files are sufficient.
@@ -20,7 +21,7 @@ NONE_RESULT = (None, None, None, None, None, None, None)
 
 
 def _touch(directory: Path, name: str) -> None:
-    (directory / name).write_text("")
+    (directory / name).touch()
 
 
 def test_one_misnamed_file_does_not_crash_the_scan(tmp_path):
@@ -39,17 +40,15 @@ def test_one_misnamed_file_does_not_crash_the_scan(tmp_path):
     }
 
 
-def test_animal_name_with_underscore_is_not_dropped(tmp_path):
-    _touch(tmp_path, "20230622_my_rat_01_r1.rec")
-    _touch(tmp_path, "20230622_my_rat_metadata.yml")
-
-    df = get_file_info(tmp_path)
-
-    assert (df.animal == "my_rat").all()
-    assert set(df.file_extension) == {".rec", ".yml"}
-    rec = df[df.file_extension == ".rec"].iloc[0]
-    assert rec.epoch == 1
-    assert rec.tag == "r1"
+def test_underscore_animal_name_in_rec_raises(tmp_path):
+    # Animal names may not contain "_" (strict four-token parse). A .rec whose
+    # name has an extra underscore looks like a session recording but does not
+    # parse, so it aborts loudly rather than being silently dropped (#179 review).
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    _touch(tmp_path, "20230622_my_rat_01_r1.rec")  # underscore in animal name
+    with pytest.raises(ValueError, match="naming convention"):
+        get_file_info(tmp_path)
 
 
 def test_video_camera_suffix_parses(tmp_path):
@@ -69,7 +68,7 @@ def test_video_camera_suffix_parses(tmp_path):
 )
 def test_unparseable_names_return_none(bad_name, tmp_path):
     p = tmp_path / bad_name
-    p.write_text("")
+    p.touch()
     assert _process_path(p) == NONE_RESULT
 
 
@@ -81,11 +80,12 @@ def test_unparseable_names_return_none(bad_name, tmp_path):
     ],
 )
 def test_too_few_tokens_are_skipped(bad_name, tmp_path):
-    # Without the length guards these would parse to an *empty* animal name with
-    # no exception raised (all remaining tokens are integers), silently producing
-    # a bogus row. The guards must reject them.
+    # The strict unpack rejects the wrong token count: "20230622_metadata.yml"
+    # has two tokens (the .yml form needs three) and "20230622_01_a1.rec" has
+    # three (a data file needs four), so both return all-None instead of
+    # producing a bogus row.
     p = tmp_path / bad_name
-    p.write_text("")
+    p.touch()
     assert _process_path(p) == NONE_RESULT
 
 

@@ -78,44 +78,41 @@ def _process_path(
 
     Returns
     -------
-    tuple
-        ``(date, animal_name, epoch, tag, tag_index, extension, full_path)`` --
-        ``date``/``epoch``/``tag_index`` are ``int``, ``tag``/``extension``/
-        ``full_path`` are ``str``. All seven are ``None`` if the name does not
-        match the convention.
+    date : int or None
+    animal_name : str or None
+    epoch : int or None
+    tag : str or None
+    tag_index : int or None
+    extension : str or None
+    full_path : str or None
+        All seven are ``None`` if the filename does not match the convention.
 
     """
     none_result = (None, None, None, None, None, None, None)
     parts = path.stem.split("_")
     try:
         if path.suffix == ".yml":
-            # {date}_{animal}_metadata.yml -- the animal name may itself contain
-            # underscores, so take the first token as the date and everything
-            # between it and the trailing "metadata" token as the animal.
-            if len(parts) < 3:
-                return none_result
-            date = int(parts[0])
-            animal_name = "_".join(parts[1:-1])
+            # {date}_{animal}_metadata.yml -- exactly three underscore-separated
+            # tokens (animal names may not contain "_").
+            date, animal_name, _ = parts
+            date = int(date)
             epoch = 1
             tag = "NA"
             tag_index = 1
         else:
-            # {date}_{animal}_{epoch}_{tag}.{ext} -- the animal name may contain
-            # underscores (so use the last two tokens for epoch/tag), and the tag
-            # may carry a trailing ".{cameraN}" suffix.
-            if len(parts) < 4:
-                return none_result
-            date = int(parts[0])
-            animal_name = "_".join(parts[1:-2])
-            epoch = int(parts[-2])
-            tag = parts[-1].split(".")
+            # {date}_{animal}_{epoch}_{tag}.{ext} -- exactly four tokens (animal
+            # names may not contain "_"); the tag may carry a ".{cameraN}" suffix.
+            date, animal_name, epoch, tag = parts
+            date = int(date)
+            epoch = int(epoch)
+            tag = tag.split(".")
             tag_index = int(tag[1]) if len(tag) > 1 else 1
             tag = tag[0]
-    except (ValueError, IndexError):
-        # A non-integer date/epoch/tag_index (or otherwise unparseable name).
-        # Return all-None; get_file_info decides whether that is a botched
-        # session file (raise) or an auxiliary file to skip (see #170 and the
-        # convention check in get_file_info).
+    except ValueError:
+        # Wrong token count (the strict unpack) or a non-integer
+        # date/epoch/tag_index. Return all-None; get_file_info decides whether
+        # that is a botched session file (raise) or an auxiliary file to skip
+        # (see #170 and the convention check in get_file_info).
         return none_result
 
     return (
