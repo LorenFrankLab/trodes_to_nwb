@@ -52,14 +52,16 @@ def test_underscore_animal_name_in_rec_raises(tmp_path):
 
 
 def test_video_camera_suffix_parses(tmp_path):
-    _touch(tmp_path, "20230622_sample_01_s1.1.h264")
+    # Use camera 2 (not 1): tag_index for camera 1 is indistinguishable from the
+    # default, so a ".2" suffix is what proves the index is actually extracted.
+    _touch(tmp_path, "20230622_sample_01_s1.2.h264")
 
     df = get_file_info(tmp_path)
 
     row = df.iloc[0]
     assert row.epoch == 1
     assert row.tag == "s1"
-    assert row.tag_index == 1
+    assert row.tag_index == 2
 
 
 @pytest.mark.parametrize(
@@ -75,15 +77,15 @@ def test_unparseable_names_return_none(bad_name, tmp_path):
 @pytest.mark.parametrize(
     "bad_name",
     [
-        "20230622_metadata.yml",  # .yml with too few tokens (no animal)
-        "20230622_01_a1.rec",  # data file with too few tokens (no animal/epoch/tag)
+        "20230622_metadata.yml",  # .yml: 2 tokens, needs 3 (too few)
+        "20230622_01_a1.rec",  # data: 3 tokens, needs 4 (too few)
+        "20230622_my_rat_metadata.yml",  # .yml: 4 tokens, needs 3 (too many)
+        "20230622_my_rat_01_r1.rec",  # data: 5 tokens, needs 4 (too many)
     ],
 )
-def test_too_few_tokens_are_skipped(bad_name, tmp_path):
-    # The strict unpack rejects the wrong token count: "20230622_metadata.yml"
-    # has two tokens (the .yml form needs three) and "20230622_01_a1.rec" has
-    # three (a data file needs four), so both return all-None instead of
-    # producing a bogus row.
+def test_wrong_token_count_returns_none(bad_name, tmp_path):
+    # The strict unpack rejects any wrong token count -- too few or too many --
+    # so the file returns all-None instead of producing a bogus row.
     p = tmp_path / bad_name
     p.touch()
     assert _process_path(p) == NONE_RESULT
@@ -114,7 +116,7 @@ def test_non_dated_strict_file_is_skipped_not_raised(tmp_path, caplog):
     assert any("ignored" in r.message.lower() for r in caplog.records)
 
 
-def test_auxiliary_and_botched_yaml_are_skipped_not_raised(tmp_path):
+def test_auxiliary_and_botched_yaml_are_skipped_not_raised(tmp_path, caplog):
     # yaml is a lenient extension (shared with probe/device configs), so a
     # non-conforming yml -- even a date-prefixed, botched *metadata* file -- is
     # skipped, not raised. A missing metadata file is caught later by the
@@ -124,7 +126,87 @@ def test_auxiliary_and_botched_yaml_are_skipped_not_raised(tmp_path):
     _touch(tmp_path, "tetrode_12.5.yml")  # probe config, not a session file
     _touch(tmp_path, "20230622_metadata.yml")  # date-prefixed but lenient ext
 
-    df = get_file_info(tmp_path)  # must not raise
+    with caplog.at_level(logging.WARNING, logger="convert"):
+        df = get_file_info(tmp_path)  # must not raise
 
     names = {Path(p).name for p in df.full_path}
     assert names == {"20230622_sample_01_a1.rec", "20230622_sample_metadata.yml"}
+    # The skipped yamls are reported in the warning, not dropped silently.
+    warnings = " ".join(r.message for r in caplog.records)
+    assert "tetrode_12.5.yml" in warnings
+    assert "20230622_metadata.yml" in warnings
+
+
+def test_empty_animal_name_is_rejected(tmp_path):
+    # A double underscore ("20230622__01_a1") yields the right token count with
+    # an empty animal, so the strict unpack succeeds -- but it is not a real
+    # session and must not become a phantom (date, "") row downstream.
+    assert _process_path(Path("/x/20230622__01_a1.rec")) == NONE_RESULT
+    assert _process_path(Path("/x/20230622__metadata.yml")) == NONE_RESULT
+
+    # The lenient .yml form is skipped (no empty-animal row), not raised.
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    _touch(tmp_path, "20230622__metadata.yml")  # empty animal, lenient ext
+    df = get_file_info(tmp_path)
+    assert "" not in set(df.animal)
+
+    # The session-extension form aborts loudly instead of being silently dropped.
+    _touch(tmp_path, "20230622__01_a1.rec")
+    with pytest.raises(ValueError, match="naming convention"):
+        get_file_info(tmp_path)
+
+
+def test_all_botched_session_files_are_listed_in_the_error(tmp_path):
+    # The abort collects *every* offending session file (count + sorted listing),
+    # not just the first one it hits.
+    _touch(tmp_path, "20230622_sample_01_a1.rec")  # valid
+    _touch(tmp_path, "20260610sample_03_r2.rec")  # missing separator after date
+    _touch(tmp_path, "20230622_my_rat_01_r1.rec")  # underscore in animal name
+    with pytest.raises(ValueError) as exc:
+        get_file_info(tmp_path)
+    message = str(exc.value)
+    assert "2 file(s)" in message
+    assert "20260610sample_03_r2.rec" in message
+    assert "20230622_my_rat_01_r1.rec" in message
+
+
+def test_seven_digit_prefix_botched_file_is_skipped_not_raised(tmp_path):
+    # The raise path requires an 8-digit date prefix; the same botched file with
+    # only 7 leading digits is not session-like, so it is skipped, not raised --
+    # bracketing the _looks_like_session_filename boundary against
+    # test_date_prefixed_botched_session_file_raises (which uses 8 digits).
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    _touch(tmp_path, "2026061sample_03_r2.rec")  # 7-digit prefix
+    df = get_file_info(tmp_path)  # must not raise
+    names = {Path(p).name for p in df.full_path}
+    assert "2026061sample_03_r2.rec" not in names
+
+
+def test_output_columns_are_integer_typed(tmp_path):
+    # Regression guard for #170: an unparseable token must never reach the final
+    # .astype({"date": int, ...}); a clean scan yields integer-typed columns.
+    _touch(tmp_path, "20230622_sample_01_a1.rec")
+    _touch(tmp_path, "20230622_sample_metadata.yml")
+    df = get_file_info(tmp_path)
+    assert df.date.dtype == int
+    assert df.epoch.dtype == int
+    assert df.tag_index.dtype == int
+
+
+def test_directory_with_only_skipped_files_returns_empty_frame(tmp_path):
+    # A directory with no parseable session files must not crash on the empty
+    # .astype; it returns an empty, correctly-columned frame.
+    _touch(tmp_path, "tetrode_12.5.yml")  # probe config only
+    df = get_file_info(tmp_path)
+    assert len(df) == 0
+    assert list(df.columns) == [
+        "date",
+        "animal",
+        "epoch",
+        "tag",
+        "tag_index",
+        "file_extension",
+        "full_path",
+    ]

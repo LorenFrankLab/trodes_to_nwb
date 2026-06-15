@@ -108,11 +108,18 @@ def _process_path(
             tag = tag.split(".")
             tag_index = int(tag[1]) if len(tag) > 1 else 1
             tag = tag[0]
+        if not animal_name.strip():
+            # An empty animal token (e.g. "20230622__01_a1") has the right arity
+            # and integer date/epoch, so the unpack succeeds -- but it is not a
+            # real session. Treat it as unparseable so get_file_info raises it
+            # (a session file) or skips it (auxiliary) rather than emitting a
+            # phantom (date, "") session downstream.
+            raise ValueError("empty animal name")
     except ValueError:
-        # Wrong token count (the strict unpack) or a non-integer
-        # date/epoch/tag_index. Return all-None; get_file_info decides whether
-        # that is a botched session file (raise) or an auxiliary file to skip
-        # (see #170 and the convention check in get_file_info).
+        # Wrong token count (the strict unpack), an empty animal name, or a
+        # non-integer date/epoch/tag_index. Return all-None; get_file_info
+        # decides whether that is a botched session file (raise) or an auxiliary
+        # file to skip (see #170 and the convention check in get_file_info).
         return none_result
 
     return (
@@ -182,8 +189,9 @@ def get_file_info(path: Path) -> pd.DataFrame:
         raise ValueError(
             f"{len(misnamed)} file(s) look like session recordings (a session-data "
             "extension and a leading YYYYMMDD date) but do not match the required "
-            "naming convention '{date}_{animal}_{epoch}_{tag}.{ext}' (epoch a "
-            "zero-padded integer). Converting would silently skip them and drop "
+            "naming convention '{date}_{animal}_{epoch}_{tag}.{ext}' (epoch an "
+            "integer, conventionally zero-padded). Converting would silently "
+            "skip them and drop "
             "that recording/video/position data. Rename them to the convention, "
             f"or move them out of the data directory:\n{listing}"
         )
