@@ -55,7 +55,7 @@ Developers should install from source.
 
 2. Create a metadata yaml file for each recording session. We **HIGHLY** recommend using the [NWB YAML Creator](https://lorenfranklab.github.io/rec_to_nwb_yaml_creator/) to create the metadata yaml file to ensure compatability and correct format. You can also see this [example metadata yaml file](src/trodes_to_nwb/tests/test_data/20230622_sample_metadata.yml).
 
-    The metadata yaml file should be named `{date}_{animal}.metadata.yml` where date is in the `YYYYMMDD` format and placed in the same directory as the `.rec` files.
+    The metadata yaml file should be named `{date}_{animal}_metadata.yml` where date is in the `YYYYMMDD` format and placed in the same directory as the `.rec` files.
 
     Here is an example valid directory structure:
 
@@ -86,10 +86,10 @@ Developers should install from source.
     output_dir = "/path/to/your/output/directory"
 
     create_nwbs(
-        path,
-        output_dir,
+        path=path,
+        output_dir=output_dir,
         header_reconfig_path=None,
-        probe_metadata_paths=None,
+        device_metadata_paths=None,
         convert_video=False,
         n_workers=1,
         query_expression=None,
@@ -104,7 +104,7 @@ Developers should install from source.
 
     Note the following optional arguments:
     + `header_reconfig_path`: If you want to change the header information, you can provide a path to a yaml file with the new header information. See this [example header reconfig yaml file](src/trodes_to_nwb/tests/test_data/reconfig_probeDevice.trodesconf). For example, this can be important for data recorded from non-tetrode devices.
-    + `probe_metadata_paths`: By default, several common probe device types configurations are included in the package. If you are using a probe that is not included, you can provide a path to a yaml file with the probe metadata. See this [example probe metadata yaml file](src/trodes_to_nwb/probe_metadata/128c-4s6mm6cm-15um-26um-sl.yml) for an example.
+    + `device_metadata_paths`: By default, several common probe device types configurations are included in the package. If you are using a probe that is not included, you can provide a path to a yaml file with the probe metadata. See this [example probe metadata yaml file](src/trodes_to_nwb/device_metadata/probe_metadata/128c-4s6mm6cm-15um-26um-sl.yml) for an example.
     + `convert_video`: Converts the .h264 video file to .mp4. This requires `ffmpeg` to be installed on your system.
     + `n_workers`: Number of workers to use for parallel processing. Defaults to 1.
     + `query_expression`: A query expression to select which files to convert. For example, if you have several animals in your folder, you could write `"animal == 'sample'"` to select only the sample animal. Defaults to `None` which converts all files in the directory.
