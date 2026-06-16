@@ -81,7 +81,7 @@ def _process_path(
     Parameters
     ----------
     path : Path
-        Filename to process
+        File path to process.
 
     Returns
     -------
@@ -92,7 +92,11 @@ def _process_path(
     tag_index : int or None
     extension : str or None
     full_path : str or None
-        All seven are ``None`` if the filename does not match the convention.
+
+    Notes
+    -----
+    The seven values are returned together: either all are populated, or all are
+    ``None`` when the filename does not match the naming convention.
 
     """
     parts = path.stem.split("_")
@@ -140,17 +144,17 @@ def _process_path(
 
 
 def get_file_info(path: Path) -> pd.DataFrame:
-    """Get information about the files in a directory for grouping
+    """Get information about the files in a directory for grouping.
 
     Parameters
     ----------
     path : Path
-        Path to folder containing files
+        Path to the folder containing files.
 
     Returns
     -------
     file_info : pd.DataFrame
-        DataFrame containing information about the files in the folder
+        DataFrame containing information about the files in the folder.
 
     Raises
     ------
