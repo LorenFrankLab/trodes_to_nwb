@@ -20,15 +20,13 @@ VALID_FILE_EXTENSIONS = [
     "trackgeometry",  # used if using Trodes linearization
 ]
 
-# Extensions whose files are produced only as per-session/per-epoch recordings
-# and therefore must follow the naming convention. A file with one of these
-# extensions whose name *looks like* a session file (leading YYYYMMDD date) but
-# does not parse is a botched session file that would silently drop an epoch's
-# data, so the scan aborts loudly (see #170 and @samuelbray32's review of #179).
-# The remaining valid extensions (yml, trackgeometry) are shared with
-# auxiliary/config files -- probe & device metadata yamls, fsgui track geometry
-# -- that legitimately do not follow the convention, so unparseable files there
-# are skipped with a warning instead of aborting.
+# The convention every session file follows, in one place so the parser and the
+# user-facing error message describe the same thing.
+SESSION_FILENAME_CONVENTION = "{date}_{animal}_{epoch}_{tag}.{ext}"
+
+# Extensions produced only as per-session/per-epoch recordings: an unparseable
+# file with one of these and a leading YYYYMMDD date is a botched session file
+# that would silently drop an epoch's data, so the scan aborts loudly.
 SESSION_DATA_EXTENSIONS = {
     "rec",
     "videoPositionTracking",
@@ -39,17 +37,26 @@ SESSION_DATA_EXTENSIONS = {
     "videoTimeStamps",
 }
 
+# The remaining valid extensions are shared with auxiliary/config files (probe &
+# device metadata yamls, fsgui track geometry) that legitimately do not follow
+# the convention, so unparseable files there are skipped with a warning. The
+# assert keeps the split exhaustive: adding an extension to VALID_FILE_EXTENSIONS
+# without classifying it here fails at import rather than silently downgrading a
+# botched session file from "abort" to "skip".
+AUXILIARY_FILE_EXTENSIONS = {"yml", "trackgeometry"}
+assert set(VALID_FILE_EXTENSIONS) == SESSION_DATA_EXTENSIONS | AUXILIARY_FILE_EXTENSIONS
+
 DATE_PREFIX_LENGTH = 8  # session names start with a YYYYMMDD date
 
 
 def _looks_like_session_filename(stem: str) -> bool:
-    """Whether a filename stem looks like an attempted session file.
+    """Return whether a filename stem looks like an attempted session file.
 
     Session files are named ``{date}_{animal}_{epoch}_{tag}`` with ``date`` an
-    8-digit ``YYYYMMDD``. We only require the leading 8 digits (not the trailing
-    underscore) so a missing separator -- e.g. ``20260610sample_03_r2`` -- still
-    counts as an attempted session file and is flagged rather than silently
-    dropped.
+    8-digit ``YYYYMMDD``. Only the leading 8 digits are required (not the
+    trailing underscore), so a missing separator -- e.g.
+    ``20260610sample_03_r2`` -- still counts as an attempted session file and is
+    flagged rather than silently dropped.
 
     Parameters
     ----------
@@ -88,7 +95,6 @@ def _process_path(
         All seven are ``None`` if the filename does not match the convention.
 
     """
-    none_result = (None, None, None, None, None, None, None)
     parts = path.stem.split("_")
     try:
         if path.suffix == ".yml":
@@ -119,8 +125,8 @@ def _process_path(
         # Wrong token count (the strict unpack), an empty animal name, or a
         # non-integer date/epoch/tag_index. Return all-None; get_file_info
         # decides whether that is a botched session file (raise) or an auxiliary
-        # file to skip (see #170 and the convention check in get_file_info).
-        return none_result
+        # file to skip.
+        return (None, None, None, None, None, None, None)
 
     return (
         date,
@@ -166,7 +172,10 @@ def get_file_info(path: Path) -> pd.DataFrame:
         "full_path",
     ]
 
-    paths = [p for ext in VALID_FILE_EXTENSIONS for p in path.glob(f"**/*.{ext}")]
+    # Walk the tree once and keep files whose final extension is recognised,
+    # rather than globbing the whole tree once per extension.
+    valid_extensions = set(VALID_FILE_EXTENSIONS)
+    paths = [p for p in path.rglob("*") if p.suffix[1:] in valid_extensions]
 
     parsed = []
     misnamed = []  # botched session files -> abort (would silently drop data)
@@ -189,11 +198,10 @@ def get_file_info(path: Path) -> pd.DataFrame:
         raise ValueError(
             f"{len(misnamed)} file(s) look like session recordings (a session-data "
             "extension and a leading YYYYMMDD date) but do not match the required "
-            "naming convention '{date}_{animal}_{epoch}_{tag}.{ext}' (epoch an "
-            "integer, conventionally zero-padded). Converting would silently "
-            "skip them and drop "
-            "that recording/video/position data. Rename them to the convention, "
-            f"or move them out of the data directory:\n{listing}"
+            f"naming convention '{SESSION_FILENAME_CONVENTION}' (epoch an integer, "
+            "conventionally zero-padded). Converting would silently skip them and "
+            "drop that recording/video/position data. Rename them to the "
+            f"convention, or move them out of the data directory:\n{listing}"
         )
 
     if skipped:
@@ -206,6 +214,5 @@ def get_file_info(path: Path) -> pd.DataFrame:
     return (
         pd.DataFrame(parsed, columns=COLUMN_NAMES)
         .sort_values(by=["date", "animal", "epoch", "tag_index"])
-        .dropna(how="all")
         .astype({"date": int, "epoch": int, "tag_index": int})
     )
