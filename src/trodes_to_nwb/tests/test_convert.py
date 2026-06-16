@@ -253,10 +253,11 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
             rtol=0,
             atol=1.0 / 30000,
         )
-        assert (current_dio.unit == old_dio.unit) or (
-            (current_dio.unit == "-1") and (old_dio.unit == "'unspecified'")
-        )  # old rec_to_nwb conversions have a different default for unspecified units
-        assert current_dio.description == old_dio.description
+        # unit is now "N/A" and the description records the header channel id +
+        # input flag (#116, #117), so neither still matches the old rec_to_nwb
+        # reference; the data/timestamp equivalence above is the real check.
+        assert current_dio.unit == "N/A"
+        assert ", input=" in current_dio.description
 
     # Compare position data
     for series in nwbfile.processing["behavior"]["position"].spatial_series:

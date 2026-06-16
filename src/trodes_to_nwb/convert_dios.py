@@ -2,14 +2,48 @@
 from Trodes .rec files into NWB TimeSeries within a BehavioralEvents container.
 """
 
+import logging
+
 import numpy as np
 from pynwb import NWBFile, TimeSeries
 from pynwb.behavior import BehavioralEvents
 
+from .convert_rec_header import read_header
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 
-def _get_channel_name_map(metadata: dict) -> dict[str, str]:
+def _get_digital_channel_input_map(recfile: str) -> dict[str, str | None]:
+    """Map each digital channel's header id to its ``input`` flag.
+
+    Reads the ``.rec`` header and returns ``{channel_id: input}`` for every
+    digital ``<Channel>``, where ``input`` is ``"1"`` for a digital input and
+    ``"0"`` for a digital output. Used to record the specific hardware channel
+    and its direction in each DIO TimeSeries description (issues #116, #117).
+
+    Parameters
+    ----------
+    recfile : str
+        Path to a ``.rec`` file whose header is read.
+
+    Returns
+    -------
+    dict[str, str | None]
+        ``{header channel id -> input flag}`` (e.g. ``{"ECU_Din1": "1"}``); the
+        flag is ``None`` for the rare channel with no ``input`` attribute.
+    """
+    hardware_config = read_header(recfile).find("HardwareConfiguration")
+    channel_input_map = {}
+    if hardware_config is not None:
+        for device in hardware_config:
+            for channel in device:
+                if channel.attrib.get("dataType") == "digital":
+                    channel_input_map[channel.attrib["id"]] = channel.attrib.get(
+                        "input"
+                    )
+    return channel_input_map
+
+
+def _get_channel_name_map(metadata: dict) -> dict[str, dict]:
     """Parses behavioral events metadata from the yaml file.
 
     Parameters
@@ -68,6 +102,10 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
     # to a human-readable name (encoded in `name`)
     channel_name_map = _get_channel_name_map(metadata)
 
+    # Map each digital channel's header id to its input flag, for the per-channel
+    # description (#116 traceability + #117 direction).
+    channel_input_map = _get_digital_channel_input_map(recfile[0])
+
     # Loop through the channels from the metadata YAML and add a TimeSeries for each one
     stream_name = "ECU_digital"
     # Address issue where some Trodes verions have ECU_ prefix and some don't
@@ -94,12 +132,31 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
         state_changes = np.concatenate(state_changes)
         assert isinstance(timestamps[0], np.float64)
         assert isinstance(timestamps, np.ndarray)
+        # Describe the channel by its specific hardware id (#116) and its
+        # direction from the header `input` flag -- 1 = digital input, 0 = digital
+        # output -- giving both the verbatim attribute and a human gloss (#117).
+        full_channel_id = prefix + channel_name
+        input_flag = channel_input_map.get(full_channel_id)
+        if input_flag is None:
+            # The channel resolved for data extraction (get_digitalsignal above
+            # would have raised otherwise) but the header carries no `input`
+            # attribute, so we can't state the direction -- keep the id and warn
+            # rather than silently omitting it.
+            logging.getLogger("convert").warning(
+                "DIO channel %s has no 'input' flag in the header; recording the "
+                "channel id without a direction.",
+                full_channel_id,
+            )
+            description = full_channel_id
+        else:
+            direction = "input" if input_flag == "1" else "output"
+            description = f"{full_channel_id}, input={input_flag} (digital {direction})"
         ts = TimeSeries(
             name=channel_name_map[channel_name]["name"],
             comments=channel_name_map[channel_name]["comments"],
-            description=channel_name,
+            description=description,
             data=state_changes,
-            unit="-1",  # TODO change to "N/A",
+            unit="N/A",
             timestamps=timestamps,  # TODO adjust timestamps
         )
         beh_events.add_timeseries(ts)
