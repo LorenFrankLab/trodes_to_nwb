@@ -3,7 +3,9 @@ information embedded within Trodes .rec files. Extracts hardware configuration,
 electrode mappings, and other essential metadata.
 """
 
+import copy
 import logging
+from collections import Counter
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -47,6 +49,270 @@ def read_header(recfile: Path | str) -> ElementTree.Element:
         header_txt = f.read(header_size).decode("utf8")
 
     return ElementTree.fromstring(header_txt)
+
+
+def group_ntrodes_uniformly(n_source: int, per_group: int) -> list[list[int]]:
+    """Build uniform reconfig merge-groups of consecutive source ntrode ids.
+
+    Convenience for the common case of a probe whose shanks each have the same
+    number of source ntrodes -- e.g. a 128-channel, 4-shank probe recorded as 32
+    tetrodes is ``group_ntrodes_uniformly(32, 8)``. Source ntrode ids are 1-based
+    and taken in order, so this assumes the source ntrodes are ordered such that
+    each consecutive block of ``per_group`` belongs to one shank. For non-uniform
+    probes, or wiring where consecutive source ntrodes do not map to one shank,
+    pass explicit groups to :func:`generate_reconfig_header` instead -- there is
+    no way to infer the grouping from the metadata.
+
+    Parameters
+    ----------
+    n_source : int
+        Total number of source ntrodes in the header (a positive multiple of
+        ``per_group``).
+    per_group : int
+        Number of consecutive source ntrodes merged into each new ntrode.
+
+    Returns
+    -------
+    list[list[int]]
+        ``[[1, ..., per_group], [per_group + 1, ...], ...]``, suitable for
+        :func:`generate_reconfig_header`.
+
+    Raises
+    ------
+    ValueError
+        If ``n_source`` or ``per_group`` is not positive, or ``n_source`` is not
+        a multiple of ``per_group`` (the groups would not be uniform).
+    """
+    if n_source < 1 or per_group < 1:
+        raise ValueError("n_source and per_group must be positive integers")
+    if n_source % per_group != 0:
+        raise ValueError(
+            f"n_source ({n_source}) is not a multiple of per_group ({per_group}); "
+            "the groups would not be uniform. Pass explicit ntrode_groups to "
+            "generate_reconfig_header for non-uniform probes."
+        )
+    return [
+        list(range(start, start + per_group))
+        for start in range(1, n_source + 1, per_group)
+    ]
+
+
+def generate_reconfig_header(
+    rec_header: ElementTree.Element,
+    ntrode_groups: list[list[int]],
+    allow_partial: bool = False,
+) -> ElementTree.Element:
+    """Build a reconfigured header by merging SpikeNTrode groups.
+
+    Trodes records one ``SpikeNTrode`` per acquisition group (e.g. one per
+    tetrode). To represent a multi-contact probe as a single electrode group,
+    those ntrodes must be merged into one ntrode per probe/shank -- the manual
+    "delete groupings" step otherwise done by hand in the Trodes GUI. This
+    function automates it by concatenating, in order, the channels of the source
+    ntrodes in each group into a single new ntrode.
+
+    Each merged ntrode inherits the reference of its first source ntrode. Because
+    the merged ntrodes are renumbered, ntrode-level references are retargeted to
+    the merged numbering. The reference may be stored as ``refNTrodeID`` (the
+    referenced ntrode's id) or the legacy ``refNTrode`` (its 1-based position,
+    used by default Trodes configs); both are repointed at the merged ntrode that
+    now holds the referenced channel, and ``refChan`` is shifted by that channel's
+    offset within the merged ntrode. ``refNTrodeID`` is always written on the
+    output -- it is the canonical reference Trodes emits on save and the only form
+    the converter reads, so a legacy ``refNTrode``-only source gains it rather
+    than losing the reference downstream.
+
+    Parameters
+    ----------
+    rec_header : xml.etree.ElementTree.Element
+        Parsed header (root ``<Configuration>``) returned by :func:`read_header`.
+    ntrode_groups : list[list[int]]
+        Each inner list gives the source ``SpikeNTrode`` ids to merge, in order,
+        into one new ntrode. Inner lists may have different lengths to support
+        probes with differing contact counts. New ntrodes are numbered
+        ``1..len(ntrode_groups)``. Every referenced id must exist in the header,
+        and (unless ``allow_partial``) ``ntrode_groups`` must be a partition of
+        the source ntrodes -- each used exactly once.
+    allow_partial : bool, optional
+        If False (default), every source ntrode must be assigned to exactly one
+        group; leaving some unassigned raises (their channels would be silently
+        dropped). Set True to intentionally drop the unassigned source ntrodes.
+
+    Returns
+    -------
+    xml.etree.ElementTree.Element
+        A deep copy of ``rec_header`` whose ``SpikeConfiguration`` holds the
+        merged ntrodes. The input element is not modified.
+
+    Raises
+    ------
+    ValueError
+        If the header has no ``SpikeConfiguration``; if ``ntrode_groups`` is
+        empty or contains an empty group; if a source ntrode is assigned to more
+        than one group (which would place one channel in two electrode groups);
+        or if source ntrodes are left unassigned and ``allow_partial`` is False.
+    KeyError
+        If a referenced ntrode id is not present in the header.
+    """
+    if not ntrode_groups:
+        raise ValueError("ntrode_groups must contain at least one group")
+    if any(not group for group in ntrode_groups):
+        raise ValueError("each entry in ntrode_groups must be non-empty")
+
+    new_header = copy.deepcopy(rec_header)
+    spike_config = new_header.find("SpikeConfiguration")
+    if spike_config is None:
+        raise ValueError("rec_header has no SpikeConfiguration element")
+
+    source_by_id = {ntrode.attrib["id"]: ntrode for ntrode in spike_config}
+    # Document order of source ntrodes; the legacy refNTrode reference is a 1-based
+    # index into this list (Trodes stores the reference both as refNTrodeID -- the
+    # referenced ntrode's id -- and refNTrode -- its position), so resolving it
+    # needs position->id.
+    source_ids_in_order = [ntrode.attrib["id"] for ntrode in spike_config]
+
+    # Validate that ntrode_groups is a clean partition of the source ntrodes.
+    # Assigning a source ntrode to two groups (or twice within a group) would
+    # place the same physical channels in two electrode groups, and leaving a
+    # source ntrode unassigned silently drops its channels -- both are almost
+    # always caller typos, so fail loudly rather than misbuild the probe map.
+    flat = [str(src_id) for group in ntrode_groups for src_id in group]
+    missing = [src_id for src_id in dict.fromkeys(flat) if src_id not in source_by_id]
+    if missing:
+        raise KeyError(
+            f"ntrode id(s) {missing} not present in the header SpikeConfiguration"
+        )
+    counts = Counter(flat)
+    duplicated = sorted((src_id for src_id, n in counts.items() if n > 1), key=int)
+    if duplicated:
+        raise ValueError(
+            f"ntrode id(s) {duplicated} appear in more than one reconfig group "
+            "(or twice in one group); each source ntrode's channels can only be "
+            "assigned to a single merged ntrode."
+        )
+    unassigned = sorted(
+        (src_id for src_id in source_by_id if src_id not in counts), key=int
+    )
+    if unassigned and not allow_partial:
+        raise ValueError(
+            f"source ntrode id(s) {unassigned} are not assigned to any reconfig "
+            "group; their channels would be dropped from the reconfigured header. "
+            "Assign them to a group, or pass allow_partial=True to drop them "
+            "intentionally."
+        )
+
+    # Map each source ntrode id -> (merged ntrode id, channel offset within the
+    # merged ntrode). An ntrode reference (refNTrodeID/refChan) points at a source
+    # ntrode and a 1-based channel within it; after merging+renumbering it must be
+    # retargeted to the merged ntrode/channel that now holds that channel.
+    source_to_merged = {}
+    merged_ntrodes = []
+    for new_id, group in enumerate(ntrode_groups, start=1):
+        # Base the merged ntrode on the first source ntrode so it keeps the
+        # group-level attributes (scaling, reference settings, ...).
+        merged = copy.deepcopy(source_by_id[str(group[0])])
+        merged.attrib["id"] = str(new_id)
+        for channel in list(merged):
+            merged.remove(channel)
+        offset = 0
+        for src_id in group:
+            source = source_by_id[str(src_id)]
+            source_to_merged[str(src_id)] = (new_id, offset)
+            for channel in source:
+                merged.append(copy.deepcopy(channel))
+            offset += len(source)
+        merged_ntrodes.append(merged)
+
+    # Retarget each merged ntrode's reference (inherited from its first source
+    # ntrode) to the merged numbering. Leaving the source values would dangle --
+    # make_ref_electrode_map raises KeyError on a refNTrodeID absent from the
+    # reconfig metadata, or silently resolves to the wrong merged group when a
+    # stale source id happens to collide with a merged id; a stale refNTrode index
+    # likewise points outside the merged ntrode list when the header is reopened
+    # in Trodes (default Trodes configs use refNTrode without refNTrodeID).
+    for merged in merged_ntrodes:
+        attrib = merged.attrib
+        ref_id = attrib.get("refNTrodeID")
+        ref_index = attrib.get("refNTrode")
+        # Resolve the referenced source ntrode id. refNTrodeID (the id) is
+        # authoritative when present and positive; otherwise fall back to the
+        # legacy refNTrode (a 1-based position in the source ntrode list).
+        if ref_id is not None and int(ref_id) > 0:
+            src_ref_id = ref_id
+        elif ref_index is not None and int(ref_index) > 0:
+            idx = int(ref_index) - 1
+            if not 0 <= idx < len(source_ids_in_order):
+                raise ValueError(
+                    f"ntrode reference refNTrode={ref_index} is out of range for "
+                    f"the {len(source_ids_in_order)} source ntrodes."
+                )
+            src_ref_id = source_ids_in_order[idx]
+        else:
+            continue  # Trodes "no reference" sentinel; nothing to retarget.
+        target = source_to_merged.get(src_ref_id)
+        if target is None:
+            raise ValueError(
+                f"ntrode reference points to source ntrode {src_ref_id}, which is "
+                "not part of any reconfig group, so the reference cannot be "
+                "retargeted to the merged header. Include that source ntrode in a "
+                "group, or clear the reference before reconfiguring."
+            )
+        new_ref_id, ref_offset = target
+        # Merged ntrodes are numbered 1..N in document order, so a merged ntrode's
+        # id equals its 1-based position; refNTrodeID and refNTrode both become it.
+        # Always emit refNTrodeID -- it is the canonical reference Trodes writes on
+        # save, and the only one make_ref_electrode_map reads, so a legacy
+        # refNTrode-only source must gain it or the reference is dropped from NWB.
+        attrib["refNTrodeID"] = str(new_ref_id)
+        if ref_index is not None:
+            attrib["refNTrode"] = str(new_ref_id)
+        if "refChan" in attrib:
+            # refChan is 1-based within the referenced source ntrode; shift it by
+            # that ntrode's channel offset within its merged ntrode.
+            attrib["refChan"] = str(int(attrib["refChan"]) + ref_offset)
+
+    for ntrode in list(spike_config):
+        spike_config.remove(ntrode)
+    spike_config.extend(merged_ntrodes)
+    return new_header
+
+
+def write_reconfig_trodesconf(
+    rec_header_path: Path | str,
+    output_path: Path | str,
+    ntrode_groups: list[list[int]],
+    allow_partial: bool = False,
+) -> Path:
+    """Read a header, merge its ntrodes, and write a reconfigured ``.trodesconf``.
+
+    Parameters
+    ----------
+    rec_header_path : Path or str
+        Path to the source ``.rec`` or ``.trodesconf`` whose header is reconfigured.
+    output_path : Path or str
+        Where to write the generated ``.trodesconf`` file.
+    ntrode_groups : list[list[int]]
+        Merge-groups passed to :func:`generate_reconfig_header`.
+    allow_partial : bool, optional
+        Passed through to :func:`generate_reconfig_header`; if False (default),
+        every source ntrode must be assigned to a group.
+
+    Returns
+    -------
+    Path
+        The ``output_path`` that was written.
+    """
+    new_header = generate_reconfig_header(
+        read_header(rec_header_path), ntrode_groups, allow_partial=allow_partial
+    )
+    output_path = Path(output_path)
+    # read_header re-parses this file by line-scanning for the line containing
+    # </Configuration> and truncating there, so the writer must emit no XML
+    # declaration and must keep </Configuration> on a single line (no
+    # pretty-printing that would split it). encoding="unicode" + the default
+    # serializer satisfy both and match the embedded .rec header format.
+    ElementTree.ElementTree(new_header).write(output_path, encoding="unicode")
+    return output_path
 
 
 def add_header_device(nwbfile: NWBFile, rec_header: ElementTree.Element) -> None:
