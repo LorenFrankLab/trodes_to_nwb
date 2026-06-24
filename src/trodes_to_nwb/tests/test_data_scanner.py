@@ -133,6 +133,21 @@ def test_auxiliary_and_botched_yaml_are_skipped_not_raised(tmp_path, caplog):
     assert "20230622_metadata.yml" in warnings
 
 
+def test_skipped_files_are_logged_individually(tmp_path, caplog):
+    # Each skipped file gets its own INFO log line (alongside the summary
+    # warning) so a dropped file can be traced after a conversion run.
+    (tmp_path / "20230622_sample_01_a1.rec").touch()
+    (tmp_path / "20230622_sample_metadata.yml").touch()
+    (tmp_path / "tetrode_12.5.yml").touch()
+    (tmp_path / "behavior_only.rec").touch()
+    with caplog.at_level(logging.INFO, logger="convert"):
+        get_file_info(tmp_path)
+
+    info_messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
+    assert any("tetrode_12.5.yml" in m for m in info_messages)
+    assert any("behavior_only.rec" in m for m in info_messages)
+
+
 def test_empty_animal_name_is_rejected(tmp_path):
     # A double underscore ("20230622__01_a1") yields the right token count with
     # an empty animal, so the strict unpack succeeds -- but it is not a real

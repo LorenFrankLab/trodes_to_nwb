@@ -115,9 +115,10 @@ def _process_path(
             date, animal_name, epoch, tag = parts
             date = int(date)
             epoch = int(epoch)
-            tag = tag.split(".")
-            tag_index = int(tag[1]) if len(tag) > 1 else 1
-            tag = tag[0]
+            # The tag itself (e.g. "s1", "r3") is a string; only an optional
+            # trailing ".{cameraN}" suffix becomes the integer tag_index.
+            tag, *camera = tag.split(".")
+            tag_index = int(camera[0]) if camera else 1
         if not animal_name.strip():
             # An empty animal token (e.g. "20230622__01_a1") has the right arity
             # and integer date/epoch, so the unpack succeeds -- but it is not a
@@ -193,6 +194,11 @@ def get_file_info(path: Path) -> pd.DataFrame:
         ):
             misnamed.append(p)
         else:
+            # Log each skipped file individually (in addition to the summary
+            # warning below) so a dropped file can be traced after conversion.
+            logger.info(
+                f"Skipping '{p.name}': does not match the session naming convention."
+            )
             skipped.append(p)
 
     if misnamed:
