@@ -177,6 +177,45 @@ def add_acquisition_devices(nwbfile: NWBFile, metadata: dict) -> None:
         )
 
 
+def warn_on_inconsistent_num_shanks(probe_meta: dict) -> None:
+    """Warn if a probe's declared ``num_shanks`` disagrees with its shank entries.
+
+    ``num_shanks`` is not written to the NWB ``Probe`` (the ndx-franklab-novela
+    ``Probe`` has no such field); the probe geometry is taken entirely from the
+    ``shanks`` list. A mismatch therefore does not corrupt the conversion, but it
+    almost always signals a typo in the probe yaml, so it is surfaced as a warning.
+
+    Parameters
+    ----------
+    probe_meta : dict
+        Metadata for a single probe (one entry from the probe metadata list).
+    """
+    declared = probe_meta.get("num_shanks")
+    if declared is None:
+        return
+    defined = len(probe_meta.get("shanks", []))
+    # Coerce for the comparison so a yaml-quoted count (num_shanks: "3") does not
+    # warn spuriously, and format `declared` with %r so a non-numeric value is
+    # reported safely rather than blowing up the %d formatting. A non-integral
+    # value (e.g. 3.5) leaves declared_count as None so it never matches `defined`
+    # and is surfaced as a mismatch, rather than being silently truncated by int().
+    try:
+        declared_float = float(declared)
+    except (TypeError, ValueError):
+        declared_count = None
+    else:
+        declared_count = int(declared_float) if declared_float.is_integer() else None
+    if declared_count != defined:
+        logging.getLogger("convert").warning(
+            "Probe '%s': metadata declares num_shanks=%r but defines %d shank(s). "
+            "The %d defined shank(s) will be used; check the probe yaml.",
+            probe_meta.get("probe_type", "<unknown>"),
+            declared,
+            defined,
+            defined,
+        )
+
+
 def add_electrode_groups(
     nwbfile: NWBFile,
     metadata: dict,
@@ -219,6 +258,7 @@ def add_electrode_groups(
             raise FileNotFoundError(
                 f"No probe metadata found for {egroup_metadata['device_type']}"
             )
+        warn_on_inconsistent_num_shanks(probe_meta)
         # Build the relevant Probe
         probe = Probe(
             id=egroup_metadata["id"],
