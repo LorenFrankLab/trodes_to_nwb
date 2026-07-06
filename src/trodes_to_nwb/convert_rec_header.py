@@ -119,27 +119,37 @@ def validate_yaml_header_electrode_map(
         ntrode_id = group.attrib["id"]
         # find appropriate channel map metadata
         channel_map = None
-        map_number = None
-        for _, test_meta in enumerate(metadata["ntrode_electrode_group_channel_map"]):
+        for test_meta in metadata["ntrode_electrode_group_channel_map"]:
             if str(test_meta["ntrode_id"]) == ntrode_id:
                 channel_map = test_meta
                 break
         if channel_map is None:
-            raise (KeyError(f"Missing yaml metadata for ntrodes {ntrode_id}"))
+            raise KeyError(
+                f"ntrode {ntrode_id} is present in the rec/reconfig header but has no "
+                f"matching entry in the metadata YAML 'ntrode_electrode_group_channel_map'. "
+                f"Add an entry with ntrode_id {ntrode_id} to the YAML, or use a (re)config "
+                f"header whose ntrodes match the YAML."
+            )
         elif not len(group) == len(channel_map["map"]):
             raise ValueError(
-                f"Ntrode group {ntrode_id} does not contain the number of channels indicated by the metadata yaml"
+                f"Channel count mismatch for ntrode {ntrode_id}: the rec/reconfig header "
+                f"defines {len(group)} channel(s), but the metadata YAML "
+                f"'ntrode_electrode_group_channel_map' lists {len(channel_map['map'])}. "
+                f"Verify the metadata YAML matches the (re)config header used for this conversion."
             )
         else:
             # add this channel map to the validated list
-            validated_channel_maps.append(map_number)
+            validated_channel_maps.append(channel_map)
 
-    if len(validated_channel_maps) < len(
-        metadata["ntrode_electrode_group_channel_map"]
-    ):
-        raise (IndexError("XML Header contains less ntrodes than the yaml indicates"))
-
-    pass
+    n_yaml_ntrodes = len(metadata["ntrode_electrode_group_channel_map"])
+    n_header_ntrodes = len(validated_channel_maps)
+    if n_header_ntrodes < n_yaml_ntrodes:
+        raise IndexError(
+            f"Ntrode count mismatch: the metadata YAML "
+            f"'ntrode_electrode_group_channel_map' defines {n_yaml_ntrodes} ntrode(s), "
+            f"but the rec/reconfig header contains {n_header_ntrodes}. "
+            f"Verify the metadata YAML matches the (re)config header used for this conversion."
+        )
 
 
 def make_hw_channel_map(
