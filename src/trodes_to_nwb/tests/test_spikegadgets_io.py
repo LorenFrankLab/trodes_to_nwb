@@ -1,7 +1,13 @@
+from xml.etree import ElementTree
+
 import numpy as np
 import pytest
 
-from trodes_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
+from trodes_to_nwb.spike_gadgets_raw_io import (
+    InsertedMemmap,
+    SpikeGadgetsRawIO,
+    SpikeGadgetsRawIOPartial,
+)
 from trodes_to_nwb.tests.utils import data_path
 
 # --- Fixture for SpikeGadgetsRawIO instance ---
@@ -230,6 +236,165 @@ def test_get_analog_chunk(raw_io):
     assert isinstance(data_chunk, np.ndarray)
     assert data_chunk.dtype == np.int16
     assert data_chunk.shape == (n_samples_to_read, expected_num_channels)
+
+
+def _write_uint16(raw_memmap, row, start_byte, value):
+    raw_memmap[row, start_byte] = value & 0xFF
+    raw_memmap[row, start_byte + 1] = (value >> 8) & 0xFF
+
+
+def _make_synthetic_multiplex_io(raw_memmap):
+    io = object.__new__(SpikeGadgetsRawIO)
+    io.filename = "synthetic.rec"
+    io._raw_memmap = raw_memmap
+    io._multiplexed_byte_start = 0
+    io.multiplexed_channel_xml = {
+        "mux_a": ElementTree.Element(
+            "Channel",
+            id="mux_a",
+            startByte="0",
+            interleavedDataIDByte="4",
+            interleavedDataIDBit="0",
+        ),
+        "mux_b": ElementTree.Element(
+            "Channel",
+            id="mux_b",
+            startByte="2",
+            interleavedDataIDByte="4",
+            interleavedDataIDBit="1",
+        ),
+    }
+    return io
+
+
+def _make_synthetic_multiplex_raw_memmap():
+    raw_memmap = np.zeros((5, 5), dtype=np.uint8)
+    raw_memmap[:, 4] = [0b10, 0b01, 0b00, 0b10, 0b11]
+    for row in range(raw_memmap.shape[0]):
+        _write_uint16(raw_memmap, row, 0, 100 + row)
+        _write_uint16(raw_memmap, row, 2, 200 + row)
+    return raw_memmap
+
+
+def test_multiplexed_reader_initializes_held_values_to_zero():
+    raw_memmap = _make_synthetic_multiplex_raw_memmap()
+    io = _make_synthetic_multiplex_io(raw_memmap)
+
+    data = io.get_analogsignal_multiplexed()
+
+    np.testing.assert_array_equal(
+        data,
+        np.array(
+            [
+                [0, 200],
+                [101, 200],
+                [101, 200],
+                [101, 203],
+                [104, 204],
+            ],
+            dtype=np.int16,
+        ),
+    )
+
+
+def test_partial_multiplexed_reader_uses_previous_state_until_update():
+    raw_memmap = _make_synthetic_multiplex_raw_memmap()[:3]
+    partial_io = object.__new__(SpikeGadgetsRawIOPartial)
+    partial_io.filename = "synthetic_partial.rec"
+    partial_io._raw_memmap = raw_memmap
+    partial_io._multiplexed_byte_start = 0
+    partial_io.multiplexed_channel_xml = _make_synthetic_multiplex_io(
+        raw_memmap
+    ).multiplexed_channel_xml
+    partial_io.previous_multiplex_state = np.array([500, 600], dtype=np.int16)
+
+    data = partial_io.get_analogsignal_multiplexed()
+
+    np.testing.assert_array_equal(
+        data,
+        np.array(
+            [
+                [500, 200],
+                [101, 200],
+                [101, 200],
+            ],
+            dtype=np.int16,
+        ),
+    )
+
+
+def test_partial_multiplex_boundary_preserves_first_packet_update():
+    """A split starting on a multiplex update must keep that fresh first value.
+
+    Partial iterators seed held multiplexed channels from the previous segment's
+    last state. The seed should apply only to channels that did not update in
+    packet 0 of the partial; updated channels must match the full-file reader.
+    """
+    rec_file = data_path / "20230622_sample_01_a1.rec"
+    if not rec_file.exists():
+        pytest.skip(f"Test data file not found: {rec_file}")
+
+    full_io = SpikeGadgetsRawIO(filename=str(rec_file))
+    full_io._parse_header()
+    full_multiplexed = full_io.get_analogsignal_multiplexed()
+
+    for ch_xml in full_io.multiplexed_channel_xml.values():
+        id_byte = full_io._multiplexed_byte_start + int(
+            ch_xml.attrib["interleavedDataIDByte"]
+        )
+        bit = int(ch_xml.attrib["interleavedDataIDBit"])
+        update_indices = np.flatnonzero(((full_io._raw_memmap[:, id_byte] >> bit) & 1))
+        update_indices = update_indices[update_indices > 0]
+        if update_indices.size:
+            start = int(update_indices[0])
+            break
+    else:
+        pytest.skip("No multiplexed update packet found after the first sample.")
+
+    stop = min(start + 5, full_io._raw_memmap.shape[0])
+    partial_io = SpikeGadgetsRawIOPartial(
+        full_io,
+        start_index=start,
+        stop_index=stop,
+        previous_multiplex_state=full_multiplexed[start - 1],
+    )
+
+    np.testing.assert_array_equal(
+        partial_io.get_analogsignal_multiplexed(),
+        full_multiplexed[start:stop],
+    )
+
+
+def test_partial_multiplex_seed_remapped_when_channel_order_differs():
+    """The boundary seed must follow channel identity, not position.
+
+    ``previous_multiplex_state`` is ordered like the full channel list. When a
+    caller requests all channels in a different order (same length as the seed),
+    the seed must be reordered to match the requested channels -- otherwise a
+    channel that does not update in the first packet inherits another channel's
+    held value.
+    """
+    raw_memmap = np.zeros((3, 5), dtype=np.uint8)
+    raw_memmap[:, 4] = [0b00, 0b11, 0b11]  # packet 0 has no updates -> row 0 = seed
+    for row in range(raw_memmap.shape[0]):
+        _write_uint16(raw_memmap, row, 0, 100 + row)  # mux_a value
+        _write_uint16(raw_memmap, row, 2, 200 + row)  # mux_b value
+
+    partial_io = object.__new__(SpikeGadgetsRawIOPartial)
+    partial_io.filename = "synthetic_partial.rec"
+    partial_io._raw_memmap = raw_memmap
+    partial_io._multiplexed_byte_start = 0
+    partial_io.multiplexed_channel_xml = _make_synthetic_multiplex_io(
+        raw_memmap
+    ).multiplexed_channel_xml
+    # seed is in default channel order: mux_a=500, mux_b=600
+    partial_io.previous_multiplex_state = np.array([500, 600], dtype=np.int16)
+
+    # request all channels in reversed order (same length as the seed)
+    data = partial_io.get_analogsignal_multiplexed(channel_names=("mux_b", "mux_a"))
+
+    # packet 0 has no updates, so each channel must show ITS OWN seed
+    np.testing.assert_array_equal(data[0], np.array([600, 500], dtype=np.int16))
 
 
 # --- DIO Test ---
@@ -473,3 +638,77 @@ def test_produce_ephys_channel_ids():
     with pytest.raises(ValueError) as excinfo:
         SpikeGadgetsRawIO._produce_ephys_channel_ids(64, 63, 16, ["1", "2", "3"])
     assert "hw_channels_recorded must be provided" in str(excinfo.value)
+
+
+def _write_minimal_rec(path, extra_available):
+    """Write a tiny .rec for testing the available-device packet layout.
+
+    Always includes a 2-byte, available Controller_DIO device. An optional 4-byte
+    "Extra" device's availability is parametrized (``"0"``, ``"1"``, or ``None``
+    to omit it). numChannels=0 and an empty SpikeConfiguration keep the ephys
+    path out of the way. Parses cleanly with no real binary data.
+    """
+    if extra_available is None:
+        extra_block = ""
+    else:
+        extra_block = (
+            f'<Device name="Extra" numBytes="4" available="{extra_available}">'
+            '<Channel id="extra0" dataType="digital" startByte="0" bit="0"/>'
+            "</Device>"
+        )
+    header = (
+        "<Configuration>"
+        '<GlobalConfiguration systemTimeAtCreation="1700000000000" timestampAtCreation="0"/>'
+        '<HardwareConfiguration samplingRate="30000" numChannels="0">'
+        '<Device name="Controller_DIO" numBytes="2" available="1">'
+        '<Channel id="Din1" dataType="digital" startByte="0" bit="0"/>'
+        "</Device>"
+        f"{extra_block}"
+        "</HardwareConfiguration>"
+        '<SpikeConfiguration chanPerChip="32"></SpikeConfiguration>'
+        "</Configuration>"
+    )
+    with open(path, "wb") as f:
+        # newline-terminate the header line (as real .rec files do) so the header
+        # reader stops at </Configuration> rather than reading into the body
+        f.write(header.encode("utf8") + b"\n")
+        f.write(b"\x00" * 64)  # non-empty binary body so the memmap can be created
+    io = SpikeGadgetsRawIO(filename=str(path))
+    io._parse_header()
+    return io
+
+
+def test_parse_header_skips_unavailable_devices(tmp_path):
+    # With Controller_DIO (2 bytes) + a 4-byte Extra device, the timestamp byte
+    # sits at 1 (sync) + 2 + 4 = 7 if Extra is available, or at 1 + 2 = 3 if it
+    # is not -- i.e. an unavailable device must contribute zero bytes, exactly
+    # as Trodes writes the packet.
+    avail = _write_minimal_rec(tmp_path / "avail.rec", "1")
+    unavail = _write_minimal_rec(tmp_path / "unavail.rec", "0")
+    absent = _write_minimal_rec(tmp_path / "absent.rec", None)
+
+    assert avail._timestamp_byte == 7
+    assert unavail._timestamp_byte == 3
+    # an unavailable device is equivalent to the device being absent entirely
+    assert unavail._timestamp_byte == absent._timestamp_byte
+
+
+def test_partial_iterator_handles_missing_multiplex_device(tmp_path):
+    """Splitting an oversized recording with no available multiplexed device.
+
+    ``_parse_header`` only sets ``_multiplexed_byte_start`` when a multiplexed /
+    headstageSensor device is present and available, but
+    ``SpikeGadgetsRawIOPartial.__init__`` copies it unconditionally. The
+    attribute must therefore always be defined (``None`` when absent) so the
+    partial iterator can be constructed without raising ``AttributeError`` --
+    partials are built for any recording over the size limit regardless of
+    whether it has multiplexed data.
+    """
+    full_io = _write_minimal_rec(tmp_path / "no_mux.rec", None)
+    assert full_io._multiplexed_byte_start is None
+    assert full_io.multiplexed_channel_xml == {}
+
+    partial_io = SpikeGadgetsRawIOPartial(
+        full_io, start_index=0, stop_index=5, previous_multiplex_state=None
+    )
+    assert partial_io._multiplexed_byte_start is None
