@@ -9,6 +9,7 @@ Intended as a temporary solution until official support is available in Neo.
 # see https://github.com/NeuralEnsemble/python-neo/pull/1303
 
 import functools
+from warnings import warn
 from xml.etree import ElementTree
 
 import numpy as np
@@ -19,14 +20,215 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
-from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
 BITS_PER_BYTE = 8
 TIMESTAMP_SIZE_BYTES = 4  # uint32
 SYSCLOCK_SIZE_BYTES = 8  # int64
 EPHYS_SAMPLE_SIZE_BYTES = 2  # int16
-EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
+# A single dropped packet leaves a one-sample gap in the uint32 sample counter,
+# i.e. a diff of 2. (Confirmed against Trodes acquisition: it reports
+# `dropped = currentTimeStamp - lastTimeStamp - 1`, so one drop == diff 2.)
+# NOTE: only single drops are interpolated. Multi-packet drops (diff > 2, which
+# Trodes tracks as `largestPacketDrop`) are left as gaps -- timestamps stay
+# correct (the regression maps the actual counter to time), but the ephys data
+# is not padded across the gap.
+EXPECTED_TIMESTAMP_DIFF_DROP = 2
+# The Trodes per-packet timestamp is a uint32 hardware sample counter
+# (abstractTrodesSource.h: "hardware timestamps (sample number)") that wraps here
+# (~39.77 h at 30 kHz). A wrap is a large backward jump in the .rec; _unwrap_uint32
+# only unwraps jumps < -2**31, distinguishing a clean wrap (~-2**32) from minor
+# corruption (which Trodes discards at acquisition).
+UINT32_WRAP = 2**32
+
+
+def _unwrap_uint32(values: np.ndarray) -> np.ndarray:
+    """Unwrap a monotonically increasing uint32 counter that may have wrapped.
+
+    The Trodes per-packet timestamp is a uint32 sample counter that rolls over
+    after ``2**32`` samples (~39.77 h at 30 kHz). A rollover appears as a large
+    negative jump once the values are viewed as signed integers. This adds
+    ``2**32`` at and after each detected wrap and returns ``int64`` values that
+    are globally monotonic relative to ``values[0]``.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        1D array of uint32 timestamp counter values.
+
+    Returns
+    -------
+    np.ndarray
+        ``int64`` array of the same shape, unwrapped.
+    """
+    unwrapped = np.asarray(values, dtype=np.int64)
+    if unwrapped.size < 2:
+        return unwrapped
+    wraps = np.diff(unwrapped) < -(UINT32_WRAP // 2)
+    offsets = np.zeros(unwrapped.size, dtype=np.int64)
+    offsets[1:] = np.cumsum(wraps) * UINT32_WRAP
+    return unwrapped + offsets
+
+
+def _find_single_dropped_packet_indices(
+    raw_memmap: np.ndarray,
+    timestamp_byte: int,
+    start_index: int = 0,
+    stop_index: int | None = None,
+    source: str | None = None,
+) -> np.ndarray:
+    """Return pre-interpolation indices whose next packet skips one sample.
+
+    A single dropped packet leaves a counter diff of 2, which the caller
+    interpolates. If ``source`` is given, also warn about **multi-packet** gaps
+    in ``[start_index, stop_index)`` -- a forward counter jump > 2 (the
+    ``< UINT32_WRAP // 2`` bound excludes the wrap, which is a large *backward*
+    jump, and a clean wrap is a diff of 1). Multi-packet gaps are NOT
+    interpolated: the timestamps stay correct (the regression maps the actual
+    counter to time) but the ephys data is discontinuous there.
+    """
+    if stop_index is None:
+        stop_index = raw_memmap.shape[0]
+    if stop_index - start_index < 2:
+        return np.empty(0, dtype=np.int64)
+    raw_uint8 = raw_memmap[
+        start_index:stop_index,
+        timestamp_byte : timestamp_byte + TIMESTAMP_SIZE_BYTES,
+    ]
+    raw_uint32 = raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+    diffs = np.diff(raw_uint32)
+    if source is not None:
+        multi = diffs[
+            (diffs > EXPECTED_TIMESTAMP_DIFF_DROP) & (diffs < UINT32_WRAP // 2)
+        ]
+        if multi.size:
+            warn(
+                f"{multi.size} multi-packet gap(s) in the timestamp counter of "
+                f"{source} (largest {int(multi.max()) - 1} samples) are not "
+                "interpolated; the ephys data is discontinuous at those times.",
+                stacklevel=2,
+            )
+    return np.where(diffs == EXPECTED_TIMESTAMP_DIFF_DROP)[0] + start_index
+
+
+def _fit_systime_regression_streaming(
+    read_counter,
+    read_sysclock,
+    n_total: int,
+    global_offset: int = 0,
+    chunk_size: int = 1 << 20,
+) -> tuple[float, float, np.ndarray]:
+    """Fit the Trodes-counter -> system-clock regression in one streaming pass.
+
+    Computes the same result as
+    ``linregress(_unwrap_uint32(counter).astype(float64), sysclock)`` together
+    with the list of global sample indices at which the uint32 counter wraps
+    (#169), but reads the data in ``chunk_size`` pieces via the
+    ``read_counter(i_start, i_stop)`` / ``read_sysclock(i_start, i_stop)``
+    callbacks instead of materialising the full ~15 GB arrays (#47).
+
+    The slope/intercept are accumulated with West's online covariance algorithm.
+    Both axes are shifted by their first sample (in int64, exactly) before
+    accumulating, because the raw system clock is ~1.7e18 ns -- float64 there has
+    only ~256 ns resolution, and West's incremental mean would accrue that error
+    across chunks. Shifting keeps the accumulated values small, then the
+    references are added back once at the end. The uint32 unwrap state -- the
+    cumulative number of wraps and the counter value carried across each chunk
+    boundary -- is threaded between chunks so the unwrapped axis and wrap-index
+    list match the whole-array computation exactly. Because floating-point
+    summation is not associative, the fitted slope/intercept differ from the
+    whole-array ``linregress`` only at the ~1e-16 relative level (sub-nanosecond
+    in the resulting timestamps).
+
+    Parameters
+    ----------
+    read_counter, read_sysclock : callable
+        ``f(i_start, i_stop) -> np.ndarray`` returning the raw uint32 counter and
+        the int64 system clock for ``[i_start, i_stop)``.
+    n_total : int
+        Total number of samples to fit over.
+    global_offset : int, optional
+        Sample index of ``i_start=0`` within the full recording, added to every
+        reported wrap index. By default 0.
+    chunk_size : int, optional
+        Number of samples read per step. By default ``2**20`` (~28 MB/chunk).
+
+    Returns
+    -------
+    tuple[float, float, np.ndarray]
+        ``(slope, intercept, wrap_sample_indices)``.
+    """
+    if n_total < 2:
+        raise ValueError("need at least 2 samples to fit the systime regression")
+
+    n_acc = 0
+    mean_x = mean_y = 0.0
+    sum_sq_dev_x = co_moment = 0.0  # West's M2 for x and the x-y co-moment
+    wrap_offset = 0  # cumulative number of 2**32 wraps seen so far
+    previous_last_counter = None  # final raw counter of the previous chunk
+    counter_reference = sysclock_reference = None  # x0, y0 (shift origin, exact)
+    wrap_sample_indices: list[int] = []
+
+    for start in range(0, n_total, chunk_size):
+        stop = min(start + chunk_size, n_total)
+        counter = np.asarray(read_counter(start, stop)).astype(np.int64)
+        sysclock = np.asarray(read_sysclock(start, stop)).astype(np.int64)
+
+        # An element is "after a wrap" when it drops by more than half the uint32
+        # range relative to its predecessor -- within the chunk, or across the
+        # boundary from the previous chunk's last sample.
+        is_after_wrap = np.zeros(counter.shape[0], dtype=np.int64)
+        if counter.shape[0] >= 2:
+            is_after_wrap[1:] = (np.diff(counter) < -(UINT32_WRAP // 2)).astype(
+                np.int64
+            )
+        if previous_last_counter is not None and (
+            counter[0] - previous_last_counter
+        ) < -(UINT32_WRAP // 2):
+            is_after_wrap[0] = 1
+
+        cumulative_wraps = np.cumsum(is_after_wrap)
+        counter_index = counter + (wrap_offset + cumulative_wraps) * UINT32_WRAP
+        wrap_sample_indices.extend(
+            (np.flatnonzero(is_after_wrap) + start + global_offset).tolist()
+        )
+        wrap_offset += int(cumulative_wraps[-1]) if cumulative_wraps.size else 0
+        previous_last_counter = int(counter[-1])
+
+        # Shift both axes by their first sample, in int64 (exact), before casting
+        # to float64 -- the raw sysclock (~1.7e18 ns) only has ~256 ns float64
+        # resolution, so accumulating it directly loses precision.
+        if counter_reference is None:
+            counter_reference = int(counter_index[0])
+            sysclock_reference = int(sysclock[0])
+        x = (counter_index - counter_reference).astype(np.float64)
+        y = (sysclock - sysclock_reference).astype(np.float64)
+
+        # West's online merge of this chunk's covariance statistics.
+        n_chunk = x.shape[0]
+        mean_x_chunk = float(x.mean())
+        mean_y_chunk = float(y.mean())
+        sum_sq_dev_x_chunk = float(((x - mean_x_chunk) ** 2).sum())
+        co_moment_chunk = float(((x - mean_x_chunk) * (y - mean_y_chunk)).sum())
+        if n_acc == 0:
+            n_acc = n_chunk
+            mean_x, mean_y = mean_x_chunk, mean_y_chunk
+            sum_sq_dev_x, co_moment = sum_sq_dev_x_chunk, co_moment_chunk
+        else:
+            n_new = n_acc + n_chunk
+            delta_x = mean_x_chunk - mean_x
+            delta_y = mean_y_chunk - mean_y
+            scale = n_acc * n_chunk / n_new
+            sum_sq_dev_x += sum_sq_dev_x_chunk + delta_x * delta_x * scale
+            co_moment += co_moment_chunk + delta_x * delta_y * scale
+            mean_x += delta_x * n_chunk / n_new
+            mean_y += delta_y * n_chunk / n_new
+            n_acc = n_new
+
+    slope = co_moment / sum_sq_dev_x
+    # Undo the shift: real means are the shifted means plus the references.
+    intercept = (mean_y + sysclock_reference) - slope * (mean_x + counter_reference)
+    return slope, intercept, np.asarray(wrap_sample_indices, dtype=np.int64)
 
 
 class SpikeGadgetsRawIO(BaseRawIO):
@@ -494,6 +696,10 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         # initialize systime parameters as empty dict so can check if they have been set in a get_regressed_systime call
         self.regressed_systime_parameters = {}
+        # offset of this object's first sample within the full recording; 0 for a
+        # full file, set to start_index for partial iterators. Used to anchor the
+        # uint32 timestamp unwrap to a single global axis (see get_regressed_systime).
+        self._global_sample_offset = 0
 
         self._generate_minimal_annotations()
         # info from GlobalConfiguration in xml are copied to block and seg annotations
@@ -654,18 +860,12 @@ class SpikeGadgetsRawIO(BaseRawIO):
 
         if self.interpolate_dropped_packets and self.interpolate_index is None:
             # first call in a interpolation iterator, needs to find the dropped packets
-            # has to run through the entire file to find missing packets
-            raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
-            ]
-            raw_uint32 = (
-                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            # has to run through the entire file to find missing packets. Pass
+            # ``source`` so multi-packet gaps (not interpolated) are warned once
+            # per file here, rather than per partial.
+            self.interpolate_index = _find_single_dropped_packet_indices(
+                self._raw_memmap, self._timestamp_byte, source=self.filename
             )
-            self.interpolate_index = np.where(
-                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()  # interpolates in the memmap
 
         # subsequent calls in a interpolation iterator don't remake the interpolated memmap, start here
@@ -998,24 +1198,56 @@ class SpikeGadgetsRawIO(BaseRawIO):
             A NumPy array containing the adjusted system timestamps.
         """
         NANOSECONDS_PER_SECOND = 1e9
-        # get trodes timestamp values
-        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        # Convert
-        trodestime_index = np.asarray(trodestime, dtype=np.float64)
+        # Fit the counter -> system-clock regression once, streaming over the
+        # whole recording so the fit never materialises the full counter/sysclock
+        # arrays (#47). Partial (split) iterators inherit these parameters and so
+        # skip the fit (see SpikeGadgetsRawIOPartial).
         if not self.regressed_systime_parameters:
-            # get raw systime values
-            systime_seconds = self.get_sys_clock(i_start, i_stop)
-            # regress
-            slope, intercept, _, _, _ = linregress(trodestime_index, systime_seconds)
+            # Resolve dropped-packet interpolation first so n_total reflects the
+            # final (post-interpolation) length. Otherwise the first counter read
+            # inside the fit expands _raw_memmap mid-fit and the streaming loop
+            # stops short of the inserted tail (a wrap there would be missed). On
+            # the non-split path the iterator already resolves this; this guards
+            # the split path, which fits here before that happens (#47).
+            if getattr(self, "interpolate_dropped_packets", False) and (
+                getattr(self, "interpolate_index", None) is None
+            ):
+                self.get_analogsignal_timestamps(0, 1)
+            slope, intercept, wrap_sample_indices = _fit_systime_regression_streaming(
+                self.get_analogsignal_timestamps,
+                self.get_sys_clock,
+                n_total=self._raw_memmap.shape[0],
+                global_offset=int(getattr(self, "_global_sample_offset", 0)),
+            )
             self.regressed_systime_parameters = {
                 "slope": slope,
                 "intercept": intercept,
+                "wrap_sample_indices": wrap_sample_indices,
             }
-        else:
-            slope = self.regressed_systime_parameters["slope"]
-            intercept = self.regressed_systime_parameters["intercept"]
+        slope = self.regressed_systime_parameters["slope"]
+        intercept = self.regressed_systime_parameters["intercept"]
+        wrap_sample_indices = self.regressed_systime_parameters.get(
+            "wrap_sample_indices", np.empty(0, dtype=np.int64)
+        )
+
+        # Get the raw uint32 Trodes timestamps for this slice. The counter wraps
+        # every 2**32 samples (~39.77 h at 30 kHz); unwrap to the globally
+        # monotonic axis anchored at the full recording's sample 0. The number of
+        # wraps before this slice's first global sample, plus any wrap within the
+        # slice, recovers that axis so split (partial) iterators -- which may read
+        # a post-wrap sub-range -- land on the same axis (see #169).
+        trodestime = np.asarray(self.get_analogsignal_timestamps(i_start, i_stop))
+        global_start = int(getattr(self, "_global_sample_offset", 0)) + int(
+            i_start or 0
+        )
+        prior_wraps = int(
+            np.searchsorted(wrap_sample_indices, global_start, side="right")
+        )
+        trodestime_index = (
+            _unwrap_uint32(trodestime) + prior_wraps * UINT32_WRAP
+        ).astype(np.float64)
         adjusted_timestamps = intercept + slope * trodestime_index
-        return (adjusted_timestamps) / NANOSECONDS_PER_SECOND
+        return adjusted_timestamps / NANOSECONDS_PER_SECOND
 
     @functools.lru_cache(maxsize=1)
     def get_systime_from_trodes_timestamps(
@@ -1129,42 +1361,23 @@ class InsertedMemmap:
             return self.mapped_index[index]
         # if slice object
         elif isinstance(index, slice):
+            if index.step not in (None, 1):
+                return self.mapped_index[index]
+            start, stop, step = index.indices(self.shape[0])
             # see if slice contains inserted values
-            if (
-                (
-                    (index.start is not None)
-                    and (index.stop is not None)
-                    and np.any(
-                        (self.inserted_locations >= index.start)
-                        & (self.inserted_locations < index.stop)
-                    )
-                )
-                | (
-                    (index.start is None)
-                    and (index.stop is not None)
-                    and np.any(self.inserted_locations < index.stop)
-                )
-                | (
-                    index.stop is None
-                    and (index.start is not None)
-                    and np.any(self.inserted_locations > index.start)
-                )
-                | (
-                    index.start is None
-                    and index.stop is None
-                    and len(self.inserted_locations) > 0
-                )
+            if np.any(
+                (self.inserted_locations >= start) & (self.inserted_locations < stop)
             ):
                 # if so, need to use advanced indexing. return list of indeces
                 return self.mapped_index[index]
             # if not, return slice object with coordinates adjusted
             else:
+                # ``stop`` is exclusive, so an insertion exactly at ``stop`` is
+                # not part of the requested slice and must not shorten it.
                 return slice(
-                    index.start
-                    - np.searchsorted(self.inserted_locations, index.start, "right"),
-                    index.stop
-                    - np.searchsorted(self.inserted_locations, index.stop, "right"),
-                    index.step,
+                    start - np.searchsorted(self.inserted_locations, start, "left"),
+                    stop - np.searchsorted(self.inserted_locations, stop, "left"),
+                    step,
                 )
         # if list of indeces
         else:
@@ -1224,6 +1437,22 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         self.selected_streams = full_io.selected_streams
         self._generate_minimal_annotations()
         self.regressed_systime_parameters = full_io.regressed_systime_parameters
+        # This partial starts at start_index within the full recording; anchor the
+        # timestamp unwrap to the same global axis as the full-file fit. The fit's
+        # wrap_sample_indices are on the POST-interpolation axis (get_regressed_systime
+        # resolves dropped-packet interpolation before fitting), but start_index is a
+        # PRE-interpolation index. If a dropped packet was inserted before a uint32
+        # wrap, leaving these on different axes undercounts prior_wraps and lands the
+        # partial ~39.77 h off. Translate start_index through the full file's
+        # interpolation map so both are post-interpolation (#47).
+        if isinstance(full_io._raw_memmap, InsertedMemmap):
+            self._global_sample_offset = int(
+                np.searchsorted(
+                    full_io._raw_memmap.mapped_index, start_index, side="left"
+                )
+            )
+        else:
+            self._global_sample_offset = start_index
 
         # crop key information to range of interest
         header_size = None
@@ -1240,23 +1469,32 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                 )
         # Inherit the original memmap object from the full_io object to conserve virtual memory
         if isinstance(full_io._raw_memmap, InsertedMemmap):
-            self._raw_memmap = full_io._raw_memmap._raw_memmap
+            full_raw_memmap = full_io._raw_memmap._raw_memmap
         else:
-            self._raw_memmap = full_io._raw_memmap
-        self._raw_memmap = self._raw_memmap[start_index:stop_index]
+            full_raw_memmap = full_io._raw_memmap
+        self._raw_memmap = full_raw_memmap[start_index:stop_index]
         # ensure interpolation
         if self.interpolate_dropped_packets and self.interpolate_index is None:
-            raw_uint8 = self._raw_memmap[
-                :, self._timestamp_byte : self._timestamp_byte + TIMESTAMP_SIZE_BYTES
-            ]
-            raw_uint32 = (
-                raw_uint8.view("uint8").reshape(-1, 4).view("uint32").reshape(-1)
+            if isinstance(full_io._raw_memmap, InsertedMemmap) and (
+                full_io.interpolate_index is not None
+            ):
+                inserted_index = np.asarray(full_io.interpolate_index, dtype=np.int64)
+            else:
+                # Scan one packet past the partial stop so a dropped packet whose
+                # diff straddles the split is still inserted into this partial.
+                scan_stop = min(stop_index + 1, full_raw_memmap.shape[0])
+                inserted_index = _find_single_dropped_packet_indices(
+                    full_raw_memmap,
+                    self._timestamp_byte,
+                    start_index=start_index,
+                    stop_index=scan_stop,
+                )
+            self.interpolate_index = (
+                inserted_index[
+                    (inserted_index >= start_index) & (inserted_index < stop_index)
+                ]
+                - start_index
             )
-            self.interpolate_index = np.where(
-                np.diff(raw_uint32) == EXPECTED_TIMESTAMP_DIFF_DROP
-            )[
-                0
-            ]  # find locations of single dropped packets
             self._interpolate_raw_memmap()
 
     @functools.lru_cache(maxsize=2)

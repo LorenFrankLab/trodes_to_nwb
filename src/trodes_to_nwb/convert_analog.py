@@ -9,7 +9,7 @@ from hdmf.backends.hdf5 import H5DataIO
 from pynwb import NWBFile
 
 from trodes_to_nwb import convert_rec_header
-from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator, _timestamps_for_write
 
 DEFAULT_CHUNK_TIME_DIM = 16384
 DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
@@ -96,7 +96,9 @@ def add_analog_data(
                 analog_channel_ids
             ),  # NOTE: matches rec_to_nwb system
             data=data_data_io,
-            timestamps=rec_dci.timestamps,
+            # rec_dci.timestamps is a lazy virtual array (#47); stream it like the
+            # e-series/sample_count writers do (a bare lazy array is rejected by docval).
+            timestamps=_timestamps_for_write(rec_dci.timestamps),
             unit="-1",
         )
     )

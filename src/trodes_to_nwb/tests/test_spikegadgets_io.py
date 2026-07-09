@@ -1,8 +1,73 @@
 import numpy as np
 import pytest
+from scipy.stats import linregress
 
-from trodes_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
+from trodes_to_nwb.spike_gadgets_raw_io import (
+    UINT32_WRAP,
+    InsertedMemmap,
+    SpikeGadgetsRawIO,
+    _fit_systime_regression_streaming,
+    _unwrap_uint32,
+)
 from trodes_to_nwb.tests.utils import data_path
+
+
+def _whole_array_fit(counter, sysclock, global_offset=0):
+    """The pre-#47 whole-array fit, kept here as the reference to match."""
+    unwrapped = _unwrap_uint32(counter).astype(np.float64)
+    wraps = (
+        np.flatnonzero(np.diff(counter.astype(np.int64)) < -(UINT32_WRAP // 2))
+        + 1
+        + global_offset
+    )
+    slope, intercept, *_ = linregress(unwrapped, sysclock.astype(np.float64))
+    return slope, intercept, wraps
+
+
+@pytest.mark.parametrize("chunk_size", [7919, 50_000, 10**9])
+def test_streaming_fit_matches_whole_array_no_wrap(chunk_size):
+    # On real (non-wrapping) data, the streaming fit must reproduce the wrap list
+    # exactly and the resulting timestamps to well under one sample (#47).
+    io = SpikeGadgetsRawIO(filename=str(data_path / "20230622_sample_01_a1.rec"))
+    io.parse_header()
+    n = io._raw_memmap.shape[0]
+    counter = np.asarray(io.get_analogsignal_timestamps(0, None))
+    sysclock = io.get_sys_clock(0, None)
+    slope_ref, intercept_ref, wraps_ref = _whole_array_fit(counter, sysclock)
+
+    slope, intercept, wraps = _fit_systime_regression_streaming(
+        io.get_analogsignal_timestamps, io.get_sys_clock, n, 0, chunk_size
+    )
+    assert np.array_equal(wraps, wraps_ref)
+    unwrapped = _unwrap_uint32(counter).astype(np.float64)
+    ts_ref = (intercept_ref + slope_ref * unwrapped) / 1e9
+    ts = (intercept + slope * unwrapped) / 1e9
+    assert np.max(np.abs(ts - ts_ref)) < 1.0 / 30000  # < one 30 kHz sample
+
+
+@pytest.mark.parametrize("offset_from_wrap", [-1, 0, 1, 1000])
+def test_streaming_fit_handles_uint32_wrap_across_chunks(offset_from_wrap):
+    # Build a counter that wraps partway through; the chunk boundary is placed at
+    # / around the wrap to exercise the cross-chunk unwrap state. Wrap indices
+    # must be exact and the fit must match regardless of where chunks fall.
+    n = 30_000
+    raw = np.arange(n, dtype=np.int64) * 4 + 2**32 - 60_000
+    counter = (raw % UINT32_WRAP).astype(np.uint32)
+    unwrapped = _unwrap_uint32(counter).astype(np.float64)
+    sysclock = (123456789 + 33333.6 * unwrapped + np.sin(np.arange(n))).astype(np.int64)
+
+    slope_ref, intercept_ref, wraps_ref = _whole_array_fit(counter, sysclock, 1000)
+    assert wraps_ref.size >= 1  # the test data really does wrap
+    chunk_size = max(1, int(wraps_ref[0]) - 1000 + offset_from_wrap)
+
+    slope, intercept, wraps = _fit_systime_regression_streaming(
+        lambda a, b: counter[a:b], lambda a, b: sysclock[a:b], n, 1000, chunk_size
+    )
+    assert np.array_equal(wraps, wraps_ref)
+    ts_ref = (intercept_ref + slope_ref * unwrapped) / 1e9
+    ts = (intercept + slope * unwrapped) / 1e9
+    assert np.max(np.abs(ts - ts_ref)) < 1.0 / 30000
+
 
 # --- Fixture for SpikeGadgetsRawIO instance ---
 

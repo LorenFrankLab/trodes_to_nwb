@@ -83,6 +83,47 @@ def wrapped_digitize(
     return ind_first * (1 - section) + ind_second * section
 
 
+def _scalar_digitize(timestamps, value: float) -> int:
+    """``int(np.digitize(value, timestamps))`` without materialising ``timestamps``.
+
+    Used to locate the two scalar epoch-boundary indices in the non-PTP position
+    path. ``timestamps`` is required to be monotonically increasing -- the same
+    precondition the surrounding non-PTP code already assumes, and which is
+    checked over the whole array when the iterator is built (a warning; see
+    ``_is_strictly_increasing`` in ``convert_ephys``).
+
+    - **Plain ``np.ndarray``** (e.g. timestamps read back from a file): defers to
+      ``np.digitize`` directly, so behaviour -- including the ``ValueError`` it
+      raises on a non-monotonic array -- is unchanged.
+    - **Lazy virtual timestamps** (#47): for monotonically increasing bins
+      ``np.digitize`` equals ``np.searchsorted(ts, value, side="right")`` (the
+      count of timestamps ``<= value``), computed here as an O(log n) binary
+      search using only scalar reads, so the full ~14.7 GB-at-17h array is never
+      materialised just to find two boundaries. To preserve ``np.digitize``'s
+      fail-loud contract, a lazy object exposing ``is_non_decreasing()`` is first
+      checked for an actual backward jump (a clock reset) and raises if found --
+      duplicates still pass (``np.digitize`` allows them); only decreases raise.
+    """
+    if isinstance(timestamps, np.ndarray):
+        return int(np.digitize(value, timestamps))
+    # The binary search assumes monotonic bins. np.digitize would raise on a
+    # decreasing array; match that here (cheap, streamed, cached) so a clock
+    # reset fails loud instead of returning a plausible-but-wrong index.
+    if hasattr(timestamps, "is_non_decreasing") and not timestamps.is_non_decreasing():
+        raise ValueError(
+            "timestamps decrease somewhere (a clock reset?); cannot compute a "
+            "digitize index -- np.digitize requires monotonic bins"
+        )
+    low, high = 0, len(timestamps)
+    while low < high:
+        mid = (low + high) // 2
+        if timestamps[mid] <= value:
+            low = mid + 1
+        else:
+            high = mid
+    return low
+
+
 def parse_dtype(fieldstr: str) -> np.dtype:
     """
     Parses the last fields parameter (<time uint32><...>) as a single string.
@@ -728,16 +769,22 @@ def _get_position_timestamps_no_ptp(
 
     frame_count = np.asarray(video_timestamps.HWframeCount)
 
-    epoch_start_ind = np.digitize(epoch_interval[0], rec_dci_timestamps)
-    epoch_end_ind = np.digitize(epoch_interval[1], rec_dci_timestamps)
-    is_valid_camera_time = np.isin(
-        video_timestamps.index, sample_count[epoch_start_ind:epoch_end_ind]
-    )
+    # Locate the epoch's sample-index bounds. ``rec_dci_timestamps`` is the lazy
+    # virtual timestamps (#47); searching it for the two scalar boundaries avoids
+    # materialising the whole ~14.7 GB-at-17h array (np.digitize would).
+    # _scalar_digitize raises on a decreasing array (a clock reset), matching
+    # np.digitize's fail-loud, so the bounds here are well-defined and ordered.
+    epoch_start_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[0])
+    epoch_end_ind = _scalar_digitize(rec_dci_timestamps, epoch_interval[1])
+    # Read this epoch's sample counts once -- sample_count may be a streamed
+    # iterator where each slice is a fresh memmap read (#47).
+    epoch_sample_count = sample_count[epoch_start_ind:epoch_end_ind]
+    is_valid_camera_time = np.isin(video_timestamps.index, epoch_sample_count)
 
     camera_systime = rec_dci_timestamps[
         wrapped_digitize(
             video_timestamps.index[is_valid_camera_time],
-            sample_count[epoch_start_ind:epoch_end_ind],
+            epoch_sample_count,
         )
         + epoch_start_ind
     ]

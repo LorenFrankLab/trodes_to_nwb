@@ -7,7 +7,10 @@ from pynwb import NWBHDF5IO
 from pynwb.behavior import Position
 
 from trodes_to_nwb import convert, convert_rec_header, convert_yaml
+from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
+from trodes_to_nwb.convert_intervals import _TrodesSampleCountIterator
 from trodes_to_nwb.convert_position import (
+    _scalar_digitize,
     add_position,
     convert_datafile_to_pandas,
     correct_timestamps_for_camera_to_mcu_lag,
@@ -34,6 +37,117 @@ def test_wrapped_digitize():
     assert np.array_equal(wrapped_digitize(x, bins), expected)
     # test case no wrapping
     assert np.array_equal(wrapped_digitize(expected, expected), expected)
+
+
+def test_scalar_digitize_matches_np_digitize():
+    # _scalar_digitize replaces np.digitize(scalar, timestamps) in the non-PTP
+    # path so it can run over the lazy virtual timestamps without materialising
+    # the whole array (#47, step 3). It must return exactly np.digitize for both
+    # a plain ndarray and the lazy array, including below/at/above range and on
+    # an exact timestamp value.
+    ts = np.array([0.0, 1.0, 1.0, 2.5, 4.0, 9.0])  # monotonic, with a duplicate
+    probes = [-1.0, 0.0, 0.5, 1.0, 2.5, 3.0, 9.0, 100.0]
+    for value in probes:
+        assert _scalar_digitize(ts, value) == int(np.digitize(value, ts))
+
+    # the ndarray path is plain np.digitize, so it keeps the fail-loud behaviour
+    # of raising on a non-monotonic array (rather than returning a bogus index)
+    with pytest.raises(ValueError):
+        _scalar_digitize(np.array([0.0, 5.0, 2.0, 9.0]), 3.0)
+
+    # lazy path (binary search via scalar reads) on the real sample timestamps
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator([str(f) for f in recfile], stream_id="trodes")
+    lazy = rec_dci.timestamps
+    full = np.asarray(lazy)
+    boundary = rec_dci.neo_io[0]._raw_memmap.shape[0]
+    for value in [
+        full[0] - 1.0,
+        full[0],
+        full[5],
+        full[boundary - 1],
+        full[boundary],
+        full[len(full) // 2],
+        (full[10] + full[11]) / 2,
+        full[-1],
+        full[-1] + 1.0,
+    ]:
+        assert _scalar_digitize(lazy, float(value)) == int(np.digitize(value, full))
+
+
+def test_scalar_digitize_lazy_fails_loud_on_decreasing_bins():
+    # The lazy path must preserve np.digitize's fail-loud on a decreasing array
+    # (a clock reset) -- the start<=end check alone misses it (e.g. [0,1,2,3,4,2]
+    # with epoch [2.5,3.5] returns ordered (3, 6)). A lazy-like object exposing
+    # is_non_decreasing() is checked; duplicates still pass (#47, review).
+    class _Bins:
+        def __init__(self, values, non_decreasing):
+            self._v = np.asarray(values, dtype=float)
+            self._nd = non_decreasing
+
+        def __len__(self):
+            return len(self._v)
+
+        def __getitem__(self, i):
+            return self._v[i]
+
+        def is_non_decreasing(self):
+            return self._nd
+
+    # a real backward jump -> raise (np.digitize would too)
+    with pytest.raises(ValueError):
+        _scalar_digitize(_Bins([0, 1, 2, 3, 4, 2], non_decreasing=False), 2.5)
+    # duplicates are allowed and give the same answer as np.digitize
+    dup = [0.0, 1.0, 1.0, 2.0, 3.0]
+    assert _scalar_digitize(_Bins(dup, non_decreasing=True), 1.0) == int(
+        np.digitize(1.0, dup)
+    )
+
+
+def test_non_ptp_index_path_lazy_matches_materialized():
+    # End-to-end equivalence of the non-PTP index arithmetic on the LIVE lazy
+    # timestamps + streamed sample counts vs the materialized arrays. This is the
+    # path convert.py feeds at runtime (the non-PTP unit test uses materialized
+    # arrays, so this is the only coverage of the lazy/iterator path) (#47, step 3).
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator([str(f) for f in recfile], stream_id="trodes")
+    lazy = rec_dci.timestamps
+    full = np.asarray(lazy)
+    sample_count = _TrodesSampleCountIterator(rec_dci.neo_io)
+    sample_count_full = np.concatenate(
+        [io.get_analogsignal_timestamps(0, None) for io in rec_dci.neo_io]
+    )
+
+    epoch_interval = [float(full[1000]), float(full[5000])]
+
+    start_live = _scalar_digitize(lazy, epoch_interval[0])
+    stop_live = _scalar_digitize(lazy, epoch_interval[1])
+    start_mat = int(np.digitize(epoch_interval[0], full))
+    stop_mat = int(np.digitize(epoch_interval[1], full))
+    assert (start_live, stop_live) == (start_mat, stop_mat)
+
+    # sample counts for the epoch, streamed vs concatenated
+    np.testing.assert_array_equal(
+        sample_count[start_live:stop_live], sample_count_full[start_mat:stop_mat]
+    )
+
+    # camera frames -> sample positions -> camera_systime (fancy index on lazy)
+    camera_counts = sample_count_full[start_mat:stop_mat][::37]
+    positions_live = (
+        wrapped_digitize(camera_counts, sample_count[start_live:stop_live]) + start_live
+    )
+    positions_mat = (
+        wrapped_digitize(camera_counts, sample_count_full[start_mat:stop_mat])
+        + start_mat
+    )
+    np.testing.assert_array_equal(positions_live, positions_mat)
+    np.testing.assert_array_equal(np.asarray(lazy[positions_live]), full[positions_mat])
 
 
 def test_parse_dtype_standard():
