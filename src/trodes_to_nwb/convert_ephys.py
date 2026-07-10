@@ -216,10 +216,14 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             )
 
         logger.info("Reading timestamps COMPLETE")
-        is_timestamps_sequential = np.all(np.diff(self.timestamps))
+        # Must be strictly increasing. `np.all(np.diff(...))` only checks that no
+        # two timestamps are *equal* (nonzero diff); it silently accepts a
+        # backward jump (negative diff), which is exactly what a clock reset or
+        # an out-of-order file concatenation would produce. Check for > 0.
+        is_timestamps_sequential = bool(np.all(np.diff(self.timestamps) > 0))
         if not is_timestamps_sequential:
             warn(
-                "Timestamps are not sequential. This may cause problems with some software or data analysis.",
+                "Timestamps are not strictly increasing. This may cause problems with some software or data analysis.",
                 stacklevel=2,
             )
 

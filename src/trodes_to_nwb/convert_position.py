@@ -637,21 +637,39 @@ def _get_position_timestamps_ptp(
         logger.warning(
             "PTP timestamps correspond to a time earlier than 2000. This may be due to a PTP clock reset."
         )
+    # Downstream consumers (e.g. Spyglass) assume strictly increasing position
+    # timestamps; warn rather than silently writing a backward jump or a stalled
+    # (duplicate) timestamp. `is_monotonic_increasing` is non-strict, so check
+    # diffs > 0 to also catch duplicates, matching the ephys guard.
+    if ptp_timestamps.size > 1 and not np.all(np.diff(ptp_timestamps.values) > 0):
+        logger.warning(
+            "PTP timestamps are not strictly increasing. This may be due to a "
+            "PTP clock reset and can break downstream epoch/position handling."
+        )
 
     video_timestamps = video_timestamps.drop(
         columns=["HWframeCount", "HWTimestamp"]
     ).set_index(ptp_timestamps)
 
-    # Ignore positions before the timing pause.
-    pause_mid_ind = (
-        np.nonzero(
-            np.logical_and(
-                np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
-                np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
-            )
-        )[0][0]
-        + 1
-    )
+    # Ignore positions before the timing pause. If no pause is found in the first
+    # 100 frames, keep all frames (mirrors the guarded non-PTP path) rather than
+    # aborting the whole conversion with an IndexError.
+    try:
+        pause_mid_ind = (
+            np.nonzero(
+                np.logical_and(
+                    np.diff(video_timestamps.index[:100]) > DEFAULT_MIN_PTP_PAUSE_S,
+                    np.diff(video_timestamps.index[:100]) < DEFAULT_MAX_PTP_PAUSE_S,
+                )
+            )[0][0]
+            + 1
+        )
+    except IndexError:
+        logger.warning(
+            "No acquisition timing pause found in the first 100 PTP frames; "
+            "keeping all frames."
+        )
+        pause_mid_ind = 0
     video_timestamps = video_timestamps.iloc[pause_mid_ind:]
     if len(video_timestamps.index) > 1:
         frame_rate = 1 / np.median(np.diff(video_timestamps.index))
@@ -663,6 +681,31 @@ def _get_position_timestamps_ptp(
         logger.warning(
             "Less than 2 timestamps remain after PTP pause removal; cannot estimate frame rate."
         )
+
+    # Video frames with no matching position tracking (the camera can keep
+    # running after online/offline tracking stops) arrive from the upstream
+    # left-merge as NaN for every position column. Drop ONLY those fully
+    # unmatched frames: rows where just one LED is missing, or interior
+    # single-frame dropouts, are preserved so trajectories are not silently
+    # elided. (The non-PTP path removes unmatched frames separately, by
+    # sample-count membership, not by NaN.)
+    position_columns = [
+        c for c in ("xloc", "yloc", "xloc2", "yloc2") if c in video_timestamps.columns
+    ]
+    if position_columns:
+        unmatched = video_timestamps[position_columns].isna().all(axis=1)
+        if unmatched.any():
+            dropped_frames = (
+                video_timestamps.loc[unmatched, "video_frame_ind"].tolist()
+                if "video_frame_ind" in video_timestamps.columns
+                else "unknown"
+            )
+            logger.warning(
+                f"Dropping {int(unmatched.sum())} PTP video frame(s) with no "
+                "matching position tracking (all position columns NaN); "
+                f"video_frame_ind={dropped_frames}."
+            )
+            video_timestamps = video_timestamps[~unmatched]
 
     return video_timestamps
 
