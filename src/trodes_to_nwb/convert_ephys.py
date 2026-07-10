@@ -149,7 +149,10 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         if nwb_hw_channel_order is None:
             nwb_hw_channel_order = []
         if len(nwb_hw_channel_order) == 0:  # TODO: raise error instead?
-            self.nwb_hw_channel_order = np.arange(self.n_channel)
+            signal_channels = self.neo_io[0].header["signal_channels"]
+            self.nwb_hw_channel_order = signal_channels[
+                signal_channels["stream_id"] == self.stream_id
+            ]["id"]
         else:
             self.nwb_hw_channel_order = nwb_hw_channel_order
 
@@ -255,46 +258,43 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # those are stored in the file as channel IDs
         # make into list form passed to neo_io
         selection_list = list(selection)
-        if self.is_analog:
-            selection_list[1] = slice(
-                selection[1].start,
-                min(selection[1].stop, self.n_channel),
-                selection[1].step,
-            )
-        channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection_list[1]]]
         # what global index each file starts at
-        file_start_ind = np.append(np.zeros(1), np.cumsum(self.n_time))
-        # the time indexes we want
-        time_index = np.arange(selection_list[0].start, selection_list[0].stop)[
-            :: selection_list[0].step
-        ]
+        file_start_ind = np.append(np.zeros(1, dtype=np.int64), np.cumsum(self.n_time))
+        max_time, max_channel = self._get_maxshape()
+        requested_channels = np.arange(max_channel)[selection[1]]
+        if self.is_analog:
+            analog_channels = requested_channels[requested_channels < self.n_channel]
+            channel_ids = [
+                str(x) for x in np.asarray(self.nwb_hw_channel_order)[analog_channels]
+            ]
+        else:
+            selection_list[1] = selection[1]
+            channel_ids = [str(x) for x in self.nwb_hw_channel_order[selection_list[1]]]
+        time_start, time_stop, _ = selection_list[0].indices(max_time)
+        if time_stop <= time_start:
+            return np.empty((0, len(requested_channels)), dtype=np.int16)
         data = []
-        i = time_index[0]
-        while i < min(time_index[-1], self._get_maxshape()[0]):
+        i = time_start
+        while i < time_stop:
             # find the stream where this piece of slice begins
-            io_stream = np.argmin(i >= file_start_ind) - 1
+            io_stream = np.searchsorted(file_start_ind, i, side="right") - 1
+            local_start = i - file_start_ind[io_stream]
+            local_stop = min(
+                time_stop - file_start_ind[io_stream],
+                self.n_time[io_stream],
+            )
             # get the data from that stream
             data.append(
                 self.neo_io[io_stream].get_analogsignal_chunk(
                     block_index=self.block_index,
                     seg_index=self.seg_index,
-                    i_start=int(i - file_start_ind[io_stream]),
-                    i_stop=int(
-                        min(
-                            time_index[-1] - file_start_ind[io_stream],
-                            self.n_time[io_stream],
-                        )
-                    )
-                    + 1,
+                    i_start=int(local_start),
+                    i_stop=int(local_stop),
                     stream_index=self.stream_index,
                     channel_ids=channel_ids,
                 )
             )
-            i += min(
-                self.n_time[io_stream]
-                - (i - file_start_ind[io_stream]),  # if added up to the end of stream
-                time_index[-1] - i,  # if finished in this stream
-            )
+            i = file_start_ind[io_stream] + local_stop
 
         data = (np.concatenate(data) * self.conversion).astype("int16")
         # Handle the appended multiplex data
@@ -308,21 +308,20 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
                 self.n_channel
             )  # number of non-multiplexed channels in the dataset
             n_analog_selected = data.shape[1] - n_multiplex
-            return_indices = np.arange(
-                n_analog_selected
-            )  # include all non-multiplexed channels pulled
-            # determine which multiplex channels are being requested
-            if (
-                selection[1].stop > n_analog
-            ):  # if multiplexed channels are being requested
-                requested_multiplex = np.arange(n_multiplex) + n_analog_selected
-                multiplex_slice = slice(
-                    max(selection[1].start - n_analog, 0),
-                    max(selection[1].stop - n_analog, 0),
-                    selection[1].step,
+            analog_lookup = {
+                int(channel): i
+                for i, channel in enumerate(
+                    requested_channels[requested_channels < n_analog]
                 )
-                requested_multiplex = requested_multiplex[multiplex_slice]
-                return_indices = np.append(return_indices, requested_multiplex)
+            }
+            return_indices = [
+                (
+                    analog_lookup[int(channel)]
+                    if channel < n_analog
+                    else n_analog_selected + int(channel) - n_analog
+                )
+                for channel in requested_channels
+            ]
             data = data[:, return_indices]
 
         return data

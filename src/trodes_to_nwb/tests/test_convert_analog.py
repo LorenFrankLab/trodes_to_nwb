@@ -170,3 +170,84 @@ def test_selection_of_multiplexed_data():
             )
         )
         assert data.shape[1] == expected
+
+
+def test_ecu_analog_iterator_default_channel_order_uses_header_ids():
+    # The default channel order used to be np.arange(n_channel), which only works
+    # for streams whose channel IDs are numeric strings. ECU_analog IDs are names
+    # like "ECU_Ain1", so default construction should use the header IDs.
+    rec_file = data_path / "20230622_sample_01_a1.rec"
+    rec_dci = RecFileDataChunkIterator(
+        [rec_file],
+        stream_id="ECU_analog",
+        is_analog=True,
+    )
+
+    assert rec_dci._get_data((slice(0, 1), slice(0, 1))).shape == (1, 1)
+    assert rec_dci._get_data((slice(0, 1), slice(0, rec_dci.n_channel))).shape == (
+        1,
+        rec_dci.n_channel,
+    )
+
+
+def test_ecu_analog_iterator_open_ended_channel_slices():
+    rec_file = data_path / "20230622_sample_01_a1.rec"
+    rec_dci = RecFileDataChunkIterator(
+        [rec_file],
+        stream_id="ECU_analog",
+        is_analog=True,
+    )
+    total_time, total_channels = rec_dci._get_maxshape()
+
+    def expected_from_raw(time_slice, channel_slice):
+        start, stop, _ = time_slice.indices(total_time)
+        requested_channels = np.arange(total_channels)[channel_slice]
+        if stop <= start:
+            return np.empty((0, len(requested_channels)), dtype=np.int16)
+
+        physical_channels = requested_channels[requested_channels < rec_dci.n_channel]
+        channel_ids = [
+            str(channel)
+            for channel in np.asarray(rec_dci.nwb_hw_channel_order)[physical_channels]
+        ]
+        raw_data = rec_dci.neo_io[0].get_analogsignal_chunk(
+            block_index=rec_dci.block_index,
+            seg_index=rec_dci.seg_index,
+            i_start=start,
+            i_stop=stop,
+            stream_index=rec_dci.stream_index,
+            channel_ids=channel_ids,
+        )
+
+        physical_lookup = {
+            int(channel): index for index, channel in enumerate(physical_channels)
+        }
+        return_indices = [
+            (
+                physical_lookup[int(channel)]
+                if channel < rec_dci.n_channel
+                else len(physical_channels) + int(channel) - rec_dci.n_channel
+            )
+            for channel in requested_channels
+        ]
+        return (raw_data[:, return_indices] * rec_dci.conversion).astype("int16")
+
+    channel_slices = [
+        slice(None),
+        slice(0, None),
+        slice(rec_dci.n_channel, None),
+        slice(None, rec_dci.n_channel),
+        slice(None, None, 2),
+        slice(rec_dci.n_channel - 1, rec_dci.n_channel + 2),
+    ]
+    time_slices = [
+        slice(0, 3),
+        slice(total_time - 1, total_time),
+        slice(total_time, total_time),
+    ]
+    for time_slice in time_slices:
+        for channel_slice in channel_slices:
+            data = rec_dci._get_data((time_slice, channel_slice))
+            np.testing.assert_array_equal(
+                data, expected_from_raw(time_slice, channel_slice)
+            )
