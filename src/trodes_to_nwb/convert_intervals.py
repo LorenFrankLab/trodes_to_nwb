@@ -6,6 +6,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+from hdmf.data_utils import GenericDataChunkIterator
 from pynwb import NWBFile, TimeSeries
 
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
@@ -13,6 +14,94 @@ from trodes_to_nwb.spike_gadgets_raw_io import SpikeGadgetsRawIO
 
 MILLISECONDS_PER_SECOND = 1e3
 NANOSECONDS_PER_SECOND = 1e9
+
+
+class _TrodesSampleCountIterator(GenericDataChunkIterator):
+    """Stream the Trodes sample counts as one virtual 1-D ``uint32`` array.
+
+    The sample-count data spans every rec file in the session. Concatenating all
+    of them up front materialises the whole array (~7 GB at 17 h @30 kHz); this
+    iterator instead reads each requested chunk on demand from the files'
+    memmaps, so the counts are never all resident at once (issue #47). The values
+    and their order are identical to
+    ``np.concatenate([io.get_analogsignal_timestamps(0, None) for io in neo_io])``.
+
+    Construct only from ``neo_io`` whose memmaps are already in their final
+    (post-interpolation) state -- e.g. the ``neo_io`` of a
+    ``RecFileDataChunkIterator`` after its timestamps have been built. Per-file
+    lengths are read once from ``io._raw_memmap.shape[0]``; if dropped-packet
+    interpolation is resolved *after* construction those lengths (and every
+    subsequent read) would silently misalign with the written timestamps.
+    """
+
+    def __init__(self, neo_io: list[SpikeGadgetsRawIO], **kwargs):
+        self._neo_io = list(neo_io)
+        if not self._neo_io:
+            raise ValueError(
+                "_TrodesSampleCountIterator requires at least one rec file"
+            )
+        lengths = [io._raw_memmap.shape[0] for io in self._neo_io]
+        # global index of the first sample of each file (plus a final total)
+        self._file_starts = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+        self._total = int(self._file_starts[-1])
+        if self._total == 0:
+            raise ValueError(
+                "_TrodesSampleCountIterator: all rec files are empty; "
+                "there is no sample-count data to write"
+            )
+        super().__init__(**kwargs)
+
+    def _get_data(self, selection: tuple) -> np.ndarray:
+        start, stop, _ = selection[0].indices(self._total)
+        out = np.empty(stop - start, dtype=np.uint32)
+        for i, io in enumerate(self._neo_io):
+            file_start = int(self._file_starts[i])
+            file_stop = int(self._file_starts[i + 1])
+            lo, hi = max(start, file_start), min(stop, file_stop)
+            if lo < hi:
+                out[lo - start : hi - start] = io.get_analogsignal_timestamps(
+                    lo - file_start, hi - file_start
+                )
+        return out
+
+    def _get_maxshape(self) -> tuple:
+        return (self._total,)
+
+    def _get_dtype(self) -> np.dtype:
+        return np.dtype("uint32")
+
+    def __getitem__(self, key) -> np.ndarray:
+        """Read a slice of the sample counts as a materialised ``uint32`` array.
+
+        A ``GenericDataChunkIterator`` is write-only and not subscriptable, but
+        the non-PTP position path indexes the stored sample counts by epoch
+        range (``convert_position._get_position_timestamps_no_ptp``). Delegating
+        random access to ``_get_data`` keeps that path working while still
+        materialising only the requested slice rather than the whole session
+        (issue #47). For integer keys and contiguous (step-1) slices -- the only
+        forms the non-PTP position path uses -- ``iterator[key]`` equals
+        ``np.concatenate(...)[key]``. A slice with a non-unit step is not
+        supported (``_get_data`` reads contiguously) and raises ``ValueError``
+        rather than silently returning a wrong-length array.
+        """
+        if isinstance(key, (int, np.integer)):
+            idx = int(key) + (self._total if key < 0 else 0)
+            if not 0 <= idx < self._total:
+                raise IndexError(
+                    f"index {key} is out of bounds for length {self._total}"
+                )
+            return self._get_data((slice(idx, idx + 1),))[0]
+        if isinstance(key, slice):
+            if key.step not in (None, 1):
+                raise ValueError(
+                    f"{type(self).__name__} supports only contiguous (step-1) "
+                    f"slices, got step={key.step}"
+                )
+            return self._get_data((key,))
+        raise TypeError(
+            f"{type(self).__name__} indices must be integers or slices, "
+            f"not {type(key).__name__}"
+        )
 
 
 def add_epochs(
@@ -90,12 +179,13 @@ def add_sample_count(
         description="corespondence between sample count and timestamps",
     )
 
-    # get the systime information
-    systime = np.array(rec_dci.timestamps)
-    # get the sample count information
-    trodes_sample = np.concatenate(
-        [neo_io.get_analogsignal_timestamps(0, None) for neo_io in rec_dci.neo_io]
-    )
+    # Reference the already-resident ephys timestamps directly rather than
+    # copying them -- the copy duplicated the whole array (~15 GB at 17 h). This
+    # matches how add_analog/add_raw_ephys already reuse rec_dci.timestamps (#47).
+    systime = rec_dci.timestamps
+    # Stream the sample counts instead of concatenating every file's into one
+    # array (~7 GB at 17 h); they are written chunk-by-chunk from the memmaps.
+    trodes_sample = _TrodesSampleCountIterator(rec_dci.neo_io)
 
     # insert into nwbfile
     nwbfile.processing["sample_count"].add(

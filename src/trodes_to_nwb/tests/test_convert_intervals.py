@@ -1,10 +1,15 @@
 import os
 
 import numpy as np
+import pytest
 from pynwb import NWBHDF5IO
 
 from trodes_to_nwb.convert_ephys import RecFileDataChunkIterator
-from trodes_to_nwb.convert_intervals import add_epochs, add_sample_count
+from trodes_to_nwb.convert_intervals import (
+    _TrodesSampleCountIterator,
+    add_epochs,
+    add_sample_count,
+)
 from trodes_to_nwb.convert_yaml import initialize_nwb, load_metadata
 from trodes_to_nwb.data_scanner import get_file_info
 from trodes_to_nwb.tests.test_convert_rec_header import default_test_xml_tree
@@ -38,6 +43,110 @@ def test_add_epochs():
     assert list(epochs_df.tags) == [["01_a1"], ["02_a1"]]
     assert list(epochs_df.start_time) == [1687474797.888, 1687474821.109]
     assert list(epochs_df.stop_time) == list(old_epochs_df.stop_time)
+
+
+def test_trodes_sample_count_iterator_matches_concatenation():
+    # The streaming iterator must yield exactly the values, in order, that the old
+    # np.concatenate over the per-file Trodes sample counts produced -- including
+    # across the file boundary (issue #47).
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator(recfile, stream_id="trodes")
+    expected = np.concatenate(
+        [io.get_analogsignal_timestamps(0, None) for io in rec_dci.neo_io]
+    )
+
+    iterator = _TrodesSampleCountIterator(rec_dci.neo_io)
+    assert iterator.maxshape == (expected.shape[0],)
+    assert iterator.dtype == np.uint32
+
+    # a chunk straddling the file boundary reads the right values
+    boundary = rec_dci.neo_io[0]._raw_memmap.shape[0]
+    np.testing.assert_array_equal(
+        iterator._get_data((slice(boundary - 5, boundary + 5),)),
+        expected[boundary - 5 : boundary + 5],
+    )
+
+    # full streamed reconstruction equals the concatenation
+    materialized = np.empty(expected.shape, dtype=np.uint32)
+    for chunk in iterator:
+        materialized[chunk.selection] = chunk.data
+    np.testing.assert_array_equal(materialized, expected)
+
+
+def test_trodes_sample_count_iterator_is_subscriptable():
+    # The non-PTP position path indexes the stored sample counts by epoch range
+    # (convert_position._get_position_timestamps_no_ptp slices `sample_count`).
+    # The streaming iterator must therefore support slice/int access and return
+    # exactly what the old np.concatenate array would (issue #47).
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator(recfile, stream_id="trodes")
+    expected = np.concatenate(
+        [io.get_analogsignal_timestamps(0, None) for io in rec_dci.neo_io]
+    )
+
+    iterator = _TrodesSampleCountIterator(rec_dci.neo_io)
+
+    # leading slice (the exact access the reviewer reproduced: `.data[:5]`)
+    np.testing.assert_array_equal(iterator[:5], expected[:5])
+    # a slice straddling the file boundary
+    boundary = rec_dci.neo_io[0]._raw_memmap.shape[0]
+    np.testing.assert_array_equal(
+        iterator[boundary - 5 : boundary + 5], expected[boundary - 5 : boundary + 5]
+    )
+    # full slice equals the concatenation
+    np.testing.assert_array_equal(iterator[:], expected)
+    # integer access (including negative, and numpy ints from np.digitize)
+    assert iterator[0] == expected[0]
+    assert iterator[-1] == expected[-1]
+    assert iterator[np.int64(0)] == expected[0]
+
+    # unsupported access fails loudly rather than returning a wrong answer:
+    # a non-unit step would silently yield a contiguous (wrong) array, an
+    # out-of-bounds int has no value, and a non-int/slice key is undefined.
+    with pytest.raises(ValueError):
+        iterator[0:20:2]
+    with pytest.raises(IndexError):
+        iterator[iterator.maxshape[0]]
+    with pytest.raises(TypeError):
+        iterator[[0, 1]]
+
+
+def test_trodes_sample_count_iterator_streams_in_chunks():
+    # Force a small buffer so the iterator yields many chunks: this exercises the
+    # actual streaming path (issue #47) and the cross-chunk reconstruction, which
+    # the default buffer (one chunk for the bundled data) would not.
+    recfile = [
+        data_path / "20230622_sample_01_a1.rec",
+        data_path / "20230622_sample_02_a1.rec",
+    ]
+    rec_dci = RecFileDataChunkIterator(recfile, stream_id="trodes")
+    expected = np.concatenate(
+        [io.get_analogsignal_timestamps(0, None) for io in rec_dci.neo_io]
+    )
+
+    iterator = _TrodesSampleCountIterator(
+        rec_dci.neo_io, chunk_shape=(10_000,), buffer_shape=(10_000,)
+    )
+    chunks = list(iterator)
+    assert len(chunks) > 1  # genuinely streamed, not one resident array
+
+    materialized = np.empty(expected.shape, dtype=np.uint32)
+    for chunk in chunks:
+        materialized[chunk.selection] = chunk.data
+    np.testing.assert_array_equal(materialized, expected)
+
+
+def test_trodes_sample_count_iterator_rejects_empty():
+    # An empty session must fail loudly at construction with an actionable
+    # message rather than dying later with an opaque ZeroDivisionError from hdmf.
+    with pytest.raises(ValueError):
+        _TrodesSampleCountIterator([])
 
 
 def test_add_sample_count():
