@@ -11,7 +11,6 @@ Intended as a temporary solution until official support is available in Neo.
 import functools
 from xml.etree import ElementTree
 
-import numpy as np
 from neo.rawio.baserawio import (  # TODO the import location was updated for this notebook
     BaseRawIO,
     _event_channel_dtype,
@@ -19,6 +18,7 @@ from neo.rawio.baserawio import (  # TODO the import location was updated for th
     _signal_stream_dtype,
     _spike_channel_dtype,
 )
+import numpy as np
 from scipy.stats import linregress
 
 INT_16_CONVERSION = 256
@@ -32,6 +32,13 @@ EXPECTED_TIMESTAMP_DIFF_DROP = 2  # Indicates a single dropped packet
 class SpikeGadgetsRawIO(BaseRawIO):
     extensions = ["rec"]
     rawmode = "one-file"
+
+    # When True, ``_get_analogsignal_chunk`` appends the sample-and-held
+    # multiplexed headstage channels to every ``ECU_analog`` read (the legacy
+    # combined-stream layout). Reading any ECU chunk then materializes the whole
+    # multiplexed array (see ``get_analogsignal_multiplexed``). Callers that only
+    # want the physical ECU channels set this False to avoid that allocation.
+    _include_analog_multiplexed = True
 
     def __init__(
         self,
@@ -617,7 +624,7 @@ class SpikeGadgetsRawIO(BaseRawIO):
         if re_order is not None:
             raw_unit16 = raw_unit16[:, re_order]
 
-        if stream_id == "ECU_analog":
+        if stream_id == "ECU_analog" and self._include_analog_multiplexed:
             # automatically include the interleaved analog signals:
             analog_multiplexed_data = self.get_analogsignal_multiplexed()[
                 i_start:i_stop, :
@@ -735,7 +742,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             If any specified `channel_names` are not found in the file.
         """
-        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -786,6 +792,141 @@ class SpikeGadgetsRawIO(BaseRawIO):
             )
         return analog_multiplexed_data
 
+    def group_multiplexed_channels_by_schedule(
+        self, channel_names: list[str]
+    ) -> list[list[str]]:
+        """Partition channels by their per-channel multiplexed update schedule.
+
+        Each multiplexed channel refreshes on the packets where its own
+        ``(interleavedDataIDByte, interleavedDataIDBit)`` flag is set; channels
+        that share that pair are sampled together and form one true-rate stream.
+        Channels of one sensor (e.g. accelerometer X/Y/Z) usually share a pair,
+        but the format does not guarantee it, so callers must group before calling
+        :meth:`get_analogsignal_multiplexed_decimated` (which requires a single
+        shared schedule) rather than assume one sensor equals one schedule.
+
+        Parameters
+        ----------
+        channel_names : list of str
+            Multiplexed channel names to partition.
+
+        Returns
+        -------
+        list of list of str
+            Groups of channel names sharing an update schedule, each preserving
+            the order channels appear in ``channel_names``. The groups themselves
+            are ordered by first appearance.
+
+        Raises
+        ------
+        ValueError
+            If a channel is not present in this file's multiplexed channels.
+        """
+        groups: dict[tuple[int, int], list[str]] = {}
+        order: list[tuple[int, int]] = []
+        for name in channel_names:
+            if name not in self.multiplexed_channel_xml:
+                raise ValueError(f"Channel name '{name}' not found in file.")
+            attrib = self.multiplexed_channel_xml[name].attrib
+            key = (
+                int(attrib["interleavedDataIDByte"]),
+                int(attrib["interleavedDataIDBit"]),
+            )
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(name)
+        return [groups[key] for key in order]
+
+    def get_analogsignal_multiplexed_decimated(
+        self, channel_names: list[str]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return only the genuinely-sampled values for a group of multiplexed channels.
+
+        Multiplexed headstage sensor data is transmitted at the sensor's true rate
+        (e.g. ~100 Hz for the IMU) and expanded to the full acquisition rate by
+        sample-and-hold in the ``.rec`` stream. This method removes the held
+        repeats using the per-packet ``interleavedDataIDBit`` flags (the same flags
+        :meth:`get_analogsignal_multiplexed` uses to decide when to refresh), so the
+        returned data is at the sensor's native rate.
+
+        All requested channels must share an identical update schedule (i.e. belong
+        to the same sensor, such as accelerometer X/Y/Z); they are sampled together.
+
+        Unlike :meth:`get_analogsignal_multiplexed`, this method does NOT synthesize
+        a sample at packet 0: only packets whose update flag is set are returned, so
+        the first returned sample is the first genuine acquisition (the held method
+        seeds packet 0 with a possibly-stale value to start the sample-and-hold).
+
+        Parameters
+        ----------
+        channel_names : list of str
+            Multiplexed channel names belonging to a single sensor.
+
+        Returns
+        -------
+        data : np.ndarray, shape (n_updates, n_channels), int16
+            The genuinely-sampled values, sample-and-hold repeats removed.
+        update_indices : np.ndarray, shape (n_updates,), int
+            Packet indices (into this file's stream) at which each sample was
+            acquired, for deriving timestamps. Empty if the channels never update
+            (e.g. a disabled sensor).
+
+        Raises
+        ------
+        ValueError
+            If a channel is not found, or the requested channels do not share an
+            identical update schedule (i.e. they belong to different sensors).
+        """
+        for ch_name in channel_names:
+            if ch_name not in self.multiplexed_channel_xml:
+                raise ValueError(f"Channel name '{ch_name}' not found in file.")
+
+        data_offsets = np.empty((len(channel_names), 3), dtype=int)
+        for j, ch_name in enumerate(channel_names):
+            ch_xml = self.multiplexed_channel_xml[ch_name]
+            data_offsets[j, 0] = int(
+                self._multiplexed_byte_start + int(ch_xml.attrib["startByte"])
+            )
+            data_offsets[j, 1] = int(
+                self._multiplexed_byte_start
+                + int(ch_xml.attrib["interleavedDataIDByte"])
+            )
+            data_offsets[j, 2] = int(ch_xml.attrib["interleavedDataIDBit"])
+
+        # per-packet, per-channel update flags. Cast the shift amount to uint8 so
+        # the mask stays uint8 instead of upcasting to int64 (8x the memory) across
+        # all packets -- the dominant allocation for long sessions.
+        bit_positions = data_offsets[:, 2].astype(np.uint8)
+        update = (
+            (self._raw_memmap[:, data_offsets[:, 1]] >> bit_positions) & 1
+        ).astype(bool)
+        # channels of one sensor are sampled together; require a shared schedule
+        common = update[:, 0]
+        if not np.all(update == common[:, None]):
+            raise ValueError(
+                "Multiplexed channels do not share an update schedule; pass the "
+                "channels of a single sensor (e.g. accelerometer X/Y/Z)."
+            )
+        update_indices = np.flatnonzero(common)
+        if update_indices.size == 0:
+            return (
+                np.empty((0, len(channel_names)), dtype=np.int16),
+                update_indices,
+            )
+
+        # Select only the data byte-columns at the update packets, rather than
+        # copying whole packet rows (each ~hundreds of bytes); the row copy would
+        # scale with the full packet width and reach GBs on long, high-channel runs.
+        low = self._raw_memmap[np.ix_(update_indices, data_offsets[:, 0])].astype(
+            np.int16
+        )
+        high = self._raw_memmap[np.ix_(update_indices, data_offsets[:, 0] + 1)].astype(
+            np.int16
+        )
+        data = low + high * INT_16_CONVERSION
+        return data, update_indices
+
     def get_analogsignal_multiplexed_partial(
         self,
         i_start: int,
@@ -819,7 +960,6 @@ class SpikeGadgetsRawIO(BaseRawIO):
         ValueError
             _description_
         """
-        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())
@@ -1220,6 +1360,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         self._mask_channels_bits = full_io._mask_channels_bits
         self.multiplexed_channel_xml = full_io.multiplexed_channel_xml
         self._multiplexed_byte_start = full_io._multiplexed_byte_start
+        self._include_analog_multiplexed = full_io._include_analog_multiplexed
         self._mask_streams = full_io._mask_streams
         self.selected_streams = full_io.selected_streams
         self._generate_minimal_annotations()
@@ -1267,7 +1408,6 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         Overide of the superclass to use the last state of the previous file segment
         to define the first state of the current file segment.
         """
-        print("compute multiplex cache", self.filename)
         if channel_names is None:
             # read all multiplexed channels
             channel_names = list(self.multiplexed_channel_xml.keys())

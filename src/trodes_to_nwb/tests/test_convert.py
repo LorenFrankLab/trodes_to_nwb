@@ -1,12 +1,10 @@
 import os
-import shutil
 from pathlib import Path
-from unittest.mock import patch
+import shutil
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from pynwb import NWBHDF5IO
-
-from unittest.mock import MagicMock
 
 from trodes_to_nwb.convert import (
     check_file_timing,
@@ -140,6 +138,7 @@ def check_module_entries(test, reference):
     todo = [
         "camera_sample_frame_counts",
         # "video_files",
+        "analog",  # moved from processing to per-sensor acquisition TimeSeries
     ]  # TODO: known missing entries
     for entry in reference:
         if entry in todo:
@@ -205,40 +204,57 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
         atol=1.0 / 30000,
     )
 
-    # check analog data
-    # get index mapping of channels
-    id_order = nwbfile.processing["analog"]["analog"]["analog"].description.split(
-        "   "
-    )[:-1]
-    old_id_order = old_nwbfile.processing["analog"]["analog"][
-        "analog"
-    ].description.split("   ")[:-1]
-    # TODO check that all the same channels are present
+    # check analog data. Analog now lives as per-sensor TimeSeries in
+    # acquisition; the rec_to_nwb reference still stores a single combined
+    # processing["analog"] stream. ECU analog inputs stay at the full acquisition
+    # rate and must match the reference channel-for-channel. Headstage IMU sensors
+    # are decimated to their true ~100 Hz rate, so they are checked separately
+    # (presence + units), not against the 30 kHz held reference.
+    old_analog = old_nwbfile.processing["analog"]["analog"]["analog"]
     if (
-        old_nwbfile.processing["analog"]["analog"]["analog"].data.size > 0
+        old_analog.data.size > 0
     ):  # analog data not included in all old files. Shouldn't fail because we include it now
-        # compare analog data on channels present in rec conversion
-        if "timestamps" in old_id_order:
-            old_id_order.remove("timestamps")
-        index_order = [id_order.index(id) for id in old_id_order]
+        imu_names = {"accelerometer", "gyroscope", "magnetometer"}
+        # full-rate ECU streams: recombine raw int16 columns by channel name.
+        # Skip the ephys series and the decimated IMU (different timebases); analog
+        # streams encode their channel list in the description as "<desc>: a, b, c".
+        new_by_channel = {}
+        for name, ts in nwbfile.acquisition.items():
+            if name == "e-series" or name in imu_names or ": " not in ts.description:
+                continue
+            channel_names = ts.description.split(": ", 1)[1].split(", ")
+            for col, channel in enumerate(channel_names):
+                new_by_channel[channel] = ts.data[:, col]
 
-        assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
-        ) or truncated_size
-        analog_size = nwbfile.processing["analog"]["analog"]["analog"].data.shape[0]
-        # compare matching for first timepoint
-        assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data[0, :][index_order]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data[0, :]
-        ).all()
-        # compare one channel across all timepoints
-        assert (
-            nwbfile.processing["analog"]["analog"]["analog"].data[:, index_order[0]]
-            == old_nwbfile.processing["analog"]["analog"]["analog"].data[
-                :analog_size, 0
-            ]
-        ).all()
+        old_full_order = old_analog.description.split("   ")[:-1]
+        ecu_channels = [
+            ch for ch in old_full_order if ch != "timestamps" and ch in new_by_channel
+        ]
+        assert ecu_channels  # at least the ECU analog inputs are present
+        analog_size = len(new_by_channel[ecu_channels[0]])
+        assert (analog_size == old_analog.data.shape[0]) or truncated_size
+        # raw int16 values match the reference, per ECU channel, across all timepoints
+        for old_col, channel in enumerate(old_full_order):
+            if channel in new_by_channel:
+                assert (
+                    new_by_channel[channel][:analog_size]
+                    == old_analog.data[:analog_size, old_col]
+                ).all()
+
+        # headstage IMU sensors decimated to their true rate carry SI units. Tie
+        # presence to the reference so a regression that drops a sensor entirely
+        # fails here rather than passing vacuously.
+        if any(c.startswith("Headstage_Accel") for c in old_full_order):
+            assert "accelerometer" in nwbfile.acquisition
+            accel = nwbfile.acquisition["accelerometer"]
+            assert accel.unit == "m/s^2"
+            assert np.isclose(accel.conversion, 0.000061 * 9.80665)
+            assert accel.data.shape[0] < analog_size  # decimated, not held full-rate
+        if any(c.startswith("Headstage_Gyro") for c in old_full_order):
+            assert "gyroscope" in nwbfile.acquisition
+            gyro = nwbfile.acquisition["gyroscope"]
+            assert gyro.unit == "rad/s"
+            assert np.isclose(gyro.conversion, 0.061 * np.pi / 180)
 
     # compare dio data
     for dio_name in old_nwbfile.processing["behavior"]["behavioral_events"].time_series:

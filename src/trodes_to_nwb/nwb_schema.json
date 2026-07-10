@@ -656,6 +656,47 @@
                 }
             }
         },
+        "sensor_units": {
+            "$id": "#root/sensor_units",
+            "title": "sensor_units",
+            "type": "object",
+            "description": "Optional per-sensor-type unit-label overrides for analog acquisition TimeSeries. Each value overrides only the unit label, not the numeric conversion factor.",
+            "additionalProperties": {
+                "type": "string"
+            },
+            "properties": {
+                "accelerometer": {
+                    "type": "string",
+                    "examples": [
+                        "m/s^2"
+                    ]
+                },
+                "gyroscope": {
+                    "type": "string",
+                    "examples": [
+                        "rad/s"
+                    ]
+                },
+                "magnetometer": {
+                    "type": "string",
+                    "examples": [
+                        "unspecified"
+                    ]
+                },
+                "analog_input": {
+                    "type": "string",
+                    "examples": [
+                        "unspecified"
+                    ]
+                },
+                "analog_output": {
+                    "type": "string",
+                    "examples": [
+                        "unspecified"
+                    ]
+                }
+            }
+        },
         "times_period_multiplier": {
             "$id": "#root/times_period_multiplier",
             "title": "times_period_multiplier",

@@ -33,6 +33,22 @@ DEFAULT_CHUNK_TIME_DIM = 16384
 DEFAULT_CHUNK_MAX_CHANNEL_DIM = 32
 
 
+def concatenate_systime(neo_ios: list) -> np.ndarray:
+    """Concatenated per-packet system-clock timestamps across rec readers.
+
+    Uses the regressed sysClock when the device records one, otherwise derives
+    systime from the Trodes sample counter and sampling rate. Centralizes the
+    clock-source choice so callers that need timestamps without building a full
+    :class:`RecFileDataChunkIterator` (e.g. the analog headstage-only path) stay
+    consistent with the iterator's own derivation.
+    """
+    if neo_ios[0].sysClock_byte:
+        return np.concatenate([io.get_regressed_systime(0, None) for io in neo_ios])
+    return np.concatenate(
+        [io.get_systime_from_trodes_timestamps(0, None) for io in neo_ios]
+    )
+
+
 class RecFileDataChunkIterator(GenericDataChunkIterator):
     """Data chunk iterator for SpikeGadgets rec files."""
 
@@ -47,6 +63,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         interpolate_dropped_packets: bool = False,
         timestamps=None,  # Use this if you already have timestamps from intializing another rec iterator on the same files
         behavior_only: bool = False,
+        include_multiplexed: bool = True,
         **kwargs,
     ):
         """
@@ -71,6 +88,12 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             timestamps to use. Can provide efficiency improvements by skipping recalculating timestamps from rec files, by default None
         behavior_only : bool, optional
             indicate if file contains only behavior data (no e-phys), by default False
+        include_multiplexed : bool, optional
+            for analog ``ECU_analog`` streams, whether to append the sample-and-held
+            multiplexed headstage channels to each read (the legacy combined-stream
+            layout). When False, only the physical ECU analog channels are read and
+            the whole-file multiplexed array is never materialized. Has no effect on
+            non-analog streams. By default True.
         kwargs : dict
             additional arguments to pass to GenericDataChunkIterator
         """
@@ -79,12 +102,17 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         logger = logging.getLogger("convert")
         self.conversion = conversion
         self.is_analog = is_analog
+        self.include_multiplexed = include_multiplexed
         self.neo_io = [
             SpikeGadgetsRawIO(
                 filename=file, interpolate_dropped_packets=interpolate_dropped_packets
             )
             for file in rec_file_path
         ]  # get all streams for all files
+        # Set the multiplexed-append policy before the large-file split below, so
+        # each SpikeGadgetsRawIOPartial copies the correct value from its full_io.
+        for neo_io in self.neo_io:
+            neo_io._include_analog_multiplexed = include_multiplexed
         logger.info("Parsing headers")
         [neo_io.parse_header() for neo_io in self.neo_io]
         # TODO see what else spikeinterface does and whether it is necessary
@@ -142,7 +170,7 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
             stream_index=self.stream_index
         )
         self.n_multiplexed_channel = 0
-        if self.is_analog:
+        if self.is_analog and self.include_multiplexed:
             self.n_multiplexed_channel += len(self.neo_io[0].multiplexed_channel_xml)
 
         # order that the hw channels are in within the nwb table
@@ -201,19 +229,8 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         # NOTE: this will read all the timestamps from the rec file, which can be slow
         if timestamps is not None:
             self.timestamps = timestamps
-
-        elif self.neo_io[0].sysClock_byte:  # use this if have sysClock
-            self.timestamps = np.concatenate(
-                [neo_io.get_regressed_systime(0, None) for neo_io in self.neo_io]
-            )
-
-        else:  # use this to convert Trodes timestamps into systime based on sampling rate
-            self.timestamps = np.concatenate(
-                [
-                    neo_io.get_systime_from_trodes_timestamps(0, None)
-                    for neo_io in self.neo_io
-                ]
-            )
+        else:
+            self.timestamps = concatenate_systime(self.neo_io)
 
         logger.info("Reading timestamps COMPLETE")
         is_timestamps_sequential = np.all(np.diff(self.timestamps))
@@ -299,9 +316,13 @@ class RecFileDataChunkIterator(GenericDataChunkIterator):
         data = (np.concatenate(data) * self.conversion).astype("int16")
         # Handle the appended multiplex data
         if (
-            self.neo_io[0].header["signal_streams"][self.stream_index]["id"]
-            == "ECU_analog"
-        ) and self.is_analog:
+            (
+                self.neo_io[0].header["signal_streams"][self.stream_index]["id"]
+                == "ECU_analog"
+            )
+            and self.is_analog
+            and self.include_multiplexed
+        ):
             multiplex_keys = self.neo_io[0].multiplexed_channel_xml.keys()
             n_multiplex = len(multiplex_keys)
             n_analog = (
