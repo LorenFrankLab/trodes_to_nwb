@@ -59,6 +59,19 @@ def load_metadata(
     if not is_metadata_valid:
         logger = logging.getLogger("convert")
         logger.exception("".join(metadata_errors))
+    else:
+        # Schema is valid; check the cross-references the schema cannot express
+        # (issue #147) so a broken reference fails here -- early, before any
+        # conversion work and regardless of behavior_only -- with a clear message
+        # rather than crashing deep in conversion (e.g. an unmapped electrode
+        # group later hits a NoneType error).
+        reference_errors = (
+            trodes_to_nwb.metadata_validation.validate_metadata_references(metadata)
+        )
+        if reference_errors:
+            raise ValueError(
+                "Metadata reference error(s):\n  - " + "\n  - ".join(reference_errors)
+            )
     device_metadata = []
     for path in device_metadata_paths:
         with open(path) as stream:
