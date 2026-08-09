@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 from pynwb import NWBHDF5IO
 
 from unittest.mock import MagicMock
@@ -109,26 +110,41 @@ def test_convert_full_with_inspector_error(mocker):
         os.makedirs(video_directory)
 
     exclude_reconfig_yaml = str(data_path / "20230622_sample_metadataProbeReconfig.yml")
-    create_nwbs(
-        path=data_path,
-        device_metadata_paths=device_metadata,
-        output_dir=str(data_path),
-        fs_gui_dir=data_path,
-        n_workers=1,
-        query_expression=f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'",
-    )
+    query = f"animal == 'sample' and full_path != '{exclude_reconfig_yaml}'"
 
     output_file_path = data_path / "sample20230622.nwb"
-
     output_report_path = data_path / "sample20230622_nwbinspector_report.txt"
-    assert os.path.isfile(output_report_path)
 
+    # Removing the Subject makes NWB Inspector report a CRITICAL issue
+    # (check_subject_exists). With strict=True (the default) this must fail the
+    # conversion rather than silently writing a DANDI-invalid file.
+    with pytest.raises(ValueError, match="block DANDI upload"):
+        create_nwbs(
+            path=data_path,
+            device_metadata_paths=device_metadata,
+            output_dir=str(data_path),
+            fs_gui_dir=data_path,
+            n_workers=1,
+            query_expression=query,
+        )
+
+    # The inspector report is still written (before the gate raises) and records
+    # the critical issue.
+    assert os.path.isfile(output_report_path)
     with open(output_report_path) as f:
         assert "Importance.CRITICAL: check_subject_exists" in f.read()
 
-    # TODO check that the error is printed to stdout
-    # 0.0  Importance.CRITICAL: check_subject_exists - 'NWBFile' object at location '/'
-    #    Message: Subject is missing.
+    # Escape hatch: strict=False writes the file anyway (previous behavior).
+    create_nwbs(
+        path=data_path,
+        device_metadata_paths=get_included_device_metadata_paths(),
+        output_dir=str(data_path),
+        fs_gui_dir=data_path,
+        n_workers=1,
+        query_expression=query,
+        strict=False,
+    )
+    assert os.path.isfile(output_file_path)
 
     # cleanup
     os.remove(output_file_path)

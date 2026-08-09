@@ -149,8 +149,12 @@ def build_electrodes_from_config(
     Assumes each ``hwChan`` value is unique across the electrodes table; this is
     the invariant the whole remap relies on and it is enforced here.
     """
+    # strict=False preserves this tool's prior behavior: load_metadata now
+    # defaults to strict=True (raise on schema-invalid metadata), but the
+    # electrode-table correction does not depend on full schema validity, so
+    # don't newly hard-fail callers here.
     metadata, probe_metadata = convert_yaml.load_metadata(
-        metadata_path, probe_metadata_paths
+        metadata_path, probe_metadata_paths, strict=False
     )
 
     rec_header = convert_rec_header.read_header(trodesconf_path)

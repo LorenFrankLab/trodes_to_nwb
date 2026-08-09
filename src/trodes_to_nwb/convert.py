@@ -196,6 +196,7 @@ def create_nwbs(
     query_expression: str | None = None,
     disable_ptp: bool = False,
     behavior_only: bool = False,
+    strict: bool = True,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -227,6 +228,11 @@ def create_nwbs(
     behavior_only : bool, optional
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
+    strict : bool, optional
+        If True (default), stop the conversion of a session when its metadata
+        fails schema validation or when NWB Inspector reports DANDI-blocking
+        issues (ERROR/CRITICAL/pynwb-validation). If False, log those problems and write
+        the file anyway (the previous behavior).
 
     """
 
@@ -258,6 +264,7 @@ def create_nwbs(
                     fs_gui_dir,
                     disable_ptp,
                     behavior_only=behavior_only,
+                    strict=strict,
                 )
                 return True
             except Exception as e:
@@ -288,6 +295,7 @@ def create_nwbs(
                 fs_gui_dir,
                 disable_ptp,
                 behavior_only=behavior_only,
+                strict=strict,
             )
 
 
@@ -302,6 +310,7 @@ def _create_nwb(
     fs_gui_dir: str = "",
     disable_ptp: bool = False,
     behavior_only: bool = False,
+    strict: bool = True,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
@@ -340,7 +349,9 @@ def _create_nwb(
     logger.info(f"\tmetadata_filepath: {metadata_filepaths}")
 
     metadata, device_metadata = load_metadata(
-        metadata_filepaths, device_metadata_paths=device_metadata_paths
+        metadata_filepaths,
+        device_metadata_paths=device_metadata_paths,
+        strict=strict,
     )
 
     logger.info("CREATING HARDWARE MAPS")
@@ -431,16 +442,22 @@ def _create_nwb(
 
     # run NWB Inspector to validate file for best practices before upload to DANDI
     logger.info("RUNNING NWB INSPECTOR")
-    _inspect_nwb(output_path, logger)
+    _inspect_nwb(output_path, logger, strict=strict)
 
     logger.info("DONE")
 
     return output_path
 
 
-def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
+def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger, strict: bool = True):
     """Run the resulting NWB file through the NWB Inspector to ensure it passes validation checks
-    required for upload to the DANDI archive."""
+    required for upload to the DANDI archive.
+
+    If ``strict`` is True (default), raise a ``ValueError`` when the inspector
+    reports any DANDI-blocking issue (ERROR, CRITICAL, or pynwb-validation), so the
+    session is marked failed rather than silently producing an invalid file.
+    Best-practice violations and suggestions are always reported but never
+    raise."""
     # this may take some time
     messages = list(
         nwbinspector.inspect_nwbfile(
@@ -462,11 +479,18 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
         f"NWB Inspector report saved to {str(Path(report_file_path).absolute())}!"
     )
 
+    # PYNWB_VALIDATION was added in newer nwbinspector; include it if present so
+    # the console summary below and the DANDI-blocking gate further down agree on
+    # what counts as a blocking issue.
+    pynwb_validation = getattr(nwbinspector.Importance, "PYNWB_VALIDATION", None)
+
     flagged_error_levels = [
         nwbinspector.Importance.ERROR,
         nwbinspector.Importance.BEST_PRACTICE_VIOLATION,
         nwbinspector.Importance.CRITICAL,
     ]
+    if pynwb_validation is not None:
+        flagged_error_levels.append(pynwb_validation)
     critical_errors = list(
         filter(lambda x: x.importance in flagged_error_levels, messages)
     )
@@ -504,3 +528,24 @@ def _inspect_nwb(nwbfile_path: Path, logger: logging.Logger):
     print(
         f"Please see {str(Path(report_file_path).absolute())} for the full NWB Inspector report"
     )
+
+    # Gate the conversion on DANDI-blocking issues. ERROR and CRITICAL
+    # importances prevent DANDI upload, as does PYNWB_VALIDATION (an actual pynwb
+    # schema-validation failure, which inspect_nwbfile runs by default and which
+    # sits between ERROR and CRITICAL in severity). Best-practice
+    # violations/suggestions are reported above but never block. By default fail
+    # the session rather than silently reporting success on an invalid file.
+    gating_levels = [
+        nwbinspector.Importance.ERROR,
+        nwbinspector.Importance.CRITICAL,
+    ]
+    if pynwb_validation is not None:
+        gating_levels.append(pynwb_validation)
+    gating_messages = [m for m in messages if m.importance in gating_levels]
+    if gating_messages and strict:
+        raise ValueError(
+            f"NWB Inspector found {len(gating_messages)} issue(s) that block "
+            f"DANDI upload (ERROR/CRITICAL/pynwb-validation). See the report at "
+            f"{Path(report_file_path).absolute()}. Pass strict=False to "
+            "create_nwbs to write the file anyway."
+        )
