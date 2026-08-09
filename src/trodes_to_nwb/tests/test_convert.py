@@ -54,6 +54,24 @@ def test_get_included_device_metadata_paths():
     assert all(probe.exists() for probe in probes)
 
 
+def test_setup_logger_does_not_accumulate_handlers(tmp_path):
+    # setup_logger is called once per session with the same logger name; it must
+    # clear prior handlers so repeated calls don't duplicate log lines or leak
+    # open file handles.
+    import logging
+
+    name = "test_setup_logger_no_accumulation"
+    logfile = str(tmp_path / "convert.log")
+    logger = setup_logger(name, logfile)
+    n_handlers = len(logger.handlers)
+    assert n_handlers == 2  # one FileHandler + one StreamHandler
+
+    for _ in range(3):
+        again = setup_logger(name, logfile)
+    assert again is logger  # same named logger object
+    assert len(again.handlers) == n_handlers  # not accumulated across calls
+
+
 def test_convert_full():
     device_metadata = get_included_device_metadata_paths()
 

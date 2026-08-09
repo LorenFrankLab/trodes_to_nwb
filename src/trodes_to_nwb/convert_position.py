@@ -512,63 +512,6 @@ def correct_timestamps_for_camera_to_mcu_lag(
     return corrected_camera_systime
 
 
-def find_camera_dio_channel(nwb_file: NWBFile) -> np.ndarray:
-    """Finds the timestamp data for the camera DIO channel within an NWB file's
-    behavioral events. Assumes a single channel name contains "camera ticks".
-
-    Parameters
-    ----------
-    nwb_file : NWBFile
-        The NWBFile object to search within.
-
-    Returns
-    -------
-    np.ndarray, shape (n_camera_ticks,)
-        The timestamps (in seconds) of the camera DIO channel.
-
-    Raises
-    ------
-    ValueError
-        If zero or multiple DIO channels containing "camera ticks" are found,
-        or if the necessary processing modules/interfaces are missing.
-    KeyError
-        If 'behavior' processing module or 'behavioral_events' interface is missing.
-    """
-    try:
-        behavior_module = nwb_file.processing["behavior"]
-        behavior_module.data_interfaces["behavioral_events"]
-    except KeyError as e:
-        raise KeyError(
-            f"Missing required NWB structure: {e}. Ensure 'behavior' module and 'behavioral_events' interface exist."
-        ) from e
-
-    dio_camera_name = [
-        key
-        for key in nwb_file.processing["behavior"]
-        .data_interfaces["behavioral_events"]
-        .time_series
-        if "camera ticks" in key
-    ]
-    if len(dio_camera_name) > 1:
-        raise ValueError(
-            f"Multiple camera DIO channels found by name ('camera ticks'): {dio_camera_name}. "
-            "Processing supports only one such channel for non-PTP alignment."
-        )
-
-    if len(dio_camera_name) == 0:
-        raise ValueError(
-            "No camera DIO channel found by name containing 'camera ticks'. "
-            "Check channel names in NWB file or metadata YAML. Required for non-PTP alignment."
-        )
-
-    return (
-        nwb_file.processing["behavior"]
-        .data_interfaces["behavioral_events"]
-        .time_series[dio_camera_name[0]]
-        .timestamps
-    )
-
-
 def get_video_timestamps(video_timestamps_filepath: Path) -> np.ndarray:
     """Reads hardware timestamps from a .cameraHWSync file and returns them in seconds.
 
