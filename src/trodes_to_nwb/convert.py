@@ -6,6 +6,7 @@ and final NWB file writing and validation.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 
 import nwbinspector
@@ -196,6 +197,7 @@ def create_nwbs(
     query_expression: str | None = None,
     disable_ptp: bool = False,
     behavior_only: bool = False,
+    overwrite: bool = False,
 ):
     """
     Convert SpikeGadgets data to NWB format.
@@ -227,6 +229,22 @@ def create_nwbs(
     behavior_only : bool, optional
         Flag to indicate only behaviorsl data (no ephys) was collected in the rec
         files, by default False.
+    overwrite : bool, optional
+        If False (default), an existing output ``.nwb`` file is not
+        overwritten: ``create_nwbs`` raises ``FileExistsError`` (checked before
+        that session's conversion work runs, in both serial and parallel
+        modes). If True, replace any existing output file.
+
+    Raises
+    ------
+    PermissionError
+        If ``output_dir`` exists but is not writable. This is checked once up
+        front (before any conversion) with a create/delete probe, because
+        ``mkdir(exist_ok=True)`` succeeds on an existing read-only directory.
+    FileExistsError
+        If an output ``.nwb`` file already exists and ``overwrite`` is False.
+        In parallel mode (``n_workers > 1``) the other sessions still run; the
+        first failure is re-raised after they finish.
 
     """
 
@@ -241,6 +259,19 @@ def create_nwbs(
 
     if query_expression is not None:
         file_info = file_info.query(query_expression)
+
+    # Create the output directory up front and confirm it is writable, so a
+    # missing or non-writable path fails immediately instead of after a full
+    # (possibly hours-long) conversion. mkdir(exist_ok=True) alone is not
+    # enough: it succeeds on an existing read-only directory, so probe with a
+    # real create/delete.
+    output_dir = str(output_dir)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.NamedTemporaryFile(dir=output_dir, prefix=".write_probe_"):
+            pass
+    except OSError as e:
+        raise PermissionError(f"Output directory is not writable: {output_dir}") from e
 
     if n_workers > 1:
 
@@ -258,6 +289,7 @@ def create_nwbs(
                     fs_gui_dir,
                     disable_ptp,
                     behavior_only=behavior_only,
+                    overwrite=overwrite,
                 )
                 return True
             except Exception as e:
@@ -269,11 +301,19 @@ def create_nwbs(
         # run conversion for each animal and date
         argument_list = list(file_info.groupby(["date", "animal"]))
         futures = client.map(pass_func, argument_list)
-        # print out error results
+        # collect per-session results; a session that errored (e.g. refused an
+        # existing output) returns its exception instead of True
+        failures = []
         for args, future in zip(argument_list, futures, strict=True):
             result = future.result()
             if result is not True:
                 print(args, result)
+                failures.append(result)
+        # do not report success when a session failed: re-raise so the caller
+        # (and CI) sees the failure, matching the serial path which propagates
+        # it. Aggregated reporting across all failed sessions is added in #141.
+        if failures:
+            raise failures[0]
 
     else:
         for session, session_df in file_info.groupby(["date", "animal"]):
@@ -288,6 +328,7 @@ def create_nwbs(
                 fs_gui_dir,
                 disable_ptp,
                 behavior_only=behavior_only,
+                overwrite=overwrite,
             )
 
 
@@ -302,11 +343,20 @@ def _create_nwb(
     fs_gui_dir: str = "",
     disable_ptp: bool = False,
     behavior_only: bool = False,
+    overwrite: bool = False,
 ):
     # create loggers
     logger = setup_logger("convert", f"{session[1]}{session[0]}_convert.log")
 
     logger.info(f"Creating NWB file for session: {session}")
+    # Resolve the output path up front and fail fast if it already exists, so a
+    # whole conversion isn't run only to refuse to write at the very end.
+    output_path = Path(f"{output_dir}/{session[1]}{session[0]}.nwb")
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"Output file already exists: {output_path}. Pass overwrite=True to "
+            "create_nwbs to replace it."
+        )
     rec_filepaths = _get_file_paths(session_df, ".rec")
     logger.info(f"\trec_filepaths: {rec_filepaths}")
     check_file_timing(rec_filepaths, logger)
@@ -423,8 +473,7 @@ def _create_nwb(
             .data,
         )
 
-    # write file
-    output_path = Path(f"{output_dir}/{session[1]}{session[0]}.nwb")
+    # write file (output_path was resolved and existence-checked up front)
     logger.info(f"WRITING: {output_path}")
     with NWBHDF5IO(output_path, "w") as io:
         io.write(nwb_file)
