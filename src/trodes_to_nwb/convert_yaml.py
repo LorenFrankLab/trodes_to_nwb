@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 import pandas as pd
 import yaml
 from dateutil.tz import tzutc
-from hdmf.common.table import DynamicTable, VectorData
+from hdmf.common.table import DynamicTable
 from ndx_franklab_novela import (
     AssociatedFiles,
     CameraDevice,
@@ -359,7 +359,13 @@ def extend_electrode_table(nwbfile, electrode_df):
 
 
 def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
-    """Creates processing module for tasks and adds their metadata info
+    """Creates the ``tasks`` processing module and adds task metadata.
+
+    All tasks are stored as rows of a single ``tasks`` ``DynamicTable`` (one row
+    per task) with an explicit ``task_id`` column, rather than one table per
+    task. ``camera_id`` and ``task_epochs`` are ragged (indexed) columns since
+    they vary in length across tasks. Spyglass ingests this single multi-row
+    table (requires the spyglass#1278 layout; see #8).
 
     Parameters
     ----------
@@ -372,46 +378,49 @@ def add_tasks(nwbfile: NWBFile, metadata: dict) -> None:
     nwbfile.add_processing_module(
         ProcessingModule(name="tasks", description="Contains all tasks information")
     )
-    # loop through tasks in the metadata and add them
+    # tasks is optional metadata (schema default []). With no tasks there are no
+    # rows to write, and an empty DynamicTable cannot be serialized (HDMF cannot
+    # infer column dtypes), so leave the processing module empty.
+    if not metadata["tasks"]:
+        return
+    # Store every task as a row in a single DynamicTable (one table, not one per
+    # task) with an explicit id column. camera_id and task_epochs vary in length
+    # between tasks, so they are ragged (indexed) columns.
+    tasks_table = DynamicTable(
+        name="tasks",
+        description="Metadata for each task, one row per task",
+    )
+    tasks_table.add_column(name="task_id", description="the id number of the task")
+    tasks_table.add_column(name="task_name", description="the name of the task")
+    tasks_table.add_column(
+        name="task_description", description="a description of the task"
+    )
+    tasks_table.add_column(
+        name="camera_id",
+        description="the ID number(s) of the camera(s) used for video",
+        index=True,
+    )
+    tasks_table.add_column(
+        name="task_epochs",
+        description="the temporal epochs where the animal was exposed to this task",
+        index=True,
+    )
+    # NOTE: rec_to_nwb checked that this value existed and filed with none otherwise. Do we require this in yaml?
+    tasks_table.add_column(
+        name="task_environment",
+        description="the environment in which the animal performed the task",
+    )
+    # loop through tasks in the metadata and add a row for each
     for i, task_metadata in enumerate(metadata["tasks"]):
-        task_name = VectorData(
-            name="task_name",
-            description="the name of the task",
-            data=[task_metadata["task_name"]],
+        tasks_table.add_row(
+            task_id=i,
+            task_name=task_metadata["task_name"],
+            task_description=task_metadata["task_description"],
+            camera_id=[int(camera_id) for camera_id in task_metadata["camera_id"]],
+            task_epochs=[int(epoch) for epoch in task_metadata["task_epochs"]],
+            task_environment=task_metadata["task_environment"],
         )
-        task_description = VectorData(
-            name="task_description",
-            description="a description of the task",
-            data=[task_metadata["task_description"]],
-        )
-        camera_id = VectorData(
-            name="camera_id",
-            description="the ID number of the camera used for video",
-            data=[[int(camera_id) for camera_id in task_metadata["camera_id"]]],
-        )
-        task_epochs = VectorData(
-            name="task_epochs",
-            description="the temporal epochs where the animal was exposed to this task",
-            data=[[int(epoch) for epoch in task_metadata["task_epochs"]]],
-        )
-        # NOTE: rec_to_nwb checked that this value existed and filed with none otherwise. Do we require this in yaml?
-        task_environment = VectorData(
-            name="task_environment",
-            description="the environment in which the animal performed the task",
-            data=[task_metadata["task_environment"]],
-        )
-        task = DynamicTable(
-            name=f"task_{i}",  # NOTE: Do we want this name to match the descriptive name entered?
-            description="",
-            columns=[
-                task_name,
-                task_description,
-                camera_id,
-                task_epochs,
-                task_environment,
-            ],
-        )
-        nwbfile.processing["tasks"].add(task)
+    nwbfile.processing["tasks"].add(tasks_table)
 
 
 def add_associated_files(nwbfile: NWBFile, metadata: dict) -> None:
