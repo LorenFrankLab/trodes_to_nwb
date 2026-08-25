@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 
-from trodes_to_nwb.spike_gadgets_raw_io import InsertedMemmap, SpikeGadgetsRawIO
+from trodes_to_nwb.spike_gadgets_raw_io import (
+    InsertedMemmap,
+    SpikeGadgetsRawIO,
+    SpikeGadgetsRawIOPartial,
+)
 from trodes_to_nwb.tests.utils import data_path
 
 # --- Fixture for SpikeGadgetsRawIO instance ---
@@ -473,3 +477,104 @@ def test_produce_ephys_channel_ids():
     with pytest.raises(ValueError) as excinfo:
         SpikeGadgetsRawIO._produce_ephys_channel_ids(64, 63, 16, ["1", "2", "3"])
     assert "hw_channels_recorded must be provided" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# Tests for SpikeGadgetsRawIOPartial.get_systime_from_trodes_timestamps
+# ---------------------------------------------------------------------------
+
+
+class _MockPartial:
+    """
+    Minimal stand-in for SpikeGadgetsRawIOPartial used to unit-test the
+    overridden ``get_systime_from_trodes_timestamps`` method without needing
+    a real .rec file.
+    """
+
+    def __init__(self, timestamps_uint32, start_index, sampling_rate, system_time_ms):
+        self._timestamps = timestamps_uint32.astype(np.uint32)
+        self.start_index = start_index
+        self._sampling_rate = float(sampling_rate)
+        self.system_time_at_creation = str(system_time_ms)
+
+    def get_analogsignal_timestamps(self, i_start, i_stop):
+        if i_stop is None:
+            i_stop = len(self._timestamps)
+        return self._timestamps[i_start:i_stop]
+
+    # Directly borrow the implementation from the real class
+    get_systime_from_trodes_timestamps = (
+        SpikeGadgetsRawIOPartial.get_systime_from_trodes_timestamps.__wrapped__
+    )
+
+
+def test_partial_systime_first_partial_continuous():
+    """Timestamps from the first partial (start_index=0) equal the base result."""
+    sampling_rate = 30_000.0
+    system_time_ms = 1_575_309_000_000  # arbitrary 2019 Unix ms
+    n_samples = 100
+    # Timestamps start at 0 and increment by 1 per sample
+    ts = np.arange(n_samples, dtype=np.uint32)
+
+    mock = _MockPartial(ts, start_index=0, sampling_rate=sampling_rate,
+                        system_time_ms=system_time_ms)
+    result = mock.get_systime_from_trodes_timestamps(0, n_samples)
+
+    expected_start = system_time_ms / 1000.0
+    assert result[0] == pytest.approx(expected_start, abs=1e-6)
+    # Monotonically increasing
+    assert np.all(np.diff(result) > 0)
+
+
+def test_partial_systime_later_partial_continuous():
+    """
+    Timestamps from a later partial (start_index > 0) must be offset by
+    start_index / sampling_rate rather than resetting to system_time_at_creation.
+    """
+    sampling_rate = 30_000.0
+    system_time_ms = 1_575_309_000_000
+    chunk_size = 54_000_000   # 30 min at 30 kHz
+    start_index = chunk_size  # second partial starts here
+
+    # Timestamps within this partial start at start_index and increment by 1
+    ts = np.arange(start_index, start_index + 100, dtype=np.uint32)
+
+    mock = _MockPartial(ts, start_index=start_index, sampling_rate=sampling_rate,
+                        system_time_ms=system_time_ms)
+    result = mock.get_systime_from_trodes_timestamps(0, 100)
+
+    expected_start = system_time_ms / 1000.0 + start_index / sampling_rate
+    # Should NOT reset to system_time_at_creation but be offset correctly
+    assert result[0] == pytest.approx(expected_start, abs=1e-6)
+    assert np.all(np.diff(result) > 0)
+
+
+def test_partials_concatenate_monotonically():
+    """
+    Timestamps from two consecutive partials must form a continuous, monotonic
+    sequence when concatenated, reproducing the fix for the issue where
+    timestamps reset every 30 minutes.
+    """
+    sampling_rate = 30_000.0
+    system_time_ms = 1_575_309_000_000
+    chunk_size = 1000  # small value for the test
+
+    # Partial 1: samples 0 .. chunk_size-1
+    ts1 = np.arange(0, chunk_size, dtype=np.uint32)
+    partial1 = _MockPartial(ts1, start_index=0, sampling_rate=sampling_rate,
+                            system_time_ms=system_time_ms)
+    times1 = partial1.get_systime_from_trodes_timestamps(0, chunk_size)
+
+    # Partial 2: samples chunk_size .. 2*chunk_size-1
+    ts2 = np.arange(chunk_size, 2 * chunk_size, dtype=np.uint32)
+    partial2 = _MockPartial(ts2, start_index=chunk_size, sampling_rate=sampling_rate,
+                            system_time_ms=system_time_ms)
+    times2 = partial2.get_systime_from_trodes_timestamps(0, chunk_size)
+
+    combined = np.concatenate([times1, times2])
+    diffs = np.diff(combined)
+    assert np.all(diffs > 0), (
+        "Concatenated timestamps from two partials must be monotonically increasing. "
+        "This catches the regression where timestamps reset at the 30-min split boundary."
+    )
+

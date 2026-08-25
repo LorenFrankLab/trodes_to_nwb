@@ -1207,6 +1207,7 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # define some key information
         self.interpolate_index = None
         self.previous_multiplex_state = previous_multiplex_state
+        self.start_index = start_index
 
         # copy conserved information from parsed_header from full_io
         self.header = full_io.header
@@ -1322,6 +1323,43 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
                 initialize_stream_mask[i], data[i], analog_multiplexed_data[i - 1]
             )
         return analog_multiplexed_data
+
+    @functools.lru_cache(maxsize=1)
+    def get_systime_from_trodes_timestamps(
+        self, i_start: int, i_stop: int | None = None
+    ) -> np.ndarray:
+        """
+        Retrieves system time based on Trodes timestamps, corrected for this
+        partial's position within the full recording file.
+
+        Overrides the base class method to add an offset corresponding to
+        ``start_index`` so that timestamps are continuous across partial
+        boundaries rather than resetting to the file creation time at every
+        30-minute split point.
+
+        Parameters
+        ----------
+        i_start : int
+            The start index for the time range.
+        i_stop : int, optional
+            The stop index for the time range. If `None`, uses the full
+            available range of this partial.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the computed system time values.
+        """
+        MILLISECONDS_PER_SECOND = 1e3
+        trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
+        # Use the first timestamp of this partial as the local zero point,
+        # then add start_index to get the elapsed samples from the full file start.
+        initial_time = self.get_analogsignal_timestamps(0, 1)[0]
+        elapsed_samples_in_partial = (trodestime - initial_time).astype(np.float64)
+        elapsed_samples_from_file_start = elapsed_samples_in_partial + self.start_index
+        return elapsed_samples_from_file_start / self._sampling_rate + int(
+            self.system_time_at_creation
+        ) / MILLISECONDS_PER_SECOND
 
     def get_digitalsignal(
         self, stream_id: int, channel_id: int
