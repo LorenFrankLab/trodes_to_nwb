@@ -1207,7 +1207,27 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         # define some key information
         self.interpolate_index = None
         self.previous_multiplex_state = previous_multiplex_state
-        self.start_index = start_index
+        # Anchor this partial to the FULL recording's first Trodes timestamp so
+        # get_systime_from_trodes_timestamps stays continuous across split
+        # boundaries instead of resetting to system_time_at_creation at each
+        # partial. Read it from the underlying full raw memmap's first row: the
+        # first timestamp is not an inserted packet, so this is
+        # interpolation-independent and O(1).
+        _full_raw_memmap = (
+            full_io._raw_memmap._raw_memmap
+            if isinstance(full_io._raw_memmap, InsertedMemmap)
+            else full_io._raw_memmap
+        )
+        self.full_initial_trodestime = (
+            _full_raw_memmap[
+                0:1,
+                full_io._timestamp_byte : full_io._timestamp_byte
+                + TIMESTAMP_SIZE_BYTES,
+            ]
+            .view("uint8")
+            .reshape(-1, 4)
+            .view("uint32")[0, 0]
+        )
 
         # copy conserved information from parsed_header from full_io
         self.header = full_io.header
@@ -1332,10 +1352,15 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         Retrieves system time based on Trodes timestamps, corrected for this
         partial's position within the full recording file.
 
-        Overrides the base class method to add an offset corresponding to
-        ``start_index`` so that timestamps are continuous across partial
-        boundaries rather than resetting to the file creation time at every
-        30-minute split point.
+        Overrides the base-class method, which anchors elapsed time to the
+        first sample of the object's own (here: partial) memmap and so restarts
+        each partial at ``system_time_at_creation``. This override instead
+        anchors to the full recording's first Trodes timestamp
+        (``full_initial_trodestime``), keeping system time continuous across
+        partial boundaries and giving the same timestamps as the unsplit
+        full-file computation for the same samples. The offset comes from
+        Trodes-counter differences (which account for dropped packets), not
+        the partial's raw-row offset.
 
         Parameters
         ----------
@@ -1352,14 +1377,9 @@ class SpikeGadgetsRawIOPartial(SpikeGadgetsRawIO):
         """
         MILLISECONDS_PER_SECOND = 1e3
         trodestime = self.get_analogsignal_timestamps(i_start, i_stop)
-        # Use the first timestamp of this partial as the local zero point,
-        # then add start_index to get the elapsed samples from the full file start.
-        initial_time = self.get_analogsignal_timestamps(0, 1)[0]
-        elapsed_samples_in_partial = (trodestime - initial_time).astype(np.float64)
-        elapsed_samples_from_file_start = elapsed_samples_in_partial + self.start_index
-        return elapsed_samples_from_file_start / self._sampling_rate + int(
-            self.system_time_at_creation
-        ) / MILLISECONDS_PER_SECOND
+        return (trodestime - self.full_initial_trodestime) * (
+            1.0 / self._sampling_rate
+        ) + int(self.system_time_at_creation) / MILLISECONDS_PER_SECOND
 
     def get_digitalsignal(
         self, stream_id: int, channel_id: int
