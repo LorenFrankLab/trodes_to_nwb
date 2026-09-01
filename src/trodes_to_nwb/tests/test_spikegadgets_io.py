@@ -496,7 +496,9 @@ class _MockPartial:
         self.start_index = start_index
         self._sampling_rate = float(sampling_rate)
         self.system_time_at_creation = str(system_time_ms)
-        self.full_initial_trodestime = self._timestamps[0]  # First timestamp in this partial
+        self.full_initial_trodestime = self._timestamps[
+            0
+        ]  # First timestamp in this partial
 
     def get_analogsignal_timestamps(self, i_start, i_stop):
         if i_stop is None:
@@ -517,8 +519,9 @@ def test_partial_systime_first_partial_continuous():
     # Timestamps start at 0 and increment by 1 per sample
     ts = np.arange(n_samples, dtype=np.uint32)
 
-    mock = _MockPartial(ts, start_index=0, sampling_rate=sampling_rate,
-                        system_time_ms=system_time_ms)
+    mock = _MockPartial(
+        ts, start_index=0, sampling_rate=sampling_rate, system_time_ms=system_time_ms
+    )
     result = mock.get_systime_from_trodes_timestamps(0, n_samples)
 
     expected_start = system_time_ms / 1000.0
@@ -534,14 +537,18 @@ def test_partial_systime_later_partial_continuous():
     """
     sampling_rate = 30_000.0
     system_time_ms = 1_575_309_000_000
-    chunk_size = 54_000_000   # 30 min at 30 kHz
+    chunk_size = 54_000_000  # 30 min at 30 kHz
     start_index = chunk_size  # second partial starts here
 
     # Timestamps within this partial start at start_index and increment by 1
     ts = np.arange(start_index, start_index + 100, dtype=np.uint32)
 
-    mock = _MockPartial(ts, start_index=start_index, sampling_rate=sampling_rate,
-                        system_time_ms=system_time_ms)
+    mock = _MockPartial(
+        ts,
+        start_index=start_index,
+        sampling_rate=sampling_rate,
+        system_time_ms=system_time_ms,
+    )
     result = mock.get_systime_from_trodes_timestamps(0, 100)
 
     expected_start = system_time_ms / 1000.0 + start_index / sampling_rate
@@ -562,14 +569,19 @@ def test_partials_concatenate_monotonically():
 
     # Partial 1: samples 0 .. chunk_size-1
     ts1 = np.arange(0, chunk_size, dtype=np.uint32)
-    partial1 = _MockPartial(ts1, start_index=0, sampling_rate=sampling_rate,
-                            system_time_ms=system_time_ms)
+    partial1 = _MockPartial(
+        ts1, start_index=0, sampling_rate=sampling_rate, system_time_ms=system_time_ms
+    )
     times1 = partial1.get_systime_from_trodes_timestamps(0, chunk_size)
 
     # Partial 2: samples chunk_size .. 2*chunk_size-1
     ts2 = np.arange(chunk_size, 2 * chunk_size, dtype=np.uint32)
-    partial2 = _MockPartial(ts2, start_index=chunk_size, sampling_rate=sampling_rate,
-                            system_time_ms=system_time_ms)
+    partial2 = _MockPartial(
+        ts2,
+        start_index=chunk_size,
+        sampling_rate=sampling_rate,
+        system_time_ms=system_time_ms,
+    )
     times2 = partial2.get_systime_from_trodes_timestamps(0, chunk_size)
 
     combined = np.concatenate([times1, times2])
@@ -578,4 +590,3 @@ def test_partials_concatenate_monotonically():
         "Concatenated timestamps from two partials must be monotonically increasing. "
         "This catches the regression where timestamps reset at the 30-min split boundary."
     )
-
