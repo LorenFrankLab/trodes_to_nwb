@@ -125,6 +125,7 @@ jobs:
         run: |
           rm -rf "${{ env.DOWNLOAD_DIR }}/minirec_sleap_items" \
                  "${{ env.DOWNLOAD_DIR }}/minirec_dlc_items"
+          rm -f "${{ env.DOWNLOAD_DIR }}/small_robot_3_frame.mp4"
       - name: Show downloaded files after cache/download
         run: |
           echo "Listing contents of DOWNLOAD_DIR:"
