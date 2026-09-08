@@ -498,7 +498,7 @@ class _MockPartial:
         self.system_time_at_creation = str(system_time_ms)
         self.full_initial_trodestime = self._timestamps[
             0
-        ]  # First timestamp in this partial
+        ] - self.start_index # First timestamp in this partial
 
     def get_analogsignal_timestamps(self, i_start, i_stop):
         if i_stop is None:
