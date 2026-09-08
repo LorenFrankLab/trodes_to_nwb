@@ -121,6 +121,11 @@ jobs:
           mkdir -p ${{ env.DOWNLOAD_DIR }}
           wget --recursive --no-verbose --no-host-directories --no-directories --user $UCSF_BOX_USER --password $UCSF_BOX_TOKEN -P ${{ env.DOWNLOAD_DIR }} $WEBSITE
           tree ${{ env.DOWNLOAD_DIR }}
+      - name: Remove spyglass files from test data
+        run: |
+          rm -rf "${{ env.DOWNLOAD_DIR }}/minirec_sleap_items" \
+                 "${{ env.DOWNLOAD_DIR }}/minirec_dlc_items"
+          rm -f "${{ env.DOWNLOAD_DIR }}/small_robot_3_frame.mp4"
       - name: Show downloaded files after cache/download
         run: |
           echo "Listing contents of DOWNLOAD_DIR:"
