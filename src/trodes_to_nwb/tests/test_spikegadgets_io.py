@@ -496,9 +496,9 @@ class _MockPartial:
         self.start_index = start_index
         self._sampling_rate = float(sampling_rate)
         self.system_time_at_creation = str(system_time_ms)
-        self.full_initial_trodestime = self._timestamps[
-            0
-        ] - self.start_index # First timestamp in this partial
+        self.full_initial_trodestime = (
+            self._timestamps[0] - self.start_index
+        )  # First timestamp in this partial
 
     def get_analogsignal_timestamps(self, i_start, i_stop):
         if i_stop is None:
@@ -591,6 +591,7 @@ def test_partials_concatenate_monotonically():
         "This catches the regression where timestamps reset at the 30-min split boundary."
     )
 
+
 def test_partials_monotonic_across_dropped_packets():
     """
     Regression for #199 with dropped packets. The offset must come from the
@@ -610,19 +611,29 @@ def test_partials_monotonic_across_dropped_packets():
     full = np.concatenate([part1, part2]).astype(np.uint32)
     file_first = full[0]
 
-    p1 = _MockPartial(full[:1000], start_index=0, sampling_rate=sampling_rate,
-                      system_time_ms=system_time_ms)
-    p2 = _MockPartial(full[1000:], start_index=1000, sampling_rate=sampling_rate,
-                      system_time_ms=system_time_ms)
+    p1 = _MockPartial(
+        full[:1000],
+        start_index=0,
+        sampling_rate=sampling_rate,
+        system_time_ms=system_time_ms,
+    )
+    p2 = _MockPartial(
+        full[1000:],
+        start_index=1000,
+        sampling_rate=sampling_rate,
+        system_time_ms=system_time_ms,
+    )
     # Both partials share the FULL file's first counter value as the anchor
     # (what the real SpikeGadgetsRawIOPartial reads from the full raw memmap).
     p1.full_initial_trodestime = file_first
     p2.full_initial_trodestime = file_first
 
-    combined = np.concatenate([
-        p1.get_systime_from_trodes_timestamps(0, 1000),
-        p2.get_systime_from_trodes_timestamps(0, 1000),
-    ])
+    combined = np.concatenate(
+        [
+            p1.get_systime_from_trodes_timestamps(0, 1000),
+            p2.get_systime_from_trodes_timestamps(0, 1000),
+        ]
+    )
     expected = (full - file_first) * (1.0 / sampling_rate) + system_time_ms / 1000.0
     np.testing.assert_array_equal(combined, expected)
     assert np.all(np.diff(combined) > 0)
@@ -641,7 +652,11 @@ def test_real_partial_matches_full_file(raw_io):
         pytest.skip("Sample file too small to split meaningfully")
 
     full = raw_io.get_systime_from_trodes_timestamps(0, n_rows)
-    bounds = [(0, n_rows // 3), (n_rows // 3, 2 * n_rows // 3), (2 * n_rows // 3, n_rows)]
+    bounds = [
+        (0, n_rows // 3),
+        (n_rows // 3, 2 * n_rows // 3),
+        (2 * n_rows // 3, n_rows),
+    ]
     parts = [
         SpikeGadgetsRawIOPartial(
             raw_io, start_index=start, stop_index=stop
