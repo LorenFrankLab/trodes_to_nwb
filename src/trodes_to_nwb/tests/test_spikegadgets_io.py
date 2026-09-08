@@ -590,3 +590,65 @@ def test_partials_concatenate_monotonically():
         "Concatenated timestamps from two partials must be monotonically increasing. "
         "This catches the regression where timestamps reset at the 30-min split boundary."
     )
+
+def test_partials_monotonic_across_dropped_packets():
+    """
+    Regression for #199 with dropped packets. The offset must come from the
+    Trodes-counter difference, not the raw row count: with drops, the row count
+    undercounts elapsed time and the old start_index offset stepped BACKWARD at
+    the boundary. Anchoring every partial to the full file's first counter value
+    keeps the concatenation strictly increasing and byte-identical to the
+    unsplit full-file result.
+    """
+    sampling_rate = 30_000.0
+    system_time_ms = 1_575_309_000_000
+
+    # Full-file counter with one dropped packet in each partial (counter += 2),
+    # so row count (1000/partial) no longer equals the elapsed counter span.
+    part1 = np.concatenate([np.arange(0, 500), np.arange(501, 1001)])
+    part2 = np.concatenate([np.arange(1002, 1502), np.arange(1503, 2003)])
+    full = np.concatenate([part1, part2]).astype(np.uint32)
+    file_first = full[0]
+
+    p1 = _MockPartial(full[:1000], start_index=0, sampling_rate=sampling_rate,
+                      system_time_ms=system_time_ms)
+    p2 = _MockPartial(full[1000:], start_index=1000, sampling_rate=sampling_rate,
+                      system_time_ms=system_time_ms)
+    # Both partials share the FULL file's first counter value as the anchor
+    # (what the real SpikeGadgetsRawIOPartial reads from the full raw memmap).
+    p1.full_initial_trodestime = file_first
+    p2.full_initial_trodestime = file_first
+
+    combined = np.concatenate([
+        p1.get_systime_from_trodes_timestamps(0, 1000),
+        p2.get_systime_from_trodes_timestamps(0, 1000),
+    ])
+    expected = (full - file_first) * (1.0 / sampling_rate) + system_time_ms / 1000.0
+    np.testing.assert_array_equal(combined, expected)
+    assert np.all(np.diff(combined) > 0)
+
+
+def test_real_partial_matches_full_file(raw_io):
+    """
+    End-to-end on a real .rec file: splitting into partials must reproduce the
+    full-file get_systime_from_trodes_timestamps and stay monotonic across every
+    boundary. Exercises the real anchor capture (full_initial_trodestime read
+    from the raw memmap) and memmap slicing that the mock cannot -- the strongest
+    oracle for #199. Skips automatically when the sample data is absent.
+    """
+    n_rows = raw_io._raw_memmap.shape[0]
+    if n_rows < 30:
+        pytest.skip("Sample file too small to split meaningfully")
+
+    full = raw_io.get_systime_from_trodes_timestamps(0, n_rows)
+    bounds = [(0, n_rows // 3), (n_rows // 3, 2 * n_rows // 3), (2 * n_rows // 3, n_rows)]
+    parts = [
+        SpikeGadgetsRawIOPartial(
+            raw_io, start_index=start, stop_index=stop
+        ).get_systime_from_trodes_timestamps(0, stop - start)
+        for start, stop in bounds
+    ]
+    combined = np.concatenate(parts)
+
+    np.testing.assert_array_equal(combined, full)
+    assert np.all(np.diff(combined) > 0)
