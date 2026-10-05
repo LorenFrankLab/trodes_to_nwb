@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from pynwb import NWBFile, TimeSeries
-from pynwb.behavior import BehavioralEvents, Position
+from pynwb.behavior import Position
 from pynwb.image import ImageSeries
 from scipy.ndimage import label
 from scipy.stats import linregress
@@ -1234,12 +1234,6 @@ def add_associated_video_files(
     ValueError
         If no cameraHWSync file is found for a given epoch.
     """
-    # make processing module for video files
-    nwb_file.create_processing_module(
-        name="video_files", description="Contains all associated video files data"
-    )
-    # make a behavioral Event object to hold videos
-    video = BehavioralEvents(name="video")
     # add the video file data
     for video_metadata in metadata["associated_video_files"]:
         epoch = video_metadata["task_epochs"][0]
@@ -1286,7 +1280,7 @@ def add_associated_video_files(
         else:
             video_file_name = copy_video_to_directory(video_path, video_directory)
 
-        video.add_timeseries(
+        nwb_file.add_acquisition(
             ImageSeries(
                 device=nwb_file.devices[
                     "camera_device " + str(video_metadata["camera_id"])
@@ -1301,5 +1295,3 @@ def add_associated_video_files(
         )
     if video_metadata is None:
         raise KeyError(f"Missing video metadata for epoch {epoch}")
-
-    nwb_file.processing["video_files"].add(video)

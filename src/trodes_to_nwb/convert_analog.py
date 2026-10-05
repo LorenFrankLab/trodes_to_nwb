@@ -88,7 +88,7 @@ def add_analog_data(
     nwbfile.create_processing_module(
         name="analog", description="Contains all analog data"
     )
-    analog_events = pynwb.behavior.BehavioralEvents(name="analog")
+    analog_events = pynwb.behavior.BehavioralTimeSeries(name="analog")
     analog_events.add_timeseries(
         pynwb.TimeSeries(
             name="analog",
