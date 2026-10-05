@@ -380,15 +380,10 @@ def test_add_associated_video_files():
     add_associated_video_files(
         nwbfile, metadata, session_df, video_directory=str(video_directory)
     )
-    assert "video_files" in nwbfile.processing
-    assert "video" in nwbfile.processing["video_files"].data_interfaces
-    assert len(nwbfile.processing["video_files"]["video"].time_series) == 2
+    assert len(nwbfile.acquisition) == 2
 
-    for video, video_meta in zip(
-        nwbfile.processing["video_files"]["video"].time_series,
-        metadata["associated_video_files"],
-    ):
-        video = nwbfile.processing["video_files"]["video"][video]
+    for video_meta in metadata["associated_video_files"]:
+        video = nwbfile.acquisition[video_meta["name"]]
         assert video.name == video_meta["name"]
         assert video.format == "external"
         assert video.timestamps_unit == "seconds"
