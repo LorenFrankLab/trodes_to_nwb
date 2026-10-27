@@ -1,12 +1,12 @@
 """Module for converting Digital Input/Output (DIO) event data (state changes)
-from Trodes .rec files into NWB TimeSeries within a BehavioralEvents container.
+from Trodes .rec files into NWB TimeSeries within a BehavioralTimeSeries container.
 """
 
 import logging
 
 import numpy as np
 from pynwb import NWBFile, TimeSeries
-from pynwb.behavior import BehavioralEvents
+from pynwb.behavior import BehavioralTimeSeries
 
 from .convert_rec_header import read_header
 from .spike_gadgets_raw_io import SpikeGadgetsRawIO
@@ -95,8 +95,8 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
             name="behavior", description="Contains all behavior-related data"
         )
 
-    # Make BehavioralEvents object to hold DIO data
-    beh_events = BehavioralEvents(name="behavioral_events")
+    # Make BehavioralTimeSeries object to hold DIO data
+    beh_events = BehavioralTimeSeries(name="behavioral_events")
 
     # Map hardware event name (encoded in `description` in metadata YAML)
     # to a human-readable name (encoded in `name`)
@@ -161,5 +161,5 @@ def add_dios(nwbfile: NWBFile, recfile: list[str], metadata: dict) -> None:
         )
         beh_events.add_timeseries(ts)
 
-    # Add the BehavioralEvents object to the file
+    # Add the BehavioralTimeSeries object to the file
     nwbfile.processing["behavior"].add(beh_events)
