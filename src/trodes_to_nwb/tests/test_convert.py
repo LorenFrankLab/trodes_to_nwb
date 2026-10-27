@@ -74,7 +74,7 @@ def test_convert_full():
     output_file_path = data_path / "sample20230622.nwb"
     assert output_file_path.exists()
 
-    rec_to_nwb_file = data_path / "minirec20230622_.nwb"
+    rec_to_nwb_file = data_path / "minirec20230622.nwb"
     with NWBHDF5IO(output_file_path) as io:
         nwbfile = io.read()
         with NWBHDF5IO(rec_to_nwb_file) as io2:
@@ -139,7 +139,7 @@ def test_convert_full_with_inspector_error(mocker):
 def check_module_entries(test, reference):
     todo = [
         "camera_sample_frame_counts",
-        # "video_files",
+        "video_files", # Moved locations in (#690)
     ]  # TODO: known missing entries
     for entry in reference:
         if entry in todo:
@@ -292,6 +292,22 @@ def compare_nwbfiles(nwbfile, old_nwbfile, truncated_size=False):
                 break
         assert validated, f"Could not find matching series for {series}"
 
+    # check video data
+    for video_name in old_nwbfile.processing["video_files"]['video'].time_series:
+        old_video = old_nwbfile.processing["video_files"]['video'][video_name]
+        new_name = video_name.replace("minirec", "sample")
+        new_name = new_name.replace("s1","a1")
+        new_name = new_name.replace("s2","a1")
+        if new_name not in nwbfile.acquisition:
+            raise AssertionError(f"Video {new_name} not found in new NWB file")
+        current_video = nwbfile.acquisition[new_name]
+        # check that timeseries match
+        assert np.allclose(
+            current_video.timestamps[:],
+            old_video.timestamps[:],
+            rtol=0,
+            atol=1.0 / 30,
+        )
 
 def _make_mock_io(start_ns, end_ns, filename="file.rec", sys_clock=True):
     """Helper to create a mock SpikeGadgetsRawIO-like object."""
